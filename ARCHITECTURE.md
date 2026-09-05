@@ -54,18 +54,21 @@ stib-viz/
 │   │   ├── fetch.py              GTFS download with ETag and digest
 │   │   ├── gtfs.py               table reading and validation
 │   │   ├── service_day.py        date → active services → trips of the 04:00-04:00 day
+│   │   ├── geometry.py           local projection in metres, distances, Douglas-Peucker
 │   │   ├── shapes.py             shapes: cumulative distance, stop projection, simplification
 │   │   ├── vehicles.py           trip chaining by block_id, layovers, deadhead cuts
 │   │   ├── trajectories.py       (lon, lat, t) sampling along shapes
 │   │   ├── slicing.py            hour slicing with asymmetric overlap
 │   │   ├── network.py            network layer, stop dictionary, v2 lookup table
 │   │   ├── stats.py              per-minute series, kilometres, routes
-│   │   ├── encode.py             binary slices, stop files and manifest writing
-│   │   └── checks.py             quality checks, thresholds, per-object anomalies
+│   │   ├── encode.py             binary slices, stop files, vehicles and manifest writing
+│   │   ├── checks.py             quality checks, thresholds, per-object anomalies
+│   │   └── build.py              one day from feed to checked bundle, steps 3 to 13 in order
+│   ├── tools/make_extract.py     cuts the test extract out of the full feed
 │   └── tests/
-│       ├── fixtures/gtfs-extract/   real three-route extract (one metro, one tram whose shape
-│       │                            passes close to itself, one Noctis), under 500 KB, with its
-│       │                            versioned expected values
+│       ├── fixtures/gtfs-extract/   real three-route extract (metro 1, tram 7, Noctis N06 on
+│       │                            Friday 11 September 2026), under 500 KB, with its expected
+│       │                            values in expected.json
 │       └── …                        minimal synthetic fixtures and unit tests
 ├── web/                          Vite, strict TypeScript, pnpm
 │   ├── index.html
@@ -111,7 +114,7 @@ pipeline code.
 | 1. Download | `fetch` | URL → `gtfs.zip`, ETag, SHA-256 | Conditional `If-None-Match` request; the archive is validated (size, expected entries, no path escaping the destination directory) |
 | 2. Read and validate | `gtfs` | archive → typed tables | Required files and columns, validity range covering the requested dates, `HH:MM:SS` times where `HH` may exceed 24 |
 | 3. Service day | `service_day` | date → service ids → trips | `calendar` plus `calendar_dates` exceptions. Rule: a trip belongs to the day when its first departure falls in `[04:00, 28:00)` in GTFS time of that date. Its trajectory is written through to arrival; any part beyond 28:00 is truncated by interpolation and counted as an anomaly. A trip departing before 04:00 is dropped and counted. The previous day is never loaded: by this rule, Friday's Noctis trips belong to Friday's span |
-| 4. Shapes | `shapes` | `shapes.txt` → polylines in metres, cumulative distance | Local projection in metres (Belgian Lambert 72 or an equirectangular projection centred on Brussels). Cumulative distance is computed on the original geometry and checked against `shape_dist_traveled` from `shapes.txt` |
+| 4. Shapes | `shapes` | `shapes.txt` → polylines in metres, cumulative distance | Local equirectangular projection in metres centred on the feed (`geometry`), exact to the centimetre at Brussels scale; no shapely or pyproj. Cumulative distance is computed on the original geometry and checked against `shape_dist_traveled` from `shapes.txt` |
 | 5. Stop projection | `shapes` | (original shape, stop sequence) → distance along the shape for each stop | The STIB feed has no `shape_dist_traveled` in `stop_times`. Projection onto the **original** shape, constrained to increase along it; stop-to-shape offset measured and checked |
 | 6. Simplification | `shapes` | original shape → subset of vertices | Douglas-Peucker keeps only original vertices, which retain their original distances. Between two kept vertices, position interpolates along the chord in proportion to the original distances. Kilometres and times are always computed from the original distances, never from chord lengths |
 | 7. Vehicles | `vehicles` | trips → trip sequences per `block_id` | The terminus layover is not emitted as a segment: the path stops at arrival and the next one starts at departure; the idle head is drawn by the point layer (section 6.3). If the next trip starts more than 100 m from the arrival point it is a deadhead move: nothing is drawn between the two. A trip without a `block_id` forms a vehicle of its own; a `block_id` whose trips overlap in time is split into two vehicles and counted as an anomaly |
@@ -154,10 +157,12 @@ Per-object anomalies:
 5. Time overlap inside a `block_id`.
 6. Deadhead move detected (informational only, never counted as an anomaly).
 
-The values measured for Wednesday 9 September 2026 (18,784 trips, 1,299 vehicles, peak of 776
-vehicles at 17:03) are a **manual acceptance criterion for milestone M1**, not a CI test: they
-expire with the feed on 27 September 2026. CI relies on the versioned extract and its own
-expected values.
+The values measured for Wednesday 9 September 2026 (18,784 trips, 1,299 vehicles, peak of 752
+vehicles at 17:03 counted at the top of the minute, see SCOPE.md section 3) are a **manual
+acceptance criterion for milestone M1**, not a CI test: they expire with the feed on
+27 September 2026. They were reproduced on 5 September 2026: 66 slices, 30.5 MB, largest slice
+1.29 MB, manifest 103 KB, median stop offset 1.07 m, no anomaly. CI relies on the versioned
+extract and its own expected values.
 
 ### 4.4 Command line interface
 
@@ -189,7 +194,8 @@ dist/data/
 ├── network/<feed-version>.json      network layer and stop dictionary, shared
 ├── lookup/<feed-version>.json       v2 lookup table, not read by the v1 site
 └── 2026-09-09/
-    ├── manifest.json                statistics, routes, vehicles, slice index
+    ├── manifest.json                statistics, routes, slice index
+    ├── vehicles.json                vehicles and their trips, read when the panel opens
     ├── slices/
     │   ├── 04-metro.bin  04-tram.bin  04-bus.bin
     │   ├── 05-metro.bin  ...
@@ -241,11 +247,8 @@ Budget: 300 KB at most. It carries neither geometry nor stops.
     { "id": "1", "name": "1", "mode": "metro", "color": "B5378C", "text_color": "FFFFFF",
       "long_name": "GARE DE L'OUEST - STOCKEL" }
   ],
-  "vehicles": [
-    { "block": "10474606", "trips": [
-      { "route_idx": 12, "headsign": "BRUSSELS CITY", "start": 4080, "end": 6060 }
-    ] }
-  ],
+  "vehicles_file": "vehicles.json",
+  "vehicle_count": 1299,
   "slices": [
     { "hour": 4, "mode": "metro", "path": "slices/04-metro.bin", "bytes": 81240, "vertices": 6770, "paths": 41 }
   ],
@@ -256,8 +259,13 @@ Budget: 300 KB at most. It carries neither geometry nor stops.
 
 Each `per_minute` series holds 1,440 values, from 04:00 to 03:59 the next morning; `vehicles` is
 an instantaneous count, `departures` and `km` are cumulative since 04:00. The interface counters
-and the activity curve read straight from these series. Times in `vehicles[].trips` are seconds
-since 04:00; they are enough to place the head of a vehicle during its layover.
+and the activity curve read straight from these series. The Wednesday manifest measures 103 KB.
+
+`vehicles.json` lists the vehicles in the order of their index in the slices, each with its
+`block` and its `trips` (`route_idx`, `headsign`, `start`, `end` in seconds since 04:00,
+`from_layover`). About 1.7 MB for a Wednesday; the site reads it the first time a vehicle panel
+opens, not for the first frame. Trip times are enough to place the head of a vehicle during its
+layover.
 
 ### 5.4 Binary slice `HH-mode.bin`
 
@@ -478,7 +486,9 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Deadhead moves cut | Straight line between termini | No fictional line across the city |
 | TripsLayer + ScatterplotLayer | A hand-written WebGL layer | Proven, trails for free, simple click selection |
 | No UI framework | React, Svelte | About a dozen simple components; minimal bundle |
-| pandas + numpy + shapely + pyproj | polars, GeoPandas | Already validated against the full feed in about thirty seconds |
+| pandas + numpy only, local equirectangular projection | shapely, pyproj, Belgian Lambert 72, polars, GeoPandas | Exact to the centimetre at Brussels scale, two fewer dependencies, a Wednesday builds in about fifteen seconds |
+| Vehicles in `vehicles.json`, outside the manifest | Vehicles inside the manifest | The list weighs 1.7 MB and is read on click; the manifest stays at 103 KB, under its 300 KB budget |
+| Vertex times at least 0.05 s apart, Float32 pushed to the next representable value when equal | 1 ms nudge | Float32 resolution near 86,400 s is 0.008 s; a 1 ms nudge collapsed and the check on written files caught it |
 | GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
 | Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
 
@@ -486,9 +496,6 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 
 To settle during implementation, each with a test behind it:
 
-- Choice between Belgian Lambert 72 and a local equirectangular projection for distances and
-  simplification: both are exact to the centimetre at Brussels scale; keep whichever is simpler to
-  test.
 - Exact properties for passing binary attributes to `TripsLayer`: to be fixed against the official
   documentation of the chosen version, with the no-copy test described in 6.3.
 - Artificial dwell time at stops: the STIB feed almost always reports zero dwell. v1 honours that;

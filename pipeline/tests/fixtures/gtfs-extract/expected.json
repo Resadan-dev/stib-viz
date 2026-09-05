@@ -1,0 +1,28 @@
+{
+  "_comment": "Reference figures for the versioned extract (metro 1, tram 7, Noctis N06 on Friday 11 September 2026). Regenerate the extract with tools/make_extract.py and update these figures deliberately, never to make a test pass.",
+  "date": "2026-09-11",
+  "feed_version": "2_20_20260831_010702-extract",
+  "routes": [
+    {"short_name": "1", "mode": "metro", "color": "B5378C"},
+    {"short_name": "7", "mode": "tram", "color": "EFE048"},
+    {"short_name": "N06", "mode": "noctis", "color": "169FDB"}
+  ],
+  "total_trips": 764,
+  "total_vehicles": 84,
+  "peak": [35, 166],
+  "total_km": 9941,
+  "max_vehicles_per_mode": {"metro": 12, "tram": 24, "bus": 0, "noctis": 3},
+  "slices": 48,
+  "slice_bytes": 1716468,
+  "deadheads": 134,
+  "anomalies": {
+    "block_overlap": 0,
+    "dropped_after_span": 0,
+    "dropped_before_start": 0,
+    "stop_offset": 0,
+    "stop_order": 0,
+    "time_repaired": 0,
+    "truncated_after_28h": 0,
+    "without_stop_times": 0
+  }
+}

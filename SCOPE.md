@@ -49,6 +49,11 @@ for the pipeline checks.
 | Service span (first departure, last arrival) | 04:26 to 01:41 | 04:22 to 03:58 with Noctis | 04:22 to 01:46 |
 | Distance covered | 164,000 km | 117,000 km | 101,000 km |
 
+The peak above counts every trip that touches the minute. The pipeline counts vehicles
+**at the top of the minute** (a trip counts at 17:03 when it is under way at 17:03:00), which
+gives 752 at 17:03 for the same Wednesday; the site shows this instantaneous figure. Kilometres
+are summed stop to stop along the shapes, 162,834 km against 164,365 km for the full shapes.
+
 Network: 89 routes (4 metro, 18 tram, 67 bus of which 12 Noctis), 2,784 stops, 750 shapes.
 Each vehicle chains 13 trips at the median with an 11-minute layover; no overlap anywhere.
 
@@ -61,7 +66,8 @@ Trajectory size for one Wednesday by shape simplification tolerance, excluding s
 | 5 m | 1.3 M | 15 MB | 0.7 MB |
 
 v1 uses 2 m, which brings Brussels down to the volume of the French reference (2.3 M vertices).
-Slice overlap adds about 12%, so roughly 28 MB for a Wednesday.
+Slice overlap adds about 12%: the Wednesday of section 3 comes to 30.5 MB of slices, the
+largest slice being 1.29 MB.
 
 ## 4. What version 1 does
 
@@ -118,7 +124,8 @@ Slice overlap adds about 12%, so roughly 28 MB for a Wednesday.
   no smoothness promise.
 - Budgets: first frame under 4 MB of site-owned data excluding tiles, meaning a manifest of at
   most 300 KB, a network layer of at most 1 MB and one hour of slices of at most 2.5 MB; at most
-  35 MB per day including overlap; 60 frames per second at peak on a 2020 laptop.
+  35 MB per day including overlap; 60 frames per second at peak on a 2020 laptop. The vehicle
+  list (about 1.7 MB) is read after the first frame, when the panel first opens.
 - Accessibility: keyboard controls, visible focus states, colour never the sole carrier of meaning
   (filters carry their names), playback starting paused when `prefers-reduced-motion` is set.
 
@@ -158,7 +165,7 @@ Every milestone ends with green tests, a code review and a demonstration.
 | Milestone | Content | Done when |
 |---|---|---|
 | M0 Foundation | Repository, Python and TypeScript tooling, lint, empty tests, continuous integration running the tests | A trivial change passes CI end to end |
-| M1 One day | Full pipeline for a single Wednesday: download, day selection, stop projection, simplification, per-vehicle trajectories, hour slices, manifest, checks; a versioned three-route GTFS extract for tests | The checks pass; a manual verification confirms that manifest counters reproduce the section 3 figures (18,784 trips, 776 peak vehicles) trip for trip; CI itself validates the versioned extract |
+| M1 One day | Full pipeline for a single Wednesday: download, day selection, stop projection, simplification, per-vehicle trajectories, hour slices, manifest, checks; a versioned three-route GTFS extract for tests | The checks pass; a manual verification confirms that manifest counters reproduce the section 3 figures (18,784 trips, 1,299 vehicles, peak of 752 at 17:03 under the instantaneous definition of section 3) trip for trip; CI itself validates the versioned extract |
 | M2 See it move | Minimal site: map, network layer, animated vehicles of the M1 day, clock, play and pause | A tram 7 and a metro 1 visibly follow their route; 60 frames per second at peak on desktop |
 | M3 Interface | Activity curve and scrubber, speeds, counters, filters, vehicle click, URL, about panel, keyboard, centralised copy | Every flow in section 4 works; Playwright smoke test green |
 | M4 Seven days and production | Rolling window, day selector, nightly rebuild, Cloudflare Pages deployment, budgets verified | The public site updates itself for a week with no intervention |
@@ -182,23 +189,23 @@ A box is ticked when its tests are green.
 
 **M1 One day**
 
-- [ ] `fetch`: conditional download by ETag, SHA-256 digest, archive validation
-- [ ] `gtfs`: table reading and validation, times beyond 24:00
-- [ ] `service_day`: active services for a date, `[04:00, 28:00)` span rule
-- [ ] `shapes`: cumulative distance on the original shape, checked against `shape_dist_traveled`
-- [ ] `shapes`: monotonic stop projection onto the original shape, offsets measured
-- [ ] `shapes`: 2 m simplification preserving original distances
-- [ ] `vehicles`: chaining by `block_id`, layovers, deadhead cuts, trips without `block_id`,
+- [x] `fetch`: conditional download by ETag, SHA-256 digest, archive validation
+- [x] `gtfs`: table reading and validation, times beyond 24:00
+- [x] `service_day`: active services for a date, `[04:00, 28:00)` span rule
+- [x] `shapes`: cumulative distance on the original shape, checked against `shape_dist_traveled`
+- [x] `shapes`: monotonic stop projection onto the original shape, offsets measured
+- [x] `shapes`: 2 m simplification preserving original distances
+- [x] `vehicles`: chaining by `block_id`, layovers, deadhead cuts, trips without `block_id`,
       overlapping blocks split
-- [ ] `trajectories`: (lon, lat, t) sampling at constant speed between stops
-- [ ] `slicing`: hour slices with 300 s / 120 s overlap, interpolated cuts, empty slices not written
-- [ ] `network`: stop-to-stop segments, intensity classes, stop dictionary, v2 lookup table
-- [ ] `stats`: per-minute series (vehicles, cumulative departures, cumulative kilometres), routes
-- [ ] `encode`: STV1 binary slices, per-hour stop files, manifest, index
-- [ ] `checks`: blocking checks, per-object anomalies, report
-- [ ] `cli`: `fetch`, `build`, `check` and `index` commands
-- [ ] Versioned three-route GTFS extract with its expected values
-- [ ] Wednesday 9 September 2026 built, figures verified by hand
+- [x] `trajectories`: (lon, lat, t) sampling at constant speed between stops
+- [x] `slicing`: hour slices with 300 s / 120 s overlap, interpolated cuts, empty slices not written
+- [x] `network`: stop-to-stop segments, intensity classes, stop dictionary, v2 lookup table
+- [x] `stats`: per-minute series (vehicles, cumulative departures, cumulative kilometres), routes
+- [x] `encode`: STV1 binary slices, per-hour stop files, manifest, index
+- [x] `checks`: blocking checks, per-object anomalies, report
+- [x] `cli`: `fetch`, `build`, `check` and `index` commands
+- [x] Versioned three-route GTFS extract with its expected values
+- [x] Wednesday 9 September 2026 built, figures verified by hand
 
 **M2 See it move**
 

@@ -35,6 +35,10 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest
+      - name: Build and check the fixture day
+        run: |
+          uv run stibviz build --gtfs tests/fixtures/gtfs-extract/gtfs.zip --date 2026-09-11 --out "$RUNNER_TEMP/data"
+          uv run stibviz check --day "$RUNNER_TEMP/data/2026-09-11"
 
   web:
     name: Web (TypeScript)

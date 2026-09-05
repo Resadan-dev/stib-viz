@@ -6,8 +6,8 @@ the open data published on the Belgian Mobility portal.
 
 Inspired by [france-rail-traffic](https://github.com/magrinj/france-rail-traffic).
 
-**Status: milestone M0 (foundation).** Tooling and continuous integration are in place. No data
-and no animation yet.
+**Status: milestone M1 (one day).** The pipeline turns the GTFS feed into the data files the
+site will consume, for one service day, and checks them. No animation yet.
 
 ## Documents
 
@@ -57,6 +57,26 @@ npx --yes pnpm@10 build
 With pnpm available (`corepack enable`, or a direct install), `pnpm install`, `pnpm lint`,
 `pnpm typecheck`, `pnpm test` and `pnpm build` are enough. `pnpm dev` starts the development
 server.
+
+## Building one day
+
+From `pipeline/`, download the feed (only when it changed), build one service day and check the
+written files:
+
+```bash
+uv run stibviz fetch --out ../cache
+```
+
+```bash
+uv run stibviz build --gtfs ../cache/gtfs.zip --date 2026-09-09 --out ../dist/data
+```
+
+```bash
+uv run stibviz check --day ../dist/data/2026-09-09
+```
+
+`build` prints the check report and the figures of the day, and refuses to write a day that fails
+a blocking check. `cache/` and `dist/` are ignored by git.
 
 ### A note on toolchain versions
 
