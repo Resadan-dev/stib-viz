@@ -356,7 +356,7 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
   descriptor hands over the very typed arrays of the decoded slice, and that the same `data` object
   is reused from one frame to the next, because deck.gl compares it by reference and a new object
   would re-upload the whole hour on every frame. Only `currentTime` changes per frame. Trail length
-  is a constant in service-day seconds (150 s, always below the 300 s upstream overlap), fading
+  is a constant in service-day seconds (105 s, always below the 300 s upstream overlap), fading
   enabled: the visible length encodes speed. Joints and caps are square: invisible at two pixels,
   and the difference between 55 and 60 frames per second at the peak on an integrated GPU.
 - One `ScatterplotLayer` for vehicle heads: each frame, the current position of every active path

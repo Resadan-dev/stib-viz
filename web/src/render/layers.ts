@@ -15,7 +15,7 @@ import { networkColor } from "../theme/colors";
 import type { HeadBuffers, MountedSlice } from "./heads";
 
 /** Trail length in service-day seconds, always below the 300 s upstream overlap of the slices. */
-export const TRAIL_LENGTH_S = 150;
+export const TRAIL_LENGTH_S = 105;
 export const TRAIL_WIDTH_PX = 2;
 export const HEAD_RADIUS_PX = 3.5;
 
