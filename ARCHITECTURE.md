@@ -375,16 +375,27 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
   marked `from_layover` and the instant falls between the two trips. The list is fetched after the
   first frame; until then only the in-slice rule applies.
 - Filtering a mode hides its layer and drops its slices from the prefetch queue.
+- Selecting a line does not change what is mounted: every path of its mode stays loaded. Instead
+  the colour buffer of the mounted slices is rebuilt — full opacity for the selected route index,
+  a low fixed opacity for every other one — and restored on deselection. The rebuild touches only
+  the colour arrays, not positions or times, and runs once per selection change, not per frame.
+- Colour toggle: `theme/colors.ts` reads the route's own `color` field for every mode when the
+  toggle is on, the mode palette when it is off; trams already read their own colour either way.
+  Flipping the toggle rebuilds the colour buffers of the mounted slices the same way a line
+  selection does. Colours come from the feed, not invented: STIB reuses roughly a dozen colours
+  across its routes, so the toggle can still show two unrelated lines in the same colour — noted
+  in the about panel.
 - Performance options: `useDevicePixels` can be turned off on very dense screens; layers are
   created once; no allocation per frame outside slice switching.
 
 ### 6.4 State and URL
 
-A single state object (day, instant, speed, playing, filters, camera view, selected vehicle).
-Every change notifies the components. The URL updates on a short debounce:
+A single state object (day, instant, speed, playing, filters, selected line, colour mode, camera
+view, selected vehicle). Every change notifies the components. The URL updates on a short
+debounce:
 
 ```
-/?d=2026-09-09&t=17:03&s=300&m=metro,tram,bus,noctis&c=50.846,4.352,12.4,0,0&p=1
+/?d=2026-09-09&t=17:03&s=300&m=metro,tram,bus,noctis&l=7&colours=official&c=50.846,4.352,12.4,0,0&p=1
 ```
 
 The link recreates the scene exactly. Invalid values are ignored one by one.
@@ -395,7 +406,9 @@ The link recreates the scene exactly. Invalid values are ignored one by one.
   water, parks, three road classes and city, town and suburb names, all very dark; no point of
   interest. The basemap must never compete with the vehicles, and the page works without it.
 - Modes: warm white for metro, official colour for trams, a single cool blue for buses, violet for
-  Noctis. Exact values live in `theme/` and are tuned at milestone M2 against the real render.
+  Noctis by default; a colour toggle (section 6.3) switches every mode to its own route's official
+  colour instead. Exact default values live in `theme/` and were tuned at milestone M2 against the
+  real render.
 - Network: five levels of one blue-grey, from nearly invisible to discreet.
 - Interface: dark translucent panels, sober typography, tabular figures.
 

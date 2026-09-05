@@ -113,9 +113,17 @@ largest slice being 1.29 MB.
 - Clock, date and day type (weekday, Saturday, Sunday), selector for the seven days.
 - Per-mode counters: vehicles running, trips departed since 04:00, kilometres.
 - Per-mode filters (show or hide metro, tram, bus, Noctis).
+- Single-line selection within a mode: every other vehicle dims, the chosen line stays at full
+  opacity. Does not hide anything, so context is kept; clearing the selection restores normal
+  colours.
+- A colour toggle: the mode palette (default, one flat colour per mode) or every route's official
+  STIB colour. The official colour is not unique per line — STIB reuses a palette of about a
+  dozen colours across its routes — so the toggle trades a uniform mode colour for a genuine but
+  imperfect identification.
 - Click a vehicle: route badge in its own colour, destination, next stop, scheduled time.
 - About panel: method, GTFS date, attributions, link to the repository.
-- Shareable URL state: day, instant, speed, filters, map position, playing or paused.
+- Shareable URL state: day, instant, speed, filters, selected line, colour mode, map position,
+  playing or paused.
 
 ### 4.5 Platforms and performance
 
@@ -229,6 +237,8 @@ on the fixture day; the Playwright suite checks the movement of both routes minu
 - [ ] `ui/`: speeds ×60 to ×600, keyboard shortcuts
 - [ ] `ui/`: per-mode counters read from the manifest series
 - [ ] `ui/`: per-mode filters, layers and prefetching
+- [ ] `ui/` `render/`: single-line selection within a mode, dims every other vehicle
+- [ ] `render/` `theme/`: colour mode toggle, mode palette or each route's official colour
 - [ ] `render/` and `ui/`: vehicle selection, stops loaded on demand, panel
 - [ ] `state/`: single state object, URL synchronisation, round trip tested
 - [ ] `data/`: next-hour prefetch, three-hour cache, visible waiting
