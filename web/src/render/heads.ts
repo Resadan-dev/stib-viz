@@ -10,7 +10,7 @@
 
 import type { Mode, RouteInfo, Vehicle } from "../data/contract";
 import type { Slice } from "../data/stv1";
-import { pathColors, vertexColors } from "./colors";
+import { pathColors, vertexColors, type ColourOptions } from "./colors";
 
 /** Two path ends closer than this are the same terminus: a layover, not a deadhead move. */
 export const LAYOVER_MAX_M = 100;
@@ -82,13 +82,31 @@ export function indexByVehicle(slice: Slice): VehiclePaths[] {
     }));
 }
 
-export function mountSlice(mode: Mode, slice: Slice, routes: readonly RouteInfo[]): MountedSlice {
+export function mountSlice(
+  mode: Mode,
+  slice: Slice,
+  routes: readonly RouteInfo[],
+  options: ColourOptions = {},
+): MountedSlice {
   return {
     mode,
     slice,
-    vertexColors: vertexColors(slice, routes),
-    pathColors: pathColors(slice, routes),
+    vertexColors: vertexColors(slice, routes, options),
+    pathColors: pathColors(slice, routes, options),
     byVehicle: indexByVehicle(slice),
+  };
+}
+
+/** The same slice with new colours: geometry and vehicle grouping are shared, not recomputed. */
+export function recolour(
+  mounted: MountedSlice,
+  routes: readonly RouteInfo[],
+  options: ColourOptions,
+): MountedSlice {
+  return {
+    ...mounted,
+    vertexColors: vertexColors(mounted.slice, routes, options),
+    pathColors: pathColors(mounted.slice, routes, options),
   };
 }
 

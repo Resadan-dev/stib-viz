@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import type { RouteInfo } from "../../src/data/contract";
 import { decodeSlice } from "../../src/data/stv1";
-import { UNKNOWN_ROUTE_COLOR, pathColors, vertexColors } from "../../src/render/colors";
+import {
+  DIMMED_ALPHA,
+  UNKNOWN_ROUTE_COLOR,
+  pathColors,
+  vertexColors,
+} from "../../src/render/colors";
 import { MANIFEST } from "../helpers/fixtures";
 import { encodeSlice } from "../helpers/stv1";
 
@@ -32,6 +38,40 @@ describe("vertexColors", () => {
   it("paints an unknown route index in the neutral colour", () => {
     const colors = vertexColors(slice, MANIFEST.routes);
     expect(Array.from(colors.subarray(20, 24))).toEqual([...UNKNOWN_ROUTE_COLOR, 255]);
+  });
+});
+
+describe("colour options", () => {
+  it("paints buses in their official colour under the official scheme", () => {
+    const tram = MANIFEST.routes[1];
+    if (tram === undefined) {
+      throw new Error("fixture route missing");
+    }
+    const routes: RouteInfo[] = [
+      ...MANIFEST.routes,
+      { ...tram, id: "12", name: "12", mode: "bus", color: "4C8B33" },
+    ];
+    const bus = decodeSlice(
+      encodeSlice(8, [
+        { lon: [4.4, 4.41], lat: [50.8, 50.81], t: [1, 2], vehicle: 0, trip: 0, route: 2 },
+      ]),
+    );
+    expect(Array.from(vertexColors(bus, routes).subarray(0, 3))).toEqual([96, 170, 255]);
+    expect(Array.from(vertexColors(bus, routes, { scheme: "official" }).subarray(0, 3))).toEqual([
+      76, 139, 51,
+    ]);
+  });
+
+  it("dims every route but the selected line, by line name, in vertices and in heads", () => {
+    const options = { line: "7" };
+    const routes = MANIFEST.routes.map((route) => ({ ...route, id: `gtfs-${route.id}` }));
+    const vertices = vertexColors(slice, routes, options);
+    expect(vertices[3]).toBe(255);
+    expect(vertices[15]).toBe(DIMMED_ALPHA);
+    const paths = pathColors(slice, routes, options);
+    expect(paths[3]).toBe(255);
+    expect(paths[7]).toBe(DIMMED_ALPHA);
+    expect(DIMMED_ALPHA).toBeLessThan(80);
   });
 });
 

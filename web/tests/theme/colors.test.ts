@@ -42,6 +42,17 @@ describe("routeColor", () => {
   it("falls back to the palette when the tram colour is unreadable", () => {
     expect(routeColor({ ...tram, color: "nope" })).toEqual(MODE_COLORS.tram);
   });
+
+  it("gives every mode its official colour under the official scheme", () => {
+    expect(routeColor(metro, "official")).toEqual([181, 55, 140]);
+    expect(routeColor({ ...tram, mode: "bus", color: "4C8B33" }, "official")).toEqual([
+      76, 139, 51,
+    ]);
+    expect(routeColor({ ...tram, mode: "noctis", color: "nope" }, "official")).toEqual(
+      MODE_COLORS.noctis,
+    );
+    expect(routeColor(metro, "palette")).toEqual(MODE_COLORS.metro);
+  });
 });
 
 describe("networkColor", () => {

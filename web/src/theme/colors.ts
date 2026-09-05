@@ -6,6 +6,7 @@
  */
 
 import type { Mode, NetworkProperties, RouteInfo } from "../data/contract";
+import type { ColourScheme } from "../state/app-state";
 
 export type Rgb = readonly [number, number, number];
 export type Rgba = [number, number, number, number];
@@ -36,12 +37,19 @@ export function parseHexColor(hex: string): Rgb | undefined {
   ];
 }
 
-/** Trams keep their official colour; every other mode takes the palette colour. */
-export function routeColor(route: Pick<RouteInfo, "mode" | "color">): Rgb {
-  if (route.mode !== "tram") {
+/**
+ * Palette scheme: trams keep their official colour, every other mode takes the palette colour.
+ * Official scheme: every route takes its own colour from the feed, the palette as a fallback.
+ * STIB reuses about a dozen colours across its routes, so two unrelated lines can still match.
+ */
+export function routeColor(
+  route: Pick<RouteInfo, "mode" | "color">,
+  scheme: ColourScheme = "palette",
+): Rgb {
+  if (scheme === "palette" && route.mode !== "tram") {
     return MODE_COLORS[route.mode];
   }
-  return parseHexColor(route.color) ?? MODE_COLORS.tram;
+  return parseHexColor(route.color) ?? MODE_COLORS[route.mode];
 }
 
 export function networkColor(properties: Pick<NetworkProperties, "class" | "underground">): Rgba {

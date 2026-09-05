@@ -36,6 +36,9 @@ export const fr = {
   kindWeekday: "jour de semaine",
   kindSaturday: "samedi",
   kindSunday: "dimanche",
+  officialColours: "Couleurs officielles des lignes",
+  lineLabel: "Ligne",
+  allLines: "Toutes les lignes",
 } as const;
 
 export type MessageKey = keyof typeof fr;

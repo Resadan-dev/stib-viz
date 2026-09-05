@@ -18,10 +18,12 @@ import {
 } from "./data/loader";
 import { createSliceStore } from "./data/slices";
 import { dayKindLabel, fr } from "./i18n/fr";
+import type { ColourOptions } from "./render/colors";
 import {
   computeHeads,
   createHeadBuffers,
   mountSlice,
+  recolour,
   type HeadBuffers,
   type MountedSlice,
 } from "./render/heads";
@@ -39,10 +41,12 @@ import { nightStyle } from "./theme/basemap";
 import { SERVICE_DAY_LENGTH_S, hourOf } from "./time/clock";
 import { createPlayer } from "./time/player";
 import { createClockView } from "./ui/clock";
+import { createColourToggle } from "./ui/colours";
 import { createPlayButton } from "./ui/controls";
 import { createCounters } from "./ui/counters";
 import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
+import { createLineSelect } from "./ui/lines";
 import { createSpeedControl } from "./ui/speed";
 import { createStatusView } from "./ui/status";
 
@@ -123,6 +127,7 @@ interface Shell {
   speed: HTMLElement;
   counters: HTMLElement;
   filters: HTMLElement;
+  appearance: HTMLElement;
   status: HTMLElement;
   attribution: HTMLElement;
 }
@@ -142,9 +147,22 @@ function buildShell(root: HTMLElement): Shell {
   const speed = element("div", "panel__speed", controls);
   const counters = element("div", "panel__counters", panel);
   const filters = element("div", "panel__filters", panel);
+  const appearance = element("div", "panel__appearance", panel);
   const status = element("div", "panel__status", panel);
   const attribution = element("footer", "panel__attribution", panel);
-  return { map, date, kind, clock, controls, speed, counters, filters, status, attribution };
+  return {
+    map,
+    date,
+    kind,
+    clock,
+    controls,
+    speed,
+    counters,
+    filters,
+    appearance,
+    status,
+    attribution,
+  };
 }
 
 export async function startApp(root: HTMLElement, options: AppOptions = {}): Promise<DebugApi> {
@@ -187,6 +205,20 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const counters = createCounters(shell.counters, day.manifest);
   const filters = createFilters(shell.filters, (mode, visible) => {
     store.set({ modes: { ...store.get().modes, [mode]: visible } });
+  });
+  const lineSelect = createLineSelect(shell.appearance, routes, (line) => {
+    // Selecting a line shows its mode again: a hidden selection would be a puzzle.
+    const route = routes.find((candidate) => candidate.name === line);
+    const modes =
+      route === undefined ? store.get().modes : { ...store.get().modes, [route.mode]: true };
+    store.set({ line, modes });
+  });
+  const colourToggle = createColourToggle(shell.appearance, (colours) => {
+    store.set({ colours });
+  });
+  const colourOptions = (state: AppState): ColourOptions => ({
+    scheme: state.colours,
+    line: state.line,
   });
   bindKeyboard(document, {
     toggle: () => {
@@ -238,7 +270,8 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
 
   async function mountHour(hour: number, modes: ModeVisibility): Promise<void> {
     const result = await slices.mount(hour, modes);
-    mounted = [...result.slices].map(([mode, slice]) => mountSlice(mode, slice, routes));
+    const options = colourOptions(store.get());
+    mounted = [...result.slices].map(([mode, slice]) => mountSlice(mode, slice, routes, options));
     buffers = createHeadBuffers(mounted.reduce((total, item) => total + item.slice.paths, 0));
     mountedHour = hour;
     mountedKey = mountKey(hour, modes);
@@ -304,18 +337,25 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     requestAnimationFrame(frame);
   }
 
-  function reflect(state: AppState): void {
+  function reflect(state: AppState, previous: AppState): void {
     clock.update(state.time);
     playButton.update(state.playing);
     speedControl.update(state.speed);
     counters.update(state.time, state.modes);
     filters.update(state.modes);
+    lineSelect.update(state.line);
+    colourToggle.update(state.colours);
+    if (state.colours !== previous.colours || state.line !== previous.line) {
+      const options = colourOptions(state);
+      mounted = mounted.map((item) => recolour(item, routes, options));
+      renderedKey = "";
+    }
     if (!state.playing && state.time >= SERVICE_DAY_LENGTH_S) {
       status.show(fr.endOfDay);
     }
   }
   store.subscribe(reflect);
-  reflect(store.get());
+  reflect(store.get(), store.get());
   requestAnimationFrame(frame);
 
   // The vehicle list only refines layovers; it is read after the first frame, never before it.

@@ -330,3 +330,60 @@ main.map {
   height: 0.6rem;
   border-radius: 50%;
 }
+
+/* --- Milestone M3: line selection and colour scheme --- */
+
+.panel__appearance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.lines {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.lines__label {
+  color: var(--ink-muted);
+}
+
+.lines__select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.lines__select:focus-visible,
+.toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.toggle {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--ink);
+}
+
+.toggle[aria-pressed="true"] {
+  background: rgb(255 232 196 / 0.14);
+  border-color: rgb(255 232 196 / 0.5);
+  color: var(--accent);
+}

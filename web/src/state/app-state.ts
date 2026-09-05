@@ -22,7 +22,7 @@ export interface Camera {
 export interface AppState extends PlayerState {
   readonly day: string;
   readonly modes: ModeVisibility;
-  /** Route id of the selected line, or null when every line is shown alike. */
+  /** Name of the selected line ("7", "N06"), or null when every line is shown alike. */
   readonly line: string | null;
   readonly colours: ColourScheme;
   readonly camera: Camera | null;

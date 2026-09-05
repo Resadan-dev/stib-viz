@@ -1,48 +1,75 @@
 /**
- * Colours unfolded once per slice, at mount time: one RGBA per vertex for the trails and one
- * per path for the heads, both from the `route` field of the slice (ARCHITECTURE.md, 5.4).
+ * Colours unfolded once per slice, at mount time and again when the scheme or the selected line
+ * changes: one RGBA per vertex for the trails and one per path for the heads, both from the
+ * `route` field of the slice (ARCHITECTURE.md, sections 5.4 and 6.3).
  */
 
 import type { RouteInfo } from "../data/contract";
 import type { Slice } from "../data/stv1";
+import type { ColourScheme } from "../state/app-state";
 import { routeColor, type Rgb } from "../theme/colors";
 
 /** Neutral grey for a route index the manifest does not know, which the checks should prevent. */
 export const UNKNOWN_ROUTE_COLOR: Rgb = [200, 200, 200];
+/** Opacity of every vehicle that is not on the selected line. */
+export const DIMMED_ALPHA = 48;
 
-function palette(routes: readonly RouteInfo[]): Rgb[] {
-  return routes.map((route) => routeColor(route));
+export interface ColourOptions {
+  scheme?: ColourScheme;
+  /** Name of the selected line (the number people know); everything else is dimmed. */
+  line?: string | null;
 }
 
-function colorOf(slice: Slice, path: number, colors: readonly Rgb[]): Rgb {
-  return colors[slice.route[path] ?? -1] ?? UNKNOWN_ROUTE_COLOR;
+interface Rgba {
+  rgb: Rgb;
+  alpha: number;
 }
 
-export function vertexColors(slice: Slice, routes: readonly RouteInfo[]): Uint8Array {
-  const colors = palette(routes);
+function palette(routes: readonly RouteInfo[], options: ColourOptions): Rgba[] {
+  const line = options.line ?? null;
+  return routes.map((route) => ({
+    rgb: routeColor(route, options.scheme),
+    alpha: line === null || route.name === line ? 255 : DIMMED_ALPHA,
+  }));
+}
+
+function colorOf(slice: Slice, path: number, colors: readonly Rgba[]): Rgba {
+  return colors[slice.route[path] ?? -1] ?? { rgb: UNKNOWN_ROUTE_COLOR, alpha: 255 };
+}
+
+function write(out: Uint8Array, offset: number, { rgb, alpha }: Rgba): void {
+  out[offset] = rgb[0];
+  out[offset + 1] = rgb[1];
+  out[offset + 2] = rgb[2];
+  out[offset + 3] = alpha;
+}
+
+export function vertexColors(
+  slice: Slice,
+  routes: readonly RouteInfo[],
+  options: ColourOptions = {},
+): Uint8Array {
+  const colors = palette(routes, options);
   const out = new Uint8Array(4 * slice.vertices);
   for (let path = 0; path < slice.paths; path += 1) {
-    const [r, g, b] = colorOf(slice, path, colors);
+    const color = colorOf(slice, path, colors);
     const end = slice.index[path + 1] ?? 0;
     for (let vertex = slice.index[path] ?? 0; vertex < end; vertex += 1) {
-      out[4 * vertex] = r;
-      out[4 * vertex + 1] = g;
-      out[4 * vertex + 2] = b;
-      out[4 * vertex + 3] = 255;
+      write(out, 4 * vertex, color);
     }
   }
   return out;
 }
 
-export function pathColors(slice: Slice, routes: readonly RouteInfo[]): Uint8Array {
-  const colors = palette(routes);
+export function pathColors(
+  slice: Slice,
+  routes: readonly RouteInfo[],
+  options: ColourOptions = {},
+): Uint8Array {
+  const colors = palette(routes, options);
   const out = new Uint8Array(4 * slice.paths);
   for (let path = 0; path < slice.paths; path += 1) {
-    const [r, g, b] = colorOf(slice, path, colors);
-    out[4 * path] = r;
-    out[4 * path + 1] = g;
-    out[4 * path + 2] = b;
-    out[4 * path + 3] = 255;
+    write(out, 4 * path, colorOf(slice, path, colors));
   }
   return out;
 }

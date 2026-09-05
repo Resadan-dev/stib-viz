@@ -10,6 +10,7 @@ import {
   indexByVehicle,
   mountSlice,
   positionAt,
+  recolour,
 } from "../../src/render/heads";
 import { MANIFEST } from "../helpers/fixtures";
 import { encodeSlice } from "../helpers/stv1";
@@ -106,6 +107,18 @@ describe("positionAt", () => {
     expect(out[1]).toBeCloseTo(50.8505, 4);
     positionAt(slice, 0, 220, out, 0);
     expect(out[0]).toBeCloseTo(STOP.lon, 5);
+  });
+});
+
+describe("recolour", () => {
+  it("returns a new mounted slice with new colours and the same geometry", () => {
+    const again = recolour(mounted, MANIFEST.routes, { line: "1" });
+    expect(again).not.toBe(mounted);
+    expect(again.slice).toBe(mounted.slice);
+    expect(again.byVehicle).toBe(mounted.byVehicle);
+    expect(again.vertexColors).not.toBe(mounted.vertexColors);
+    expect(again.pathColors[3]).toBeLessThan(255);
+    expect(again.pathColors[2 * 4 + 3]).toBe(255);
   });
 });
 
