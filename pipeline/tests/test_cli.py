@@ -112,3 +112,46 @@ def test_build_removes_a_day_whose_files_fail_the_checks(
     out = tmp_path / "data"
     assert _build(sample_gtfs_zip, out, "--anomaly-tolerance", "1") == 1
     assert not (out / "2026-09-09").exists()
+
+
+def test_plan_lists_the_covered_window(
+    sample_gtfs_zip: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["plan", "--gtfs", str(sample_gtfs_zip), "--today", "2026-09-09"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.split() == [f"2026-09-{day:02d}" for day in range(8, 15)]
+    assert captured.err == ""
+
+
+def test_plan_skips_uncovered_days_and_says_so(
+    sample_gtfs_zip: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["plan", "--gtfs", str(sample_gtfs_zip), "--today", "2026-09-26"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.split() == ["2026-09-25", "2026-09-26", "2026-09-27"]
+    assert "2026-09-28 is outside" in captured.err
+
+
+def test_plan_is_empty_when_the_site_is_up_to_date(
+    sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    published = tmp_path / "index.json"
+    days = [{"date": f"2026-09-{day:02d}"} for day in range(8, 15)]
+    published.write_text(json.dumps({"feed_version": "test_2026", "days": days}), encoding="utf-8")
+    args = ["plan", "--gtfs", str(sample_gtfs_zip), "--today", "2026-09-09", "--published"]
+    assert main([*args, str(published)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "up to date" in captured.err
+
+
+def test_plan_with_an_unreadable_published_index_builds_everything(
+    sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    published = tmp_path / "index.json"
+    published.write_text("{", encoding="utf-8")
+    args = ["plan", "--gtfs", str(sample_gtfs_zip), "--today", "2026-09-09", "--published"]
+    assert main([*args, str(published)]) == 0
+    captured = capsys.readouterr()
+    assert len(captured.out.split()) == 7
+    assert "unreadable" in captured.err

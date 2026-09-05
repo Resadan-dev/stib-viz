@@ -1,0 +1,113 @@
+name: Nightly
+
+# Rebuilds the rolling window of service days from the STIB GTFS feed and deploys the site
+# (ARCHITECTURE.md, section 7.2). The feed is published in the morning; the run at 04:45 UTC
+# adds the new day of the window, the one at 10:45 UTC catches a feed published late. When the
+# feed is unchanged and every day is already published, a run stops after the plan, in a minute.
+on:
+  schedule:
+    - cron: "45 4,10 * * *"
+  workflow_dispatch:
+
+# Least privilege: the workflow only reads the repository; deployment uses Cloudflare secrets.
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  DATA_DIR: ${{ github.workspace }}/web/public/data
+  REPORT: ${{ github.workspace }}/nightly-report.txt
+  # Secrets cannot appear in an `if`; this flag can. Without the token the run builds but does
+  # not deploy, which is what a fork or a fresh clone wants.
+  HAS_CLOUDFLARE: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+
+jobs:
+  publish:
+    name: Build the week and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: pipeline/uv.lock
+      # The cached archive lets fetch send a conditional request and skip a 14 MB download.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pipeline/cache
+          key: gtfs-${{ github.run_id }}
+          restore-keys: gtfs-
+      - run: uv sync --locked
+        working-directory: pipeline
+      - name: Fetch the feed
+        run: uv run stibviz fetch --out cache
+        working-directory: pipeline
+      - name: Read the published index
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -n "$SITE_URL" ]; then
+            curl -fsS --max-time 30 "$SITE_URL/data/index.json" -o published.json || echo "no published index yet"
+          fi
+        working-directory: pipeline
+      - name: Plan the days to build
+        id: plan
+        run: |
+          uv run stibviz plan --gtfs cache/gtfs.zip --published published.json > days.txt
+          echo "count=$(grep -c . days.txt || true)" >> "$GITHUB_OUTPUT"
+          cat days.txt
+        working-directory: pipeline
+      - name: Build each day and the index
+        id: build
+        if: steps.plan.outputs.count != '0'
+        # Days build independently; the exit code is kept for the last step so that the valid
+        # days still reach the site when one of them fails.
+        run: |
+          set +e
+          ../.github/scripts/build-days.sh cache/gtfs.zip "$DATA_DIR" "$REPORT" < days.txt
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          echo "built=$(grep -c ': built$' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
+        working-directory: pipeline
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        if: steps.plan.outputs.count != '0'
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        if: steps.plan.outputs.count != '0'
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Build the site with the data
+        if: steps.plan.outputs.count != '0'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          du -sh dist/data
+        working-directory: web
+      - name: Deploy to Cloudflare Pages
+        # Never replace the live site with an empty one: at least one day must have been built.
+        if: steps.plan.outputs.count != '0' && steps.build.outputs.built != '0' && env.HAS_CLOUDFLARE == 'true'
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web/dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=main --commit-dirty=true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.plan.outputs.count != '0'
+        with:
+          name: nightly-report
+          path: nightly-report.txt
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Fail if a day failed
+        if: steps.plan.outputs.count != '0' && steps.build.outputs.status != '0'
+        run: |
+          cat "$REPORT"
+          exit 1

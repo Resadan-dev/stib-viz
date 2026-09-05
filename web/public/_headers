@@ -1,0 +1,34 @@
+# Cloudflare Pages headers (ARCHITECTURE.md, section 7.3).
+# index.json changes every night and must not be cached; the files of a day change when the
+# feed does, one hour of cache is enough; network and lookup files are named by feed version.
+
+/data/index.json
+  Cache-Control: no-cache
+
+/data/network/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/lookup/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/:day/manifest.json
+  Cache-Control: public, max-age=3600
+
+/data/:day/vehicles.json
+  Cache-Control: public, max-age=3600
+
+/data/:day/slices/*
+  Cache-Control: public, max-age=3600
+
+/data/:day/stops/*
+  Cache-Control: public, max-age=3600
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'

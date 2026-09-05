@@ -1,4 +1,4 @@
-"""Command line entry point: ``stibviz fetch | build | check | index``.
+"""Command line entry point: ``stibviz fetch | plan | build | check | index``.
 
 Every command prints a readable summary, writes errors to stderr and returns a non-zero exit
 code on failure (ARCHITECTURE.md, section 4.4).
@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import shutil
 import sys
 from collections.abc import Sequence
@@ -21,6 +22,7 @@ from stibviz.fetch import FetchError, fetch_gtfs
 from stibviz.gtfs import GtfsError, load_feed
 from stibviz.service_day import DateNotCoveredError
 from stibviz.shapes import ShapeError
+from stibviz.window import DAYS_AFTER, DAYS_BEFORE, plan_days, rolling_window
 
 DEFAULT_GTFS_URL = (
     "https://opendata-discovery-gtfs-static.api.production.belgianmobility.io"
@@ -40,6 +42,13 @@ def build_parser() -> argparse.ArgumentParser:
     fetch = commands.add_parser("fetch", help="download the GTFS feed when it changed")
     fetch.add_argument("--url", default=DEFAULT_GTFS_URL)
     fetch.add_argument("--out", type=Path, default=Path("cache"))
+
+    plan = commands.add_parser("plan", help="list the days of the rolling window to build")
+    plan.add_argument("--gtfs", type=Path, required=True, help="GTFS zip or directory")
+    plan.add_argument("--today", type=dt.date.fromisoformat, default=dt.date.today())
+    plan.add_argument("--published", type=Path, help="index.json of the live site, if any")
+    plan.add_argument("--days-before", type=int, default=DAYS_BEFORE)
+    plan.add_argument("--days-after", type=int, default=DAYS_AFTER)
 
     build = commands.add_parser("build", help="build one service day")
     build.add_argument("--gtfs", type=Path, required=True, help="GTFS zip or directory")
@@ -65,6 +74,31 @@ def _fetch(args: argparse.Namespace) -> int:
         return 1
     state = "downloaded" if result.changed else "unchanged"
     print(f"{state}: {result.path} ({result.size} bytes, sha256 {result.sha256[:12]})")
+    return 0
+
+
+def _plan(args: argparse.Namespace) -> int:
+    try:
+        feed = load_feed(args.gtfs)
+    except GtfsError as exc:
+        print(f"plan failed: {exc}", file=sys.stderr)
+        return 1
+    published = None
+    if args.published is not None and args.published.is_file():
+        try:
+            published = json.loads(args.published.read_text(encoding="utf-8"))
+        except ValueError:
+            print("published index unreadable, planning a full build", file=sys.stderr)
+    window = rolling_window(args.today, args.days_before, args.days_after)
+    plan = plan_days(window, feed.info, published)
+    for day in plan.uncovered:
+        print(f"skipped: {day.isoformat()} is outside the feed validity", file=sys.stderr)
+    if plan.up_to_date:
+        print(
+            f"up to date: feed {feed.info.version} and every covered day published", file=sys.stderr
+        )
+    for day in plan.to_build:
+        print(day.isoformat())
     return 0
 
 
@@ -121,7 +155,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the command and return its exit code."""
     parser = build_parser()
     args = parser.parse_args(argv)
-    handlers = {"fetch": _fetch, "build": _build, "check": _check, "index": _index}
+    handlers = {"fetch": _fetch, "plan": _plan, "build": _build, "check": _check, "index": _index}
     handler = handlers.get(args.command)
     if handler is None:
         parser.print_help()

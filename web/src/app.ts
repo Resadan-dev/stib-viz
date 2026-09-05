@@ -39,7 +39,7 @@ import { createMapView } from "./render/map";
 import { describeVehicle, headAt, stepVehicle, vehiclesOnLine } from "./render/selection";
 import { initialState, type AppState, type ModeVisibility } from "./state/app-state";
 import { createStore } from "./state/store";
-import { applyUrlState, readUrlState, syncUrl } from "./state/url";
+import { applyUrlState, readUrlState, syncUrl, writeUrlState } from "./state/url";
 import { nightStyle } from "./theme/basemap";
 import { MODE_COLORS, routeColor } from "./theme/colors";
 import { SERVICE_DAY_LENGTH_S, hourOf, minuteOf } from "./time/clock";
@@ -50,6 +50,7 @@ import { createClockView } from "./ui/clock";
 import { createColourToggle } from "./ui/colours";
 import { createPlayButton } from "./ui/controls";
 import { createCounters } from "./ui/counters";
+import { createDaySelector } from "./ui/days";
 import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
 import { createLineField } from "./ui/lines";
@@ -132,6 +133,7 @@ interface Shell {
   map: HTMLElement;
   date: HTMLElement;
   kind: HTMLElement;
+  days: HTMLElement;
   clock: HTMLElement;
   controls: HTMLElement;
   speed: HTMLElement;
@@ -157,6 +159,7 @@ function buildShell(root: HTMLElement): Shell {
   const dateLine = element("p", "panel__date", header);
   const date = element("span", "panel__date-text", dateLine);
   const kind = element("span", "panel__kind", dateLine);
+  const days = element("div", "panel__days", header);
   const clock = element("div", "panel__clock", panel);
   const controls = element("div", "panel__controls", panel);
   const speed = element("div", "panel__speed", controls);
@@ -175,6 +178,7 @@ function buildShell(root: HTMLElement): Shell {
     map,
     date,
     kind,
+    days,
     clock,
     controls,
     speed,
@@ -215,6 +219,10 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const player = createPlayer(store);
   syncUrl(store, (query) => {
     window.history.replaceState(null, "", query);
+  });
+  // A day change restarts the page with the URL, which already carries the whole scene.
+  const daySelector = createDaySelector(shell.days, index.days, (date) => {
+    window.location.assign(writeUrlState({ ...store.get(), day: date }));
   });
   const clock = createClockView(shell.clock);
   const playButton = createPlayButton(shell.controls, () => {
@@ -497,6 +505,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       describeSelected(state);
     }
     clock.update(state.time);
+    daySelector.update(state.day);
     playButton.update(state.playing);
     speedControl.update(state.speed);
     counters.update(state.time, state.modes);

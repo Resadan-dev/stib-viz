@@ -725,3 +725,48 @@ main.map {
     left: 0.75rem;
   }
 }
+
+/* --- Milestone M4: day selector --- */
+
+.panel__days {
+  margin-top: 0.55rem;
+}
+
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.days__day {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.days__day--saturday,
+.days__day--sunday {
+  border-style: dashed;
+}
+
+.days__day:hover {
+  color: var(--ink);
+}
+
+.days__day[aria-pressed="true"] {
+  background: rgb(255 232 196 / 0.14);
+  border-color: rgb(255 232 196 / 0.5);
+  color: var(--accent);
+  cursor: default;
+}
+
+.days__day:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

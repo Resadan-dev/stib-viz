@@ -36,6 +36,7 @@ export const fr = {
   kindWeekday: "jour de semaine",
   kindSaturday: "samedi",
   kindSunday: "dimanche",
+  daysLabel: "Journées disponibles",
   officialColours: "Couleurs officielles des lignes",
   lineLabel: "Ligne",
   allLines: "Toutes les lignes",
