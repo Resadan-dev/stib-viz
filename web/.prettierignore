@@ -1,3 +1,11 @@
 dist
 coverage
 pnpm-lock.yaml
+
+# Data produced by the pipeline
+public/data/
+
+# Local tooling output
+.playwright/
+test-results/
+playwright-report/

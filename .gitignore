@@ -55,6 +55,7 @@ desktop.ini
 
 # --- Local agent/tooling state ---
 .claude/settings.local.json
+.claude/launch.json
 
 # --- Logs and scratch files ---
 *.log
@@ -62,3 +63,6 @@ npm-debug.log*
 pnpm-debug.log*
 tmp/
 scratch/
+
+# --- Site data produced by the pipeline (web/public/data is served as /data) ---
+web/public/data/

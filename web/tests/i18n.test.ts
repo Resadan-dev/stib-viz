@@ -12,4 +12,10 @@ describe("French UI copy", () => {
   it("names the application", () => {
     expect(fr.appTitle).toBe("Bruxelles en mouvement");
   });
+
+  it("uses typographic apostrophes", () => {
+    for (const [key, value] of Object.entries(fr)) {
+      expect(value, `key ${key}`).not.toMatch(/'/);
+    }
+  });
 });
