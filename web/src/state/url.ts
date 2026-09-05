@@ -1,20 +1,32 @@
-import { parseClock } from "../time/clock";
+/**
+ * The URL as shareable state (ARCHITECTURE.md, section 6.4).
+ *
+ * `?d=2026-09-09&t=17:03&s=300&m=metro,tram&l=7&colours=official&c=50.846,4.352,12.4&p=1`
+ *
+ * Reading ignores invalid values one by one; writing leaves the defaults out and is debounced,
+ * so the address bar follows the scene without a rewrite on every frame.
+ */
 
-/** The part of the URL state the site reads today; writing it back arrives with milestone M3. */
-export interface Camera {
-  latitude: number;
-  longitude: number;
-  zoom: number;
-}
+import { MODES, type Mode } from "../data/contract";
+import { formatClock, parseClock } from "../time/clock";
+import { SPEEDS } from "../time/player";
+import { allModes, type AppState, type Camera, type ColourScheme } from "./app-state";
+import type { Store } from "./store";
 
 export interface UrlState {
   day?: string;
   time?: number;
   playing?: boolean;
   camera?: Camera;
+  speed?: number;
+  modes?: Mode[];
+  line?: string;
+  colours?: ColourScheme;
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const LINE_ID = /^[A-Za-z0-9-]{1,10}$/;
+export const URL_DEBOUNCE_MS = 300;
 
 /** `c=lat,lon,zoom[,bearing,pitch]`; bearing and pitch are accepted and ignored in v1. */
 export function parseCamera(text: string): Camera | undefined {
@@ -32,7 +44,10 @@ export function parseCamera(text: string): Camera | undefined {
   return { latitude, longitude, zoom };
 }
 
-/** Reads `?d=YYYY-MM-DD&t=HH:MM&p=0|1&c=lat,lon,zoom`; invalid values are ignored one by one. */
+function isMode(value: string): value is Mode {
+  return (MODES as readonly string[]).includes(value);
+}
+
 export function readUrlState(search: string): UrlState {
   const params = new URLSearchParams(search);
   const state: UrlState = {};
@@ -46,6 +61,26 @@ export function readUrlState(search: string): UrlState {
     if (parsed !== undefined) {
       state.time = parsed;
     }
+  }
+  const speed = Number(params.get("s"));
+  if ((SPEEDS as readonly number[]).includes(speed)) {
+    state.speed = speed;
+  }
+  const modes = params.get("m");
+  if (modes !== null) {
+    const listed = modes.split(",").filter(isMode);
+    const visible = MODES.filter((mode) => listed.includes(mode));
+    if (visible.length > 0) {
+      state.modes = visible;
+    }
+  }
+  const line = params.get("l");
+  if (line !== null && LINE_ID.test(line)) {
+    state.line = line;
+  }
+  const colours = params.get("colours");
+  if (colours === "official" || colours === "palette") {
+    state.colours = colours;
   }
   const camera = params.get("c");
   if (camera !== null) {
@@ -61,4 +96,77 @@ export function readUrlState(search: string): UrlState {
     state.playing = false;
   }
   return state;
+}
+
+/** The canonical query for a state; every value is plain ASCII, so no percent-encoding. */
+export function writeUrlState(state: AppState): string {
+  const pairs: [string, string][] = [
+    ["d", state.day],
+    ["t", formatClock(state.time)],
+    ["s", String(state.speed)],
+  ];
+  const visible = MODES.filter((mode) => state.modes[mode]);
+  if (visible.length < MODES.length) {
+    pairs.push(["m", visible.join(",")]);
+  }
+  if (state.line !== null) {
+    pairs.push(["l", encodeURIComponent(state.line)]);
+  }
+  if (state.colours !== "palette") {
+    pairs.push(["colours", state.colours]);
+  }
+  if (state.camera !== null) {
+    const { latitude, longitude, zoom } = state.camera;
+    pairs.push(["c", `${latitude.toFixed(4)},${longitude.toFixed(4)},${zoom.toFixed(1)}`]);
+  }
+  pairs.push(["p", state.playing ? "1" : "0"]);
+  return `?${pairs.map(([key, value]) => `${key}=${value}`).join("&")}`;
+}
+
+/** A state with the values the URL provides; anything the URL leaves out keeps its value. */
+export function applyUrlState(state: AppState, url: UrlState): AppState {
+  const modes =
+    url.modes === undefined
+      ? state.modes
+      : { ...allModes(false), ...Object.fromEntries(url.modes.map((mode) => [mode, true])) };
+  return {
+    ...state,
+    day: url.day ?? state.day,
+    time: url.time ?? state.time,
+    playing: url.playing ?? state.playing,
+    speed: url.speed ?? state.speed,
+    modes,
+    line: url.line ?? state.line,
+    colours: url.colours ?? state.colours,
+    camera: url.camera ?? state.camera,
+  };
+}
+
+/** Keeps the address bar in step with the store, debounced; returns the function that stops it. */
+export function syncUrl(
+  store: Store<AppState>,
+  replace: (query: string) => void,
+  debounceMs = URL_DEBOUNCE_MS,
+): () => void {
+  let last = writeUrlState(store.get());
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const unsubscribe = store.subscribe(() => {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(() => {
+      timer = undefined;
+      const query = writeUrlState(store.get());
+      if (query !== last) {
+        last = query;
+        replace(query);
+      }
+    }, debounceMs);
+  });
+  return () => {
+    unsubscribe();
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  };
 }

@@ -1,11 +1,13 @@
 /**
  * Variable-speed playback of the service day (SCOPE.md, section 4.3).
  *
- * The player owns no timer: the page calls `tick(now)` on every animation frame and the player
- * advances service time by the elapsed real time times the speed. It stops at the end of the
- * day and holds still while the page waits for data, without ever jumping when it resumes.
+ * The player owns neither a timer nor its state: it reads and writes the time, speed, playing
+ * and waiting fields of the store it is given, and the page calls `tick(now)` on every animation
+ * frame. It advances service time by the elapsed real time times the speed, stops at the end of
+ * the day and holds still while the page waits for data, without ever jumping when it resumes.
  */
 
+import type { Store } from "../state/store";
 import { SERVICE_DAY_LENGTH_S, clampTime } from "./clock";
 
 export const SPEEDS = [60, 120, 300, 600] as const;
@@ -18,80 +20,62 @@ export interface PlayerState {
   readonly waiting: boolean;
 }
 
-export type PlayerListener = (state: PlayerState) => void;
-
 export interface Player {
   state(): PlayerState;
   play(): void;
   pause(): void;
   toggle(): void;
   seek(time: number): void;
+  /** Moves by a signed number of service seconds, within the day. */
+  step(seconds: number): void;
   setSpeed(speed: number): void;
   setWaiting(waiting: boolean): void;
   /** Advances to the real-time instant `nowMs` (milliseconds) and returns the new state. */
   tick(nowMs: number): PlayerState;
-  subscribe(listener: PlayerListener): () => void;
 }
 
-export function createPlayer(initial: Partial<PlayerState> = {}): Player {
-  let state: PlayerState = Object.freeze({
-    time: clampTime(initial.time ?? 0),
-    speed: initial.speed ?? DEFAULT_SPEED,
-    playing: initial.playing ?? false,
-    waiting: initial.waiting ?? false,
-  });
+export function createPlayer(store: Store<PlayerState>): Player {
   // Real-time instant of the last tick, undefined until the next tick re-anchors playback.
   let anchor: number | undefined;
-  const listeners = new Set<PlayerListener>();
-
-  function update(patch: Partial<PlayerState>): void {
-    const next: PlayerState = Object.freeze({ ...state, ...patch });
-    if (
-      next.time === state.time &&
-      next.speed === state.speed &&
-      next.playing === state.playing &&
-      next.waiting === state.waiting
-    ) {
-      return;
-    }
-    state = next;
-    for (const listener of listeners) {
-      listener(state);
-    }
-  }
 
   function play(): void {
     anchor = undefined;
-    update({ playing: true });
+    store.set({ playing: true });
   }
 
   function pause(): void {
-    update({ playing: false });
+    store.set({ playing: false });
+  }
+
+  function seek(time: number): void {
+    store.set({ time: clampTime(time) });
   }
 
   return {
-    state: () => state,
+    state: () => store.get(),
     play,
     pause,
     toggle() {
-      if (state.playing) {
+      if (store.get().playing) {
         pause();
       } else {
         play();
       }
     },
-    seek(time) {
-      update({ time: clampTime(time) });
+    seek,
+    step(seconds) {
+      seek(store.get().time + seconds);
     },
     setSpeed(speed) {
       if (Number.isFinite(speed) && speed > 0) {
-        update({ speed });
+        store.set({ speed });
       }
     },
     setWaiting(waiting) {
-      update({ waiting });
+      store.set({ waiting });
     },
     tick(nowMs) {
+      const state = store.get();
       if (anchor === undefined || !state.playing || state.waiting) {
         anchor = nowMs;
         return state;
@@ -100,17 +84,11 @@ export function createPlayer(initial: Partial<PlayerState> = {}): Player {
       anchor = nowMs;
       const time = state.time + elapsed * state.speed;
       if (time >= SERVICE_DAY_LENGTH_S) {
-        update({ time: SERVICE_DAY_LENGTH_S, playing: false });
+        store.set({ time: SERVICE_DAY_LENGTH_S, playing: false });
       } else {
-        update({ time });
+        store.set({ time });
       }
-      return state;
-    },
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
+      return store.get();
     },
   };
 }

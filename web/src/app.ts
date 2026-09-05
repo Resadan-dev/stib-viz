@@ -32,7 +32,9 @@ import {
   tripsLayerProps,
 } from "./render/layers";
 import { createMapView } from "./render/map";
-import { readUrlState } from "./state/url";
+import { initialState } from "./state/app-state";
+import { createStore } from "./state/store";
+import { applyUrlState, readUrlState, syncUrl } from "./state/url";
 import { nightStyle } from "./theme/basemap";
 import { SERVICE_DAY_LENGTH_S, hourOf } from "./time/clock";
 import { createPlayer } from "./time/player";
@@ -47,9 +49,6 @@ declare global {
     stibviz?: DebugApi;
   }
 }
-
-/** 08:00, a lively instant to open on until the URL says otherwise. */
-export const DEFAULT_START_TIME_S = 14400;
 
 export interface AppOptions {
   dataBase?: string;
@@ -156,9 +155,14 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
 
   const reducedMotion =
     options.reducedMotion ?? window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const player = createPlayer({
-    time: url.time ?? DEFAULT_START_TIME_S,
-    playing: url.playing ?? !reducedMotion,
+  // The URL may name a day the index does not have: the chosen day always wins.
+  const store = createStore({
+    ...applyUrlState(initialState(entry.date, { playing: !reducedMotion }), url),
+    day: entry.date,
+  });
+  const player = createPlayer(store);
+  syncUrl(store, (query) => {
+    window.history.replaceState(null, "", query);
   });
   const clock = createClockView(shell.clock);
   const playButton = createPlayButton(shell.controls, () => {
@@ -170,14 +174,21 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     },
   });
 
+  const camera = store.get().camera;
   const view = createMapView(shell.map, nightStyle(), {
-    ...(url.camera === undefined ? {} : { camera: url.camera }),
+    ...(camera === null ? {} : { camera }),
     onBasemapUnavailable: (message) => {
       console.warn(`${fr.basemapUnavailable} (${message})`);
     },
   });
+  view.map.on("moveend", () => {
+    const center = view.map.getCenter();
+    store.set({
+      camera: { latitude: center.lat, longitude: center.lng, zoom: view.map.getZoom() },
+    });
+  });
   const networkLayer = createNetworkLayer(network);
-  const store = createSliceStore(day.manifest.slices, (sliceEntry) =>
+  const slices = createSliceStore(day.manifest.slices, (sliceEntry) =>
     loadSlice(source, day, sliceEntry),
   );
 
@@ -191,11 +202,11 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   let failedHour = -1;
 
   async function mountHour(hour: number): Promise<void> {
-    const result = await store.mount(hour);
+    const result = await slices.mount(hour);
     mounted = [...result.slices].map(([mode, slice]) => mountSlice(mode, slice, routes));
     buffers = createHeadBuffers(mounted.reduce((total, item) => total + item.slice.paths, 0));
     mountedHour = hour;
-    store.prefetch(hour + 1);
+    slices.prefetch(hour + 1);
   }
 
   function ensureHour(hour: number): void {
@@ -203,7 +214,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       return;
     }
     failedHour = -1;
-    if (!store.cached(hour)) {
+    if (!slices.cached(hour)) {
       player.setWaiting(true);
       status.show(fr.waitingNextHour);
     }
@@ -256,7 +267,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     requestAnimationFrame(frame);
   }
 
-  player.subscribe((state) => {
+  store.subscribe((state) => {
     clock.update(state.time);
     playButton.update(state.playing);
     if (!state.playing && state.time >= SERVICE_DAY_LENGTH_S) {
