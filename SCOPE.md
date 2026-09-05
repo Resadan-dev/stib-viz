@@ -106,16 +106,19 @@ largest slice being 1.29 MB.
 - If the next hour is not loaded when the slice changes, playback waits visibly rather than
   showing an incomplete hour.
 - The activity curve (vehicles running per minute, stacked by mode) doubles as the scrubber:
-  click and drag.
+  click and drag. It sits at the bottom of the control panel, at the panel's width.
 
 ### 4.4 Interface
 
 - Clock, date and day type (weekday, Saturday, Sunday), selector for the seven days.
 - Per-mode counters: vehicles running, trips departed since 04:00, kilometres.
 - Per-mode filters (show or hide metro, tram, bus, Noctis).
-- Single-line selection within a mode: every other vehicle dims, the chosen line stays at full
-  opacity. Does not hide anything, so context is kept; clearing the selection restores normal
-  colours.
+- Single-line selection: a line number typed and confirmed, with every line offered as a
+  suggestion while typing. Every other vehicle dims, the chosen line stays at full opacity; nothing
+  is hidden, so context is kept, and clearing the selection restores normal colours.
+- With a line selected, previous and next buttons step through its vehicles on the map, for
+  people who find the dots too small to click; stepping centres the map on the vehicle and turns
+  on a follow mode that keeps the camera on it during playback, until the map is dragged by hand.
 - A colour toggle: the mode palette (default, one flat colour per mode) or every route's official
   STIB colour. The official colour is not unique per line — STIB reuses a palette of about a
   dozen colours across its routes — so the toggle trades a uniform mode colour for a genuine but

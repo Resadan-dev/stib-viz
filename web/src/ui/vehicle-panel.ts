@@ -3,15 +3,23 @@ import type { VehicleDescription } from "../render/selection";
 import { formatClock } from "../time/clock";
 
 export interface VehiclePanel {
-  show(description: VehicleDescription): void;
+  show(description: VehicleDescription, following: boolean): void;
   hide(): void;
+}
+
+export interface VehiclePanelHandlers {
+  onClose: () => void;
+  onFollow: (follow: boolean) => void;
 }
 
 /**
  * The panel of the selected vehicle: route badge in its own colours, destination, next stop and
  * scheduled time (SCOPE.md, section 4.4). Worded for a layover and for an off-duty vehicle too.
  */
-export function createVehiclePanel(parent: HTMLElement, onClose: () => void): VehiclePanel {
+export function createVehiclePanel(
+  parent: HTMLElement,
+  handlers: VehiclePanelHandlers,
+): VehiclePanel {
   const section = document.createElement("section");
   section.className = "vehicle";
   section.setAttribute("aria-live", "polite");
@@ -28,8 +36,17 @@ export function createVehiclePanel(parent: HTMLElement, onClose: () => void): Ve
   close.className = "vehicle__close";
   close.setAttribute("aria-label", fr.close);
   close.textContent = "×";
-  close.addEventListener("click", onClose);
-  header.append(badge, mode, close);
+  close.addEventListener("click", handlers.onClose);
+  const follow = document.createElement("button");
+  follow.type = "button";
+  follow.className = "toggle vehicle__follow";
+  follow.textContent = fr.follow;
+  follow.setAttribute("aria-pressed", "false");
+  let following = false;
+  follow.addEventListener("click", () => {
+    handlers.onFollow(!following);
+  });
+  header.append(badge, mode, follow, close);
 
   const headsign = document.createElement("p");
   headsign.className = "vehicle__headsign";
@@ -41,7 +58,9 @@ export function createVehiclePanel(parent: HTMLElement, onClose: () => void): Ve
   parent.append(section);
 
   return {
-    show(description) {
+    show(description, isFollowing) {
+      following = isFollowing;
+      follow.setAttribute("aria-pressed", isFollowing ? "true" : "false");
       const { route } = description;
       badge.hidden = route === null;
       if (route !== null) {

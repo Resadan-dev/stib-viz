@@ -26,10 +26,11 @@ describe("createVehiclePanel", () => {
   it("shows the route badge in its colours, the destination and the next stop", () => {
     const parent = document.body.appendChild(document.createElement("div"));
     const onClose = vi.fn();
-    const panel = createVehiclePanel(parent, onClose);
+    const onFollow = vi.fn();
+    const panel = createVehiclePanel(parent, { onClose, onFollow });
     const section = parent.querySelector<HTMLElement>("section");
     expect(section?.hidden).toBe(true);
-    panel.show(RUNNING);
+    panel.show(RUNNING, false);
     expect(section?.hidden).toBe(false);
     const badge = parent.querySelector<HTMLElement>(".badge");
     expect(badge?.textContent).toBe("7");
@@ -41,20 +42,29 @@ describe("createVehiclePanel", () => {
       `${fr.nextStop} BOURSE · 17:03`,
     );
     expect(parent.querySelector(".vehicle__block")?.textContent).toContain("10474608");
-    parent.querySelector("button")?.click();
+    parent.querySelector<HTMLButtonElement>(".vehicle__close")?.click();
     expect(onClose).toHaveBeenCalledTimes(1);
+    const follow = parent.querySelector<HTMLButtonElement>(".vehicle__follow");
+    expect(follow?.textContent).toBe(fr.follow);
+    expect(follow?.getAttribute("aria-pressed")).toBe("false");
+    follow?.click();
+    expect(onFollow).toHaveBeenCalledWith(true);
+    panel.show(RUNNING, true);
+    expect(follow?.getAttribute("aria-pressed")).toBe("true");
+    follow?.click();
+    expect(onFollow).toHaveBeenLastCalledWith(false);
     panel.hide();
     expect(section?.hidden).toBe(true);
   });
 
   it("words the terminus, a layover and an off-duty vehicle", () => {
     const parent = document.body.appendChild(document.createElement("div"));
-    const panel = createVehiclePanel(parent, vi.fn());
-    panel.show({ ...RUNNING, nextStop: null });
+    const panel = createVehiclePanel(parent, { onClose: vi.fn(), onFollow: vi.fn() });
+    panel.show({ ...RUNNING, nextStop: null }, false);
     expect(parent.querySelector(".vehicle__next")?.textContent).toBe(fr.terminus);
-    panel.show({ ...RUNNING, status: "layover", start: 46980, nextStop: null });
+    panel.show({ ...RUNNING, status: "layover", start: 46980, nextStop: null }, false);
     expect(parent.querySelector(".vehicle__next")?.textContent).toBe(`${fr.layoverUntil} 17:03`);
-    panel.show({ ...RUNNING, status: "off", route: null, headsign: null, nextStop: null });
+    panel.show({ ...RUNNING, status: "off", route: null, headsign: null, nextStop: null }, false);
     expect(parent.querySelector(".vehicle__headsign")?.textContent).toBe(fr.offDuty);
     expect(parent.querySelector<HTMLElement>(".badge")?.hidden).toBe(true);
   });

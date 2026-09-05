@@ -96,6 +96,46 @@ export function describeVehicle(
   };
 }
 
+/** Distinct vehicles with a drawn head on the named line, ascending, for stepping through them. */
+export function vehiclesOnLine(
+  mounted: readonly MountedSlice[],
+  buffers: HeadBuffers,
+  count: number,
+  routes: readonly RouteInfo[],
+  line: string,
+): number[] {
+  const found = new Set<number>();
+  for (let i = 0; i < count; i += 1) {
+    const entry = mounted[buffers.slot[i] ?? -1];
+    const path = buffers.path[i];
+    if (entry === undefined || path === undefined) {
+      continue;
+    }
+    const route = routes[entry.slice.route[path] ?? -1];
+    const vehicle = entry.slice.vehicle[path];
+    if (route?.name === line && vehicle !== undefined) {
+      found.add(vehicle);
+    }
+  }
+  return [...found].sort((a, b) => a - b);
+}
+
+/** The next or previous vehicle of the list, cyclically; from outside the list, its first or last. */
+export function stepVehicle(
+  list: readonly number[],
+  current: number | null,
+  direction: 1 | -1,
+): number | null {
+  if (list.length === 0) {
+    return null;
+  }
+  const at = current === null ? -1 : list.indexOf(current);
+  if (at < 0) {
+    return direction === 1 ? (list[0] ?? null) : (list[list.length - 1] ?? null);
+  }
+  return list[(at + direction + list.length) % list.length] ?? null;
+}
+
 /** The vehicle and trip behind a picked head, from the buffers the heads were drawn from. */
 export function headAt(
   mounted: readonly MountedSlice[],

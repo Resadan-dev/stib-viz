@@ -28,12 +28,14 @@ test("writes speed, filters, colours, line and instant back to the URL", async (
   await page.getByRole("button", { name: "Couleurs officielles des lignes" }).click();
   await expect.poll(() => param(page, "colours")).toBe("official");
 
-  await page.getByLabel("Ligne").selectOption("7");
+  await page.getByLabel("Ligne", { exact: true }).fill("7");
+  await page.getByLabel("Ligne", { exact: true }).press("Enter");
   await expect.poll(() => param(page, "l")).toBe("7");
   // Selecting a tram line shows trams again.
   await expect(page.getByLabel("Tram")).toBeChecked();
 
-  // Focus is still on the colour button: arrows must step all the same.
+  // Focus is in the line field, which owns the arrow keys: leave it first.
+  await page.getByLabel("Ligne", { exact: true }).blur();
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => param(page, "t")).toBe("08:01");
   await expect(page.locator("time.clock__time")).toHaveText("08:01");
@@ -47,7 +49,7 @@ test("reads the same state back from the URL", async ({ page }) => {
   await expect(page.getByRole("button", { name: "×120" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByLabel("Tram")).not.toBeChecked();
   await expect(page.getByLabel("Métro")).toBeChecked();
-  await expect(page.getByLabel("Ligne")).toHaveValue("1");
+  await expect(page.getByLabel("Ligne", { exact: true })).toHaveValue("1");
   await expect(
     page.getByRole("button", { name: "Couleurs officielles des lignes" }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -71,6 +73,28 @@ test("opens the vehicle panel from an injected selection and closes it with Esca
   await expect(panel.locator(".vehicle__next")).toContainText(/Prochain arrêt|Terminus|attente/);
   await page.locator("body").press("Escape");
   await expect(panel).toBeHidden();
+});
+
+test("steps through the vehicles of the selected line and follows the chosen one", async ({
+  page,
+}) => {
+  await openPaused(page);
+  await page.getByLabel("Ligne", { exact: true }).fill("7");
+  await page.getByLabel("Ligne", { exact: true }).press("Enter");
+  const next = page.getByRole("button", { name: "Véhicule suivant" });
+  await expect(next).toBeEnabled();
+  await expect(page.locator(".stepper__count")).toHaveText(/– \/ [1-9]\d*/);
+  await next.click();
+  const panel = page.locator("section.vehicle");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".badge")).toHaveText("7");
+  await expect(panel.locator(".vehicle__follow")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".stepper__count")).toHaveText(/1 \/ [1-9]\d*/);
+  await next.click();
+  await expect(page.locator(".stepper__count")).toHaveText(/2 \/ [1-9]\d*/);
+  await page.getByLabel("Ligne", { exact: true }).fill("999");
+  await page.getByLabel("Ligne", { exact: true }).press("Enter");
+  await expect(page.getByLabel("Ligne", { exact: true })).toHaveAttribute("aria-invalid", "true");
 });
 
 test("scrubs the day from the activity range and explains itself in the about dialog", async ({

@@ -18,8 +18,19 @@ export interface MapView {
   setLayers(layers: Layer[]): void;
   /** Called for a click that lands on no deck.gl object: the way to clear a selection. */
   onEmptyClick(handler: () => void): void;
+  /** Called when the person starts dragging the map, which ends any camera follow. */
+  onUserDrag(handler: () => void): void;
+  /** Eases the camera onto a point, zooming in when the view is too wide to see one vehicle. */
+  centerOn(position: [number, number]): void;
+  /** Moves the camera onto a point at once, for one frame of a follow. */
+  follow(position: [number, number]): void;
   destroy(): void;
 }
+
+/** Below this zoom a single vehicle is a speck; stepping to one zooms in this far. */
+export const FOLLOW_MIN_ZOOM = 13.5;
+/** Pixels around a head that still count as a click on it. */
+export const PICKING_RADIUS_PX = 6;
 
 export interface MapOptions {
   camera?: { latitude: number; longitude: number; zoom: number };
@@ -55,7 +66,11 @@ export function createMapView(
     }
   });
 
-  const overlay = new MapboxOverlay({ interleaved: false, layers: [] });
+  const overlay = new MapboxOverlay({
+    interleaved: false,
+    layers: [],
+    pickingRadius: PICKING_RADIUS_PX,
+  });
   map.addControl(overlay);
 
   return {
@@ -71,6 +86,22 @@ export function createMapView(
           }
         },
       });
+    },
+    onUserDrag(handler) {
+      map.on("dragstart", handler);
+    },
+    centerOn(position) {
+      map.easeTo({
+        center: position,
+        zoom: Math.max(map.getZoom(), FOLLOW_MIN_ZOOM),
+        duration: 700,
+      });
+    },
+    follow(position) {
+      // A jump would abort the ease that centerOn started, or a zoom under way: let those finish.
+      if (!map.isMoving()) {
+        map.jumpTo({ center: position });
+      }
     },
     destroy() {
       overlay.finalize();

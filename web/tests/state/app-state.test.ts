@@ -15,6 +15,7 @@ describe("initialState", () => {
       colours: "palette",
       camera: null,
       vehicle: null,
+      follow: false,
     });
     expect(DEFAULT_START_TIME_S).toBe(14400);
     expect(state.modes).toEqual({ metro: true, tram: true, bus: true, noctis: true });

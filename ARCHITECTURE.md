@@ -369,6 +369,10 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
 - A vehicle is never drawn twice: exactly one slice mounted per mode (section 6.1); a vitest check
   verifies this on the fixture day.
 - The network layer is a dark `GeoJsonLayer` beneath the vehicles; metro is dimmer still.
+- Follow mode: while it is on and the selected vehicle has a head, every frame recentres the map
+  on it with `jumpTo`; at ×300 the vehicle moves under a pixel per frame at zoom 14, so the camera
+  glides. A `dragstart` from the person turns it off; stepping to a vehicle turns it on and eases
+  the camera to zoom 13.5 at least.
 - Layovers, in practice: between two paths of the same vehicle within the mounted slice, the head
   is held at the end of the first when both ends lie within 100 m of each other (the deadhead
   threshold of the pipeline); a wider gap is a deadhead move and draws nothing. Before the first
@@ -531,6 +535,9 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Scrubber as a native range input over the SVG curve | Pointer handling on the SVG | Click, drag, keyboard and screen readers for free; the curve is decoration |
 | About panel as a `<dialog>` element | A hand-made overlay | Focus trap, Escape and backdrop come from the browser |
 | Stops fetched on the first selection within the hour | Loaded with the slices | About 700 KB per hour that most sessions never need |
+| Line chosen in a text field with a native datalist | A select with 73 options | Typing the number people know is faster than scrolling; suggestions and validation come from the browser; no white native list over the night map |
+| Vehicles of a line stepped through with two buttons, follow mode on the camera | Clicking heads only | Heads are a few pixels wide among hundreds; stepping never misses, and the follow mode is what the stepping is for. A manual drag ends it |
+| Picking radius of 6 px around heads | deck.gl default of 0 | Clicking a three-pixel dot in a dense area is otherwise a matter of luck |
 
 ## 10. Open technical points
 

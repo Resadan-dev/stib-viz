@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { StopsFile } from "../../src/data/stops";
 import { decodeSlice } from "../../src/data/stv1";
 import { createHeadBuffers, computeHeads, mountSlice } from "../../src/render/heads";
-import { currentTrip, describeVehicle, headAt } from "../../src/render/selection";
+import {
+  currentTrip,
+  describeVehicle,
+  headAt,
+  stepVehicle,
+  vehiclesOnLine,
+} from "../../src/render/selection";
 import { MANIFEST, NETWORK, VEHICLES } from "../helpers/fixtures";
 import { encodeSlice } from "../helpers/stv1";
 
@@ -72,20 +78,45 @@ describe("describeVehicle", () => {
   });
 });
 
+const PICK_SLICE = decodeSlice(
+  encodeSlice(8, [
+    { lon: [4.35, 4.36], lat: [50.85, 50.86], t: [100, 200], vehicle: 3, trip: 2, route: 0 },
+    { lon: [4.4, 4.41], lat: [50.8, 50.81], t: [100, 200], vehicle: 5, trip: 0, route: 1 },
+    { lon: [4.42, 4.43], lat: [50.82, 50.83], t: [100, 200], vehicle: 9, trip: 1, route: 1 },
+  ]),
+);
+
 describe("headAt", () => {
   it("maps a picked head back to its vehicle and trip", () => {
-    const slice = decodeSlice(
-      encodeSlice(8, [
-        { lon: [4.35, 4.36], lat: [50.85, 50.86], t: [100, 200], vehicle: 3, trip: 2, route: 0 },
-        { lon: [4.4, 4.41], lat: [50.8, 50.81], t: [100, 200], vehicle: 5, trip: 0, route: 1 },
-      ]),
-    );
-    const mounted = [mountSlice("tram", slice, MANIFEST.routes)];
-    const buffers = createHeadBuffers(2);
+    const mounted = [mountSlice("tram", PICK_SLICE, MANIFEST.routes)];
+    const buffers = createHeadBuffers(3);
     const count = computeHeads(mounted, 150, null, buffers);
-    expect(count).toBe(2);
+    expect(count).toBe(3);
     expect(headAt(mounted, buffers, 1)).toEqual({ vehicle: 5, trip: 0 });
     expect(headAt(mounted, buffers, 0)).toEqual({ vehicle: 3, trip: 2 });
     expect(headAt(mounted, buffers, 7)).toBeUndefined();
+  });
+});
+
+describe("vehiclesOnLine", () => {
+  it("lists the drawn vehicles of a line by name, sorted", () => {
+    const mounted = [mountSlice("tram", PICK_SLICE, MANIFEST.routes)];
+    const buffers = createHeadBuffers(3);
+    const count = computeHeads(mounted, 150, null, buffers);
+    expect(vehiclesOnLine(mounted, buffers, count, MANIFEST.routes, "7")).toEqual([5, 9]);
+    expect(vehiclesOnLine(mounted, buffers, count, MANIFEST.routes, "1")).toEqual([3]);
+    expect(vehiclesOnLine(mounted, buffers, count, MANIFEST.routes, "55")).toEqual([]);
+  });
+});
+
+describe("stepVehicle", () => {
+  it("cycles through the list from the current vehicle, or enters it from either end", () => {
+    expect(stepVehicle([5, 9], null, 1)).toBe(5);
+    expect(stepVehicle([5, 9], null, -1)).toBe(9);
+    expect(stepVehicle([5, 9], 5, 1)).toBe(9);
+    expect(stepVehicle([5, 9], 9, 1)).toBe(5);
+    expect(stepVehicle([5, 9], 5, -1)).toBe(9);
+    expect(stepVehicle([5, 9], 42, 1)).toBe(5);
+    expect(stepVehicle([], null, 1)).toBeNull();
   });
 });

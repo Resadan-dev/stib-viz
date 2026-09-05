@@ -36,7 +36,7 @@ import {
   tripsLayerProps,
 } from "./render/layers";
 import { createMapView } from "./render/map";
-import { describeVehicle, headAt } from "./render/selection";
+import { describeVehicle, headAt, stepVehicle, vehiclesOnLine } from "./render/selection";
 import { initialState, type AppState, type ModeVisibility } from "./state/app-state";
 import { createStore } from "./state/store";
 import { applyUrlState, readUrlState, syncUrl } from "./state/url";
@@ -52,9 +52,10 @@ import { createPlayButton } from "./ui/controls";
 import { createCounters } from "./ui/counters";
 import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
-import { createLineSelect } from "./ui/lines";
+import { createLineField } from "./ui/lines";
 import { createSpeedControl } from "./ui/speed";
 import { createStatusView } from "./ui/status";
+import { createVehicleStepper } from "./ui/stepper";
 import { createVehiclePanel } from "./ui/vehicle-panel";
 
 declare global {
@@ -163,10 +164,10 @@ function buildShell(root: HTMLElement): Shell {
   const filters = element("div", "panel__filters", panel);
   const appearance = element("div", "panel__appearance", panel);
   const status = element("div", "panel__status", panel);
+  const activity = element("div", "panel__activity", panel);
   const about = element("div", "panel__about", panel);
   const attribution = element("footer", "panel__attribution", panel);
   const vehicle = element("div", "vehicle-slot", root);
-  const activity = element("div", "activity-slot", root);
   return {
     about,
     vehicle,
@@ -226,12 +227,23 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const filters = createFilters(shell.filters, (mode, visible) => {
     store.set({ modes: { ...store.get().modes, [mode]: visible } });
   });
-  const lineSelect = createLineSelect(shell.appearance, routes, (line) => {
+  const lineSelect = createLineField(shell.appearance, routes, (line) => {
     // Selecting a line shows its mode again: a hidden selection would be a puzzle.
     const route = routes.find((candidate) => candidate.name === line);
     const modes =
       route === undefined ? store.get().modes : { ...store.get().modes, [route.mode]: true };
     store.set({ line, modes });
+  });
+  const stepper = createVehicleStepper(shell.appearance, (direction) => {
+    const next = stepVehicle(lineVehicles, store.get().vehicle, direction);
+    if (next === null) {
+      return;
+    }
+    store.set({ vehicle: next, follow: true });
+    const head = selectedHead(lastCount, next);
+    if (head !== null) {
+      view.centerOn(head.position);
+    }
   });
   const colourToggle = createColourToggle(shell.appearance, (colours) => {
     store.set({ colours });
@@ -259,7 +271,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       player.setSpeed(speed);
     },
     escape: () => {
-      store.set({ vehicle: null });
+      store.set({ vehicle: null, follow: false });
     },
   });
 
@@ -280,11 +292,19 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const stopsStore = createStopsStore(day.manifest.stops_files, (entry) =>
     source.json(day.directory + entry.path).then(parseStops),
   );
-  const panel = createVehiclePanel(shell.vehicle, () => {
-    store.set({ vehicle: null });
+  const panel = createVehiclePanel(shell.vehicle, {
+    onClose: () => {
+      store.set({ vehicle: null, follow: false });
+    },
+    onFollow: (follow) => {
+      store.set({ follow });
+    },
   });
   view.onEmptyClick(() => {
-    store.set({ vehicle: null });
+    store.set({ vehicle: null, follow: false });
+  });
+  view.onUserDrag(() => {
+    store.set({ follow: false });
   });
   const slices = createSliceStore(day.manifest.slices, (sliceEntry) =>
     loadSlice(source, day, sliceEntry),
@@ -297,6 +317,9 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   let mountedKey = "";
   let buffers: HeadBuffers = createHeadBuffers(0);
   let mounting: Promise<void> | null = null;
+  // Heads drawn by the last render, and the vehicles of the selected line among them.
+  let lastCount = 0;
+  let lineVehicles: number[] = [];
   // An hour whose slices failed to load is not retried until the instant leaves it, otherwise
   // every animation frame would request the failed file again.
   let failedHour = -1;
@@ -344,7 +367,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   function pick(index: number): void {
     const head = headAt(mounted, buffers, index);
     if (head !== undefined) {
-      store.set({ vehicle: head.vehicle });
+      store.set({ vehicle: head.vehicle, follow: false });
     }
   }
 
@@ -373,7 +396,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   let renderedTime = Number.NaN;
   let renderedKey = "";
   let renderedVehicle: number | null = null;
-  function render(time: number, vehicle: number | null): void {
+  function render(time: number, vehicle: number | null, line: string | null): void {
     if (
       mountedHour < 0 ||
       (time === renderedTime && mountedKey === renderedKey && vehicle === renderedVehicle)
@@ -384,6 +407,14 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     renderedKey = mountedKey;
     renderedVehicle = vehicle;
     const count = computeHeads(mounted, time, vehicles, buffers);
+    lastCount = count;
+    lineVehicles = line === null ? [] : vehiclesOnLine(mounted, buffers, count, routes, line);
+    const at = vehicle === null ? -1 : lineVehicles.indexOf(vehicle);
+    stepper.update({
+      enabled: line !== null,
+      position: at < 0 ? null : at + 1,
+      total: lineVehicles.length,
+    });
     const selection = selectedHead(count, vehicle);
     const ring =
       selection === null
@@ -407,7 +438,13 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     player.tick(now);
     const state = store.get();
     ensureMounted(hourOf(state.time), state.modes);
-    render(state.time, state.vehicle);
+    render(state.time, state.vehicle, state.line);
+    if (state.follow && state.vehicle !== null) {
+      const head = selectedHead(lastCount, state.vehicle);
+      if (head !== null) {
+        view.follow(head.position);
+      }
+    }
     frames += 1;
     if (now - fpsAnchor >= 1000) {
       fps = (frames * 1000) / (now - fpsAnchor);
@@ -432,7 +469,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       panel.hide();
       return;
     }
-    panel.show(first);
+    panel.show(first, state.follow);
     // Stops are loaded on the first click within the hour, never earlier (section 5.6).
     const request = (describing += 1);
     stopsStore
@@ -443,7 +480,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
         }
         const full = describeVehicle(vehicle, list, routes, time, stops, names);
         if (full !== null) {
-          panel.show(full);
+          panel.show(full, store.get().follow);
         }
       })
       .catch((error: unknown) => {
@@ -454,6 +491,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   function reflect(state: AppState, previous: AppState): void {
     if (
       state.vehicle !== previous.vehicle ||
+      state.follow !== previous.follow ||
       (state.vehicle !== null && minuteOf(state.time) !== minuteOf(previous.time))
     ) {
       describeSelected(state);

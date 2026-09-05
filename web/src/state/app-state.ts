@@ -28,6 +28,8 @@ export interface AppState extends PlayerState {
   readonly camera: Camera | null;
   /** Index of the selected vehicle in vehicles.json, or null. */
   readonly vehicle: number | null;
+  /** Whether the camera keeps the selected vehicle centred during playback. */
+  readonly follow: boolean;
 }
 
 export function allModes(visible: boolean): ModeVisibility {
@@ -46,6 +48,7 @@ export function initialState(day: string, overrides: Partial<AppState> = {}): Ap
     colours: "palette",
     camera: null,
     vehicle: null,
+    follow: false,
     ...overrides,
   };
 }
