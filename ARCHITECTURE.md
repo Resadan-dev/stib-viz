@@ -75,7 +75,8 @@ stib-viz/
 │   ├── src/
 │   │   ├── main.ts               entry point: starts the app, shows a fatal error
 │   │   ├── app.ts                wiring: loading, mounting, animation loop, stibviz debug API
-│   │   ├── data/                 contract types and parsers, loader, STV1 decoding, slice store
+│   │   ├── data/                 contract types and parsers, loader, STV1 decoding, slice store,
+│   │   │                         stops of the hour on demand
 │   │   ├── time/                 service-day clock, player (speed, pause, waiting)
 │   │   ├── render/               MapLibre map, deck.gl layers, current positions, selection
 │   │   ├── ui/                   clock, day selector, counters, activity curve and scrubber,
@@ -395,10 +396,14 @@ view, selected vehicle). Every change notifies the components. The URL updates o
 debounce:
 
 ```
-/?d=2026-09-09&t=17:03&s=300&m=metro,tram,bus,noctis&l=7&colours=official&c=50.846,4.352,12.4,0,0&p=1
+/?d=2026-09-09&t=17:03&s=300&m=metro,tram,noctis&l=7&colours=official&c=50.846,4.352,12.4&p=1
 ```
 
-The link recreates the scene exactly. Invalid values are ignored one by one.
+The link recreates the scene exactly. Invalid values are ignored one by one. Defaults are left
+out: `m` only when a mode is hidden, `l` only with a selected line, `colours` only when official,
+`c` (latitude, longitude, zoom; bearing and pitch are accepted and ignored) once the map has moved.
+The URL is rewritten on a 300 ms debounce and only when the query changed, so playback at ×600
+rewrites it a few times a second at most, well under the browser throttling of `replaceState`.
 
 ### 6.5 Night-time style
 
@@ -522,6 +527,10 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Layover held from the slice first, from `vehicles.json` second | Zero-length paths in the slices | Degenerate paths break rendering; the trip list is small and only read after the first frame |
 | Square trail joints and caps | Round joints and caps | Invisible at two pixels; 55 → 60 frames per second at the 17:03 peak on an integrated Intel GPU |
 | Engines in their own chunks (maplibre, deck) | One bundle | About 460 KB gzipped of engines cached across deployments; the application chunk is under 10 KB |
+| Lines keyed by their public number in state and URL | GTFS route id | In the STIB feed route 8 is tram 7 and route 7 is tram 55; a shared link must carry the number people know, and the 73 numbers are unique |
+| Scrubber as a native range input over the SVG curve | Pointer handling on the SVG | Click, drag, keyboard and screen readers for free; the curve is decoration |
+| About panel as a `<dialog>` element | A hand-made overlay | Focus trap, Escape and backdrop come from the browser |
+| Stops fetched on the first selection within the hour | Loaded with the slices | About 700 KB per hour that most sessions never need |
 
 ## 10. Open technical points
 

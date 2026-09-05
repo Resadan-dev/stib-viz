@@ -44,6 +44,8 @@ import { nightStyle } from "./theme/basemap";
 import { MODE_COLORS, routeColor } from "./theme/colors";
 import { SERVICE_DAY_LENGTH_S, hourOf, minuteOf } from "./time/clock";
 import { createPlayer } from "./time/player";
+import { createAbout } from "./ui/about";
+import { createActivity } from "./ui/activity";
 import { createClockView } from "./ui/clock";
 import { createColourToggle } from "./ui/colours";
 import { createPlayButton } from "./ui/controls";
@@ -137,8 +139,12 @@ interface Shell {
   appearance: HTMLElement;
   status: HTMLElement;
   attribution: HTMLElement;
+  about: HTMLElement;
   vehicle: HTMLElement;
+  activity: HTMLElement;
 }
+
+export const REPOSITORY_URL = "https://github.com/Resadan-dev/stib-viz";
 
 function buildShell(root: HTMLElement): Shell {
   root.replaceChildren();
@@ -157,10 +163,14 @@ function buildShell(root: HTMLElement): Shell {
   const filters = element("div", "panel__filters", panel);
   const appearance = element("div", "panel__appearance", panel);
   const status = element("div", "panel__status", panel);
+  const about = element("div", "panel__about", panel);
   const attribution = element("footer", "panel__attribution", panel);
   const vehicle = element("div", "vehicle-slot", root);
+  const activity = element("div", "activity-slot", root);
   return {
+    about,
     vehicle,
+    activity,
     map,
     date,
     kind,
@@ -225,6 +235,14 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   });
   const colourToggle = createColourToggle(shell.appearance, (colours) => {
     store.set({ colours });
+  });
+  const activity = createActivity(shell.activity, day.manifest, (time) => {
+    player.seek(time);
+  });
+  createAbout(shell.about, {
+    feedVersion: day.manifest.feed_version,
+    attribution: day.manifest.attribution,
+    repositoryUrl: REPOSITORY_URL,
   });
   const colourOptions = (state: AppState): ColourOptions => ({
     scheme: state.colours,
@@ -447,6 +465,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     filters.update(state.modes);
     lineSelect.update(state.line);
     colourToggle.update(state.colours);
+    activity.update(state.time, state.modes);
     if (state.colours !== previous.colours || state.line !== previous.line) {
       const options = colourOptions(state);
       mounted = mounted.map((item) => recolour(item, routes, options));

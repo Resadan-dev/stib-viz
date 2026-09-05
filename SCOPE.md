@@ -233,18 +233,23 @@ on the fixture day; the Playwright suite checks the movement of both routes minu
 
 **M3 Interface**
 
-- [ ] `ui/`: activity curve doubling as the scrubber
-- [ ] `ui/`: speeds ×60 to ×600, keyboard shortcuts
-- [ ] `ui/`: per-mode counters read from the manifest series
-- [ ] `ui/`: per-mode filters, layers and prefetching
-- [ ] `ui/` `render/`: single-line selection within a mode, dims every other vehicle
-- [ ] `render/` `theme/`: colour mode toggle, mode palette or each route's official colour
-- [ ] `render/` and `ui/`: vehicle selection, stops loaded on demand, panel
-- [ ] `state/`: single state object, URL synchronisation, round trip tested
-- [ ] `data/`: next-hour prefetch, three-hour cache, visible waiting
-- [ ] `ui/`: about panel and attributions
-- [ ] `i18n/`: complete French copy
-- [ ] Playwright smoke test on the fixture day
+- [x] `ui/`: activity curve doubling as the scrubber
+- [x] `ui/`: speeds ×60 to ×600, keyboard shortcuts
+- [x] `ui/`: per-mode counters read from the manifest series
+- [x] `ui/`: per-mode filters, layers and prefetching
+- [x] `ui/` `render/`: single-line selection within a mode, dims every other vehicle
+- [x] `render/` `theme/`: colour mode toggle, mode palette or each route's official colour
+- [x] `render/` and `ui/`: vehicle selection, stops loaded on demand, panel
+- [x] `state/`: single state object, URL synchronisation, round trip tested
+- [x] `data/`: next-hour prefetch, three-hour cache, visible waiting
+- [x] `ui/`: about panel and attributions
+- [x] `i18n/`: complete French copy
+- [x] Playwright smoke test on the fixture day
+
+Delivered on 5 September 2026 against the Wednesday and the fixture Friday: the state lives in one
+frozen object that the URL follows on a debounce and recreates on load; the scrubber is a native
+range input over the stacked activity curve; lines are selected by their public number, since the
+GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first selection only.
 
 **M4 Seven days and production**
 

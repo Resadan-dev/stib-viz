@@ -46,6 +46,28 @@ export const fr = {
   layoverUntil: "En attente au terminus, départ à",
   offDuty: "Hors service à cet instant",
   vehicleBlock: "Véhicule",
+  scrubberLabel: "Instant de la journée",
+  about: "À propos",
+  aboutTitle: "À propos de cette carte",
+  aboutMethod:
+    "Chaque véhicule suit l’horaire théorique de la STIB, à vitesse constante entre deux arrêts le long du tracé officiel. La journée court de 4 h à 4 h le lendemain, Noctis compris. Rien n’est mesuré en temps réel.",
+  aboutData: "Données",
+  aboutFeed: "Version du flux GTFS :",
+  aboutLicence: "Licence CC BY 4.0.",
+  aboutBasemap: "Fond de carte OpenFreeMap © OpenMapTiles, données © contributeurs OpenStreetMap.",
+  aboutColours: "Couleurs",
+  sharedColoursNote:
+    "Par défaut, un blanc chaud pour le métro, un bleu pour les bus, un violet pour les Noctis et la couleur officielle pour les trams. Les couleurs officielles de la STIB sont partagées entre plusieurs lignes : deux lignes sans rapport peuvent se ressembler.",
+  shortcutsTitle: "Raccourcis clavier",
+  keySpace: "Espace",
+  keySpaceMeaning: "lecture ou pause",
+  keyArrows: "← →",
+  keyArrowsMeaning: "une minute, dix avec Maj",
+  keyDigits: "1 à 4",
+  keyDigitsMeaning: "vitesse ×60, ×120, ×300, ×600",
+  keyEscape: "Échap",
+  keyEscapeMeaning: "fermer la sélection",
+  aboutSource: "Code source sur GitHub",
 } as const;
 
 export type MessageKey = keyof typeof fr;

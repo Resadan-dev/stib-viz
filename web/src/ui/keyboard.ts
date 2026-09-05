@@ -8,20 +8,23 @@ export interface KeyboardHandlers {
   escape: () => void;
 }
 
-const INTERACTIVE = new Set(["BUTTON", "INPUT", "SELECT", "TEXTAREA", "A"]);
+/** Fields and selects own every key; buttons and links only own Space and Enter. */
+const OWNS_EVERY_KEY = new Set(["INPUT", "SELECT", "TEXTAREA"]);
+const OWNS_ACTIVATION = new Set(["BUTTON", "A"]);
 const MINUTE_S = 60;
 
 /**
  * Space plays and pauses; arrows step one minute, ten with Shift; digits 1 to 4 pick a speed;
- * Escape clears the selection (ARCHITECTURE.md, section 6.6). Interactive elements keep their
- * native behaviour, so a focused button is not toggled twice.
+ * Escape clears the selection (ARCHITECTURE.md, section 6.6). Fields keep every key; a focused
+ * button keeps Space so it is not toggled twice, but arrows and digits still drive playback.
  */
 export function bindKeyboard(target: EventTarget, handlers: KeyboardHandlers): () => void {
   const onKeyDown = (event: Event): void => {
     if (!(event instanceof KeyboardEvent)) {
       return;
     }
-    if (event.target instanceof Element && INTERACTIVE.has(event.target.tagName)) {
+    const tag = event.target instanceof Element ? event.target.tagName : "";
+    if (OWNS_EVERY_KEY.has(tag) || (OWNS_ACTIVATION.has(tag) && event.key === " ")) {
       return;
     }
     const minutes = event.shiftKey ? 10 : 1;

@@ -76,7 +76,7 @@ describe("bindKeyboard", () => {
     expect(h.escape).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves buttons and inputs to their native behaviour", () => {
+  it("leaves Space to a focused button and every key to a field, but arrows still step", () => {
     const h = handlers();
     unbind = bindKeyboard(document, h);
     const button = document.createElement("button");
@@ -84,12 +84,16 @@ describe("bindKeyboard", () => {
     button.dispatchEvent(
       new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }),
     );
+    expect(h.toggle).not.toHaveBeenCalled();
+    button.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(h.step).toHaveBeenCalledWith(60);
     const input = document.createElement("input");
     document.body.append(input);
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "3", bubbles: true }));
     press("x");
-    expect(h.toggle).not.toHaveBeenCalled();
-    expect(h.step).not.toHaveBeenCalled();
+    expect(h.step).toHaveBeenCalledTimes(1);
+    expect(h.setSpeed).not.toHaveBeenCalled();
   });
 });
 

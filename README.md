@@ -6,9 +6,11 @@ the open data published on the Belgian Mobility portal.
 
 Inspired by [france-rail-traffic](https://github.com/magrinj/france-rail-traffic).
 
-**Status: milestone M2 (see it move).** The pipeline builds one service day and the site replays
-it: night map, network layer, animated vehicles, clock, play and pause. Counters, filters, the
-scrubber and the vehicle panel arrive with milestone M3.
+**Status: milestone M3 (interface).** The pipeline builds one service day and the site replays
+it: night map, network layer, animated vehicles, clock, speeds, per-mode counters and filters,
+line selection, official colours, vehicle panel, activity curve doubling as the scrubber, about
+panel, keyboard shortcuts and a shareable URL. The rolling seven-day window and the nightly
+deployment arrive with milestone M4.
 
 ## Documents
 
@@ -92,9 +94,11 @@ uv run stibviz build --gtfs ../cache/gtfs.zip --date 2026-09-09 --out ../web/pub
 cd ../web && npx --yes pnpm@10 dev
 ```
 
-Then open `http://localhost:5173/?d=2026-09-09&t=17:03`. The URL accepts `d` (day), `t` (civil
-time `HH:MM`), `p` (`1` playing, `0` paused) and `c` (`lat,lon,zoom`). The space bar plays and
-pauses.
+Then open `http://localhost:5173/?d=2026-09-09&t=17:03`. The URL carries the whole scene and is
+rewritten as you play: `d` (day), `t` (civil time `HH:MM`), `s` (speed, 60 to 600), `m` (visible
+modes), `l` (selected line), `colours` (`official`), `c` (`lat,lon,zoom`) and `p` (`1` playing,
+`0` paused). Space plays and pauses, the arrows step one minute (ten with Shift), the digits 1 to
+4 pick a speed and Escape closes the vehicle panel.
 
 The Playwright smoke tests run against the built site with the fixture day in `web/public/data`
 (build it from `pipeline/tests/fixtures/gtfs-extract/gtfs.zip` for 2026-09-11). Once,
