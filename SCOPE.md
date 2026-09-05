@@ -178,7 +178,7 @@ A box is ticked when its tests are green.
       coverage, `i18n/fr.ts` and its test
 - [x] `.github/workflows/ci.yml`: lint, types and tests on both sides for every push and PR
 - [x] MIT `LICENSE`, `SECURITY.md`, Dependabot, English documentation
-- [ ] GitHub repository created, first CI run green
+- [x] GitHub repository created (private for now), first CI run green
 
 **M1 One day**
 
