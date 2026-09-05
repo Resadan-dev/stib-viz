@@ -70,7 +70,7 @@ jobs:
         # days still reach the site when one of them fails.
         run: |
           set +e
-          ../.github/scripts/build-days.sh cache/gtfs.zip "$DATA_DIR" "$REPORT" < days.txt
+          bash ../.github/scripts/build-days.sh cache/gtfs.zip "$DATA_DIR" "$REPORT" < days.txt
           echo "status=$?" >> "$GITHUB_OUTPUT"
           echo "built=$(grep -c ': built$' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
         working-directory: pipeline
