@@ -16,6 +16,8 @@ import { BRUSSELS_VIEW } from "../theme/colors";
 export interface MapView {
   map: MapLibreMap;
   setLayers(layers: Layer[]): void;
+  /** Called for a click that lands on no deck.gl object: the way to clear a selection. */
+  onEmptyClick(handler: () => void): void;
   destroy(): void;
 }
 
@@ -60,6 +62,15 @@ export function createMapView(
     map,
     setLayers(layers) {
       overlay.setProps({ layers });
+    },
+    onEmptyClick(handler) {
+      overlay.setProps({
+        onClick: (info) => {
+          if (!info.picked) {
+            handler();
+          }
+        },
+      });
     },
     destroy() {
       overlay.finalize();

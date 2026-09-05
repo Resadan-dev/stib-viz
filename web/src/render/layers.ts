@@ -11,13 +11,14 @@ import { TripsLayer } from "@deck.gl/geo-layers";
 import { GeoJsonLayer, ScatterplotLayer } from "@deck.gl/layers";
 
 import type { Network, NetworkFeature } from "../data/contract";
-import { networkColor } from "../theme/colors";
+import { networkColor, type Rgb } from "../theme/colors";
 import type { HeadBuffers, MountedSlice } from "./heads";
 
 /** Trail length in service-day seconds, always below the 300 s upstream overlap of the slices. */
 export const TRAIL_LENGTH_S = 105;
 export const TRAIL_WIDTH_PX = 2;
 export const HEAD_RADIUS_PX = 3.5;
+export const SELECTION_RADIUS_PX = 9;
 
 // Everything is drawn on top of the basemap in insertion order; depth testing would let the
 // network hide trails that share its geometry.
@@ -117,8 +118,42 @@ export function headsLayerProps(buffers: HeadBuffers, count: number) {
   };
 }
 
-export function createHeadsLayer(buffers: HeadBuffers, count: number): ScatterplotLayer {
-  return new ScatterplotLayer(headsLayerProps(buffers, count));
+export function createHeadsLayer(
+  buffers: HeadBuffers,
+  count: number,
+  onPick?: (index: number) => void,
+): ScatterplotLayer {
+  if (onPick === undefined) {
+    return new ScatterplotLayer(headsLayerProps(buffers, count));
+  }
+  return new ScatterplotLayer({
+    ...headsLayerProps(buffers, count),
+    pickable: true,
+    onClick: (info) => {
+      onPick(info.index);
+      return true;
+    },
+  });
+}
+
+/** A ring around the selected vehicle, or an empty layer when it has no head to show. */
+export function createSelectionLayer(
+  position: [number, number] | null,
+  colour: Rgb,
+): ScatterplotLayer<[number, number]> {
+  return new ScatterplotLayer<[number, number]>({
+    id: "selection",
+    data: position === null ? [] : [position],
+    getPosition: (point) => point,
+    stroked: true,
+    filled: false,
+    radiusUnits: "pixels",
+    getRadius: SELECTION_RADIUS_PX,
+    lineWidthUnits: "pixels",
+    getLineWidth: 2,
+    getLineColor: [colour[0], colour[1], colour[2], 255],
+    parameters: FLAT,
+  });
 }
 
 /** The dark network beneath the vehicles; created once per day, never per frame. */

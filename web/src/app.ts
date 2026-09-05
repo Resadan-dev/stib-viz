@@ -17,6 +17,7 @@ import {
   type Day,
 } from "./data/loader";
 import { createSliceStore } from "./data/slices";
+import { createStopsStore, parseStops } from "./data/stops";
 import { dayKindLabel, fr } from "./i18n/fr";
 import type { ColourOptions } from "./render/colors";
 import {
@@ -30,15 +31,18 @@ import {
 import {
   createHeadsLayer,
   createNetworkLayer,
+  createSelectionLayer,
   createTripsLayer,
   tripsLayerProps,
 } from "./render/layers";
 import { createMapView } from "./render/map";
+import { describeVehicle, headAt } from "./render/selection";
 import { initialState, type AppState, type ModeVisibility } from "./state/app-state";
 import { createStore } from "./state/store";
 import { applyUrlState, readUrlState, syncUrl } from "./state/url";
 import { nightStyle } from "./theme/basemap";
-import { SERVICE_DAY_LENGTH_S, hourOf } from "./time/clock";
+import { MODE_COLORS, routeColor } from "./theme/colors";
+import { SERVICE_DAY_LENGTH_S, hourOf, minuteOf } from "./time/clock";
 import { createPlayer } from "./time/player";
 import { createClockView } from "./ui/clock";
 import { createColourToggle } from "./ui/colours";
@@ -49,6 +53,7 @@ import { bindKeyboard } from "./ui/keyboard";
 import { createLineSelect } from "./ui/lines";
 import { createSpeedControl } from "./ui/speed";
 import { createStatusView } from "./ui/status";
+import { createVehiclePanel } from "./ui/vehicle-panel";
 
 declare global {
   interface Window {
@@ -90,6 +95,8 @@ export interface DebugApi {
   seek(time: number): void;
   play(): void;
   pause(): void;
+  /** Selects a vehicle by its index in vehicles.json, or clears the selection. */
+  select(vehicle: number | null): void;
 }
 
 function localDate(now = new Date()): string {
@@ -130,6 +137,7 @@ interface Shell {
   appearance: HTMLElement;
   status: HTMLElement;
   attribution: HTMLElement;
+  vehicle: HTMLElement;
 }
 
 function buildShell(root: HTMLElement): Shell {
@@ -150,7 +158,9 @@ function buildShell(root: HTMLElement): Shell {
   const appearance = element("div", "panel__appearance", panel);
   const status = element("div", "panel__status", panel);
   const attribution = element("footer", "panel__attribution", panel);
+  const vehicle = element("div", "vehicle-slot", root);
   return {
+    vehicle,
     map,
     date,
     kind,
@@ -249,6 +259,15 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     });
   });
   const networkLayer = createNetworkLayer(network);
+  const stopsStore = createStopsStore(day.manifest.stops_files, (entry) =>
+    source.json(day.directory + entry.path).then(parseStops),
+  );
+  const panel = createVehiclePanel(shell.vehicle, () => {
+    store.set({ vehicle: null });
+  });
+  view.onEmptyClick(() => {
+    store.set({ vehicle: null });
+  });
   const slices = createSliceStore(day.manifest.slices, (sliceEntry) =>
     loadSlice(source, day, sliceEntry),
   );
@@ -304,19 +323,62 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       });
   }
 
+  function pick(index: number): void {
+    const head = headAt(mounted, buffers, index);
+    if (head !== undefined) {
+      store.set({ vehicle: head.vehicle });
+    }
+  }
+
+  /** Position and route of the selected vehicle among the heads just computed, if drawn. */
+  function selectedHead(
+    count: number,
+    vehicle: number | null,
+  ): { position: [number, number]; route: RouteInfo | undefined } | null {
+    if (vehicle === null) {
+      return null;
+    }
+    for (let i = 0; i < count; i += 1) {
+      const head = headAt(mounted, buffers, i);
+      if (head?.vehicle === vehicle) {
+        const item = mounted[buffers.slot[i] ?? -1];
+        const routeIndex = item?.slice.route[buffers.path[i] ?? -1];
+        return {
+          position: [buffers.positions[2 * i] ?? 0, buffers.positions[2 * i + 1] ?? 0],
+          route: routeIndex === undefined ? undefined : routes[routeIndex],
+        };
+      }
+    }
+    return null;
+  }
+
   let renderedTime = Number.NaN;
   let renderedKey = "";
-  function render(time: number): void {
-    if (mountedHour < 0 || (time === renderedTime && mountedKey === renderedKey)) {
+  let renderedVehicle: number | null = null;
+  function render(time: number, vehicle: number | null): void {
+    if (
+      mountedHour < 0 ||
+      (time === renderedTime && mountedKey === renderedKey && vehicle === renderedVehicle)
+    ) {
       return;
     }
     renderedTime = time;
     renderedKey = mountedKey;
+    renderedVehicle = vehicle;
     const count = computeHeads(mounted, time, vehicles, buffers);
+    const selection = selectedHead(count, vehicle);
+    const ring =
+      selection === null
+        ? null
+        : {
+            position: selection.position,
+            colour: routeColor(selection.route ?? { mode: "bus", color: "" }, store.get().colours),
+          };
     view.setLayers([
       networkLayer,
       ...mounted.map((item) => createTripsLayer(tripsLayerProps(item, time))),
-      createHeadsLayer(buffers, count),
+      createHeadsLayer(buffers, count, pick),
+      createSelectionLayer(ring?.position ?? null, ring?.colour ?? MODE_COLORS.bus),
     ]);
   }
 
@@ -327,7 +389,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     player.tick(now);
     const state = store.get();
     ensureMounted(hourOf(state.time), state.modes);
-    render(state.time);
+    render(state.time, state.vehicle);
     frames += 1;
     if (now - fpsAnchor >= 1000) {
       fps = (frames * 1000) / (now - fpsAnchor);
@@ -337,7 +399,47 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     requestAnimationFrame(frame);
   }
 
+  let describing = 0;
+  function describeSelected(state: AppState): void {
+    if (state.vehicle === null || vehicles === null) {
+      panel.hide();
+      return;
+    }
+    const vehicle = state.vehicle;
+    const time = state.time;
+    const names = network.stops;
+    const list = vehicles;
+    const first = describeVehicle(vehicle, list, routes, time, null, names);
+    if (first === null) {
+      panel.hide();
+      return;
+    }
+    panel.show(first);
+    // Stops are loaded on the first click within the hour, never earlier (section 5.6).
+    const request = (describing += 1);
+    stopsStore
+      .get(hourOf(time))
+      .then((stops) => {
+        if (request !== describing || stops === null) {
+          return;
+        }
+        const full = describeVehicle(vehicle, list, routes, time, stops, names);
+        if (full !== null) {
+          panel.show(full);
+        }
+      })
+      .catch((error: unknown) => {
+        console.warn("stops of the hour unavailable", error);
+      });
+  }
+
   function reflect(state: AppState, previous: AppState): void {
+    if (
+      state.vehicle !== previous.vehicle ||
+      (state.vehicle !== null && minuteOf(state.time) !== minuteOf(previous.time))
+    ) {
+      describeSelected(state);
+    }
     clock.update(state.time);
     playButton.update(state.playing);
     speedControl.update(state.speed);
@@ -363,6 +465,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     .then((list) => {
       vehicles = list;
       renderedTime = Number.NaN;
+      describeSelected(store.get());
     })
     .catch((error: unknown) => {
       console.warn("vehicles.json unavailable, layovers are held from the slices alone", error);
@@ -402,6 +505,9 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     },
     pause() {
       player.pause();
+    },
+    select(vehicle) {
+      store.set({ vehicle });
     },
   };
 }

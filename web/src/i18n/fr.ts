@@ -39,6 +39,13 @@ export const fr = {
   officialColours: "Couleurs officielles des lignes",
   lineLabel: "Ligne",
   allLines: "Toutes les lignes",
+  close: "Fermer",
+  towards: "Direction",
+  nextStop: "Prochain arrêt :",
+  terminus: "Terminus atteint",
+  layoverUntil: "En attente au terminus, départ à",
+  offDuty: "Hors service à cet instant",
+  vehicleBlock: "Véhicule",
 } as const;
 
 export type MessageKey = keyof typeof fr;

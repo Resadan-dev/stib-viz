@@ -6,6 +6,7 @@ import {
   TRAIL_LENGTH_S,
   createHeadsLayer,
   createNetworkLayer,
+  createSelectionLayer,
   createTripsLayer,
   headsLayerProps,
   tripsLayerProps,
@@ -73,6 +74,17 @@ describe("headsLayerProps", () => {
     expect(props.data.attributes.getFillColor.value).toBe(buffers.colors);
     const layer = createHeadsLayer(buffers, 3);
     expect(layer.id).toBe("heads");
+  });
+});
+
+describe("createSelectionLayer", () => {
+  it("draws one ring at the selected head, or nothing", () => {
+    const ring = createSelectionLayer([4.35, 50.85], [239, 224, 72]);
+    expect(ring.id).toBe("selection");
+    expect(ring.props.data).toEqual([[4.35, 50.85]]);
+    expect(ring.props.stroked).toBe(true);
+    expect(ring.props.filled).toBe(false);
+    expect(createSelectionLayer(null, [239, 224, 72]).props.data).toEqual([]);
   });
 });
 
