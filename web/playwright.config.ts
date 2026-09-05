@@ -11,6 +11,8 @@ const isCi = process.env.CI !== undefined;
 export default defineConfig({
   testDir: "e2e",
   timeout: 60_000,
+  // Software rendering on a loaded machine can stall the animation loop for seconds.
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   forbidOnly: isCi,
   retries: isCi ? 1 : 0,

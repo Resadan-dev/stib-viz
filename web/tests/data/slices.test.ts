@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { Mode, SliceEntry } from "../../src/data/contract";
+import { allModes } from "../../src/state/app-state";
 import { CACHED_HOURS, createSliceStore } from "../../src/data/slices";
 import { decodeSlice } from "../../src/data/stv1";
 import { encodeSlice } from "../helpers/stv1";
@@ -89,6 +90,23 @@ describe("createSliceStore", () => {
     expect(store.cached(7)).toBe(true);
     await store.mount(4);
     expect(load.mock.calls.filter((call) => call[0].hour === 4)).toHaveLength(4);
+  });
+
+  it("mounts and prefetches only the visible modes", async () => {
+    const load = fakeLoader();
+    const store = createSliceStore(ENTRIES, load);
+    const tramOnly = { ...allModes(false), tram: true };
+    const hour = await store.mount(4, tramOnly);
+    expect([...hour.slices.keys()]).toEqual(["tram"]);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(store.cached(4, tramOnly)).toBe(true);
+    expect(store.cached(4)).toBe(false);
+    store.prefetch(5, { ...allModes(false), bus: true });
+    await Promise.resolve();
+    expect(load).toHaveBeenCalledTimes(1);
+    const both = await store.mount(4);
+    expect([...both.slices.keys()]).toEqual(["metro", "tram"]);
+    expect(load).toHaveBeenCalledTimes(2);
   });
 
   it("does not cache a failed load", async () => {

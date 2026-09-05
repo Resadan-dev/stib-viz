@@ -5,7 +5,7 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { DataError, type Mode, type RouteInfo, type Vehicle } from "./data/contract";
+import { DataError, MODES, type Mode, type RouteInfo, type Vehicle } from "./data/contract";
 import { chooseDay } from "./data/days";
 import {
   createDataSource,
@@ -17,7 +17,7 @@ import {
   type Day,
 } from "./data/loader";
 import { createSliceStore } from "./data/slices";
-import { fr } from "./i18n/fr";
+import { dayKindLabel, fr } from "./i18n/fr";
 import {
   computeHeads,
   createHeadBuffers,
@@ -32,7 +32,7 @@ import {
   tripsLayerProps,
 } from "./render/layers";
 import { createMapView } from "./render/map";
-import { initialState } from "./state/app-state";
+import { initialState, type AppState, type ModeVisibility } from "./state/app-state";
 import { createStore } from "./state/store";
 import { applyUrlState, readUrlState, syncUrl } from "./state/url";
 import { nightStyle } from "./theme/basemap";
@@ -40,7 +40,10 @@ import { SERVICE_DAY_LENGTH_S, hourOf } from "./time/clock";
 import { createPlayer } from "./time/player";
 import { createClockView } from "./ui/clock";
 import { createPlayButton } from "./ui/controls";
+import { createCounters } from "./ui/counters";
+import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
+import { createSpeedControl } from "./ui/speed";
 import { createStatusView } from "./ui/status";
 
 declare global {
@@ -114,8 +117,12 @@ function element<K extends keyof HTMLElementTagNameMap>(
 interface Shell {
   map: HTMLElement;
   date: HTMLElement;
+  kind: HTMLElement;
   clock: HTMLElement;
   controls: HTMLElement;
+  speed: HTMLElement;
+  counters: HTMLElement;
+  filters: HTMLElement;
   status: HTMLElement;
   attribution: HTMLElement;
 }
@@ -127,12 +134,17 @@ function buildShell(root: HTMLElement): Shell {
   const panel = element("aside", "panel", root);
   const header = element("header", "panel__header", panel);
   element("h1", "panel__title", header).textContent = fr.appTitle;
-  const date = element("p", "panel__date", header);
+  const dateLine = element("p", "panel__date", header);
+  const date = element("span", "panel__date-text", dateLine);
+  const kind = element("span", "panel__kind", dateLine);
   const clock = element("div", "panel__clock", panel);
   const controls = element("div", "panel__controls", panel);
+  const speed = element("div", "panel__speed", controls);
+  const counters = element("div", "panel__counters", panel);
+  const filters = element("div", "panel__filters", panel);
   const status = element("div", "panel__status", panel);
   const attribution = element("footer", "panel__attribution", panel);
-  return { map, date, clock, controls, status, attribution };
+  return { map, date, kind, clock, controls, speed, counters, filters, status, attribution };
 }
 
 export async function startApp(root: HTMLElement, options: AppOptions = {}): Promise<DebugApi> {
@@ -151,6 +163,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const network = await loadNetwork(source, day);
   const routes: readonly RouteInfo[] = day.manifest.routes;
   shell.date.textContent = formatDate(day.manifest.date);
+  shell.kind.textContent = dayKindLabel(entry.kind);
   shell.attribution.textContent = day.manifest.attribution;
 
   const reducedMotion =
@@ -168,9 +181,25 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const playButton = createPlayButton(shell.controls, () => {
     player.toggle();
   });
+  const speedControl = createSpeedControl(shell.speed, (speed) => {
+    player.setSpeed(speed);
+  });
+  const counters = createCounters(shell.counters, day.manifest);
+  const filters = createFilters(shell.filters, (mode, visible) => {
+    store.set({ modes: { ...store.get().modes, [mode]: visible } });
+  });
   bindKeyboard(document, {
     toggle: () => {
       player.toggle();
+    },
+    step: (seconds) => {
+      player.step(seconds);
+    },
+    setSpeed: (speed) => {
+      player.setSpeed(speed);
+    },
+    escape: () => {
+      store.set({ vehicle: null });
     },
   });
 
@@ -195,30 +224,37 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   let vehicles: Vehicle[] | null = null;
   let mounted: MountedSlice[] = [];
   let mountedHour = -1;
+  // What is mounted: the hour and the visible modes, as one comparable key.
+  let mountedKey = "";
   let buffers: HeadBuffers = createHeadBuffers(0);
   let mounting: Promise<void> | null = null;
   // An hour whose slices failed to load is not retried until the instant leaves it, otherwise
   // every animation frame would request the failed file again.
   let failedHour = -1;
 
-  async function mountHour(hour: number): Promise<void> {
-    const result = await slices.mount(hour);
+  function mountKey(hour: number, modes: ModeVisibility): string {
+    return `${String(hour)}|${MODES.filter((mode) => modes[mode]).join(",")}`;
+  }
+
+  async function mountHour(hour: number, modes: ModeVisibility): Promise<void> {
+    const result = await slices.mount(hour, modes);
     mounted = [...result.slices].map(([mode, slice]) => mountSlice(mode, slice, routes));
     buffers = createHeadBuffers(mounted.reduce((total, item) => total + item.slice.paths, 0));
     mountedHour = hour;
-    slices.prefetch(hour + 1);
+    mountedKey = mountKey(hour, modes);
+    slices.prefetch(hour + 1, modes);
   }
 
-  function ensureHour(hour: number): void {
-    if (hour === mountedHour || hour === failedHour || mounting !== null) {
+  function ensureMounted(hour: number, modes: ModeVisibility): void {
+    if (mountKey(hour, modes) === mountedKey || hour === failedHour || mounting !== null) {
       return;
     }
     failedHour = -1;
-    if (!slices.cached(hour)) {
+    if (!slices.cached(hour, modes)) {
       player.setWaiting(true);
       status.show(fr.waitingNextHour);
     }
-    mounting = mountHour(hour)
+    mounting = mountHour(hour, modes)
       .then(() => {
         player.setWaiting(false);
         status.hide();
@@ -236,13 +272,13 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   }
 
   let renderedTime = Number.NaN;
-  let renderedHour = -1;
+  let renderedKey = "";
   function render(time: number): void {
-    if (mountedHour < 0 || (time === renderedTime && mountedHour === renderedHour)) {
+    if (mountedHour < 0 || (time === renderedTime && mountedKey === renderedKey)) {
       return;
     }
     renderedTime = time;
-    renderedHour = mountedHour;
+    renderedKey = mountedKey;
     const count = computeHeads(mounted, time, vehicles, buffers);
     view.setLayers([
       networkLayer,
@@ -255,8 +291,9 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   let fpsAnchor = performance.now();
   let fps = 0;
   function frame(now: number): void {
-    const state = player.tick(now);
-    ensureHour(hourOf(state.time));
+    player.tick(now);
+    const state = store.get();
+    ensureMounted(hourOf(state.time), state.modes);
     render(state.time);
     frames += 1;
     if (now - fpsAnchor >= 1000) {
@@ -267,15 +304,18 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     requestAnimationFrame(frame);
   }
 
-  store.subscribe((state) => {
+  function reflect(state: AppState): void {
     clock.update(state.time);
     playButton.update(state.playing);
+    speedControl.update(state.speed);
+    counters.update(state.time, state.modes);
+    filters.update(state.modes);
     if (!state.playing && state.time >= SERVICE_DAY_LENGTH_S) {
       status.show(fr.endOfDay);
     }
-  });
-  clock.update(player.state().time);
-  playButton.update(player.state().playing);
+  }
+  store.subscribe(reflect);
+  reflect(store.get());
   requestAnimationFrame(frame);
 
   // The vehicle list only refines layovers; it is read after the first frame, never before it.
