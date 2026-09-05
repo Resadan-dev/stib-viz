@@ -1,4 +1,4 @@
-"""Tests de la ligne de commande, jalon M0 : version et aide."""
+"""Command line tests, milestone M0: version reporting and default help."""
 
 import pytest
 

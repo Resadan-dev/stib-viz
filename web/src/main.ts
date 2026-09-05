@@ -2,7 +2,7 @@ import { fr } from "./i18n/fr";
 
 const app = document.querySelector<HTMLElement>("#app");
 if (app === null) {
-  throw new Error("Élément #app introuvable dans la page.");
+  throw new Error("Missing #app element in the page.");
 }
 
 const title = document.createElement("h1");

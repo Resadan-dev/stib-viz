@@ -1,45 +1,74 @@
-# stib-viz : Bruxelles en mouvement
+# stib-viz — Brussels in motion
 
-Une carte nocturne de Bruxelles sur laquelle on regarde, minute après minute, tous les métros,
-trams et bus de la STIB circuler selon l'horaire théorique d'une journée de service. Un site
-statique reconstruit chaque nuit à partir des données ouvertes du portail Belgian Mobility.
+A night-time map of Brussels where you watch, minute by minute, every STIB metro, tram and bus run
+according to the scheduled timetable of one service day. A static site, rebuilt every night from
+the open data published on the Belgian Mobility portal.
 
-État : jalon M0 (socle). Aucune donnée ni animation encore.
+Inspired by [france-rail-traffic](https://github.com/magrinj/france-rail-traffic).
+
+**Status: milestone M0 (foundation).** Tooling and continuous integration are in place. No data
+and no animation yet.
 
 ## Documents
 
-- [SCOPE.md](SCOPE.md) : périmètre de la version 1, décisions, jalons et tâches.
-- [ARCHITECTURE.md](ARCHITECTURE.md) : pipeline, contrat de données, site, intégration continue.
-- [docs/01-exploration.md](docs/01-exploration.md) : exploration initiale des données et des
-  options techniques.
+- [SCOPE.md](SCOPE.md) — version 1 scope, framing decisions, milestones and task checklists.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — pipeline, data contract, site, continuous integration.
+- [docs/01-exploration.md](docs/01-exploration.md) — initial exploration of the data and of the
+  technical options (historical record).
+- [SECURITY.md](SECURITY.md) — how to report a vulnerability.
 
-## Organisation
+## Layout
 
-- `pipeline/` : Python 3.12 géré par uv. Produit les données du site à partir du GTFS STIB.
-- `web/` : Vite et TypeScript, géré par pnpm 10 (version épinglée dans `package.json`).
-- `.github/workflows/` : intégration continue.
+- `pipeline/` — Python 3.12, managed by [uv](https://docs.astral.sh/uv/). Turns the STIB GTFS feed
+  into the trajectory files the site consumes.
+- `web/` — Vite and TypeScript, managed by pnpm 10 (version pinned in `package.json`). The static
+  site itself. Its user interface is in French, for a Brussels audience; everything else in this
+  repository is in English.
+- `.github/workflows/` — continuous integration.
 
-## Lancer les vérifications
+## Requirements
 
-Pipeline (uv installe Python 3.12 et les dépendances tout seul) :
+- Node.js 22.12 or later
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (it installs Python 3.12 itself)
+
+## Running the checks
+
+Pipeline:
 
 ```bash
-cd pipeline && uv sync && uv run ruff check . && uv run pytest
+cd pipeline
+uv sync
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
 ```
 
-Site. Sans pnpm installé, `npx` le télécharge à la version épinglée :
+Site. Without pnpm installed, `npx` fetches the pinned version:
 
 ```bash
-cd web && npx --yes pnpm@10 install && npx --yes pnpm@10 lint && npx --yes pnpm@10 typecheck && npx --yes pnpm@10 test
+cd web
+npx --yes pnpm@10 install
+npx --yes pnpm@10 lint
+npx --yes pnpm@10 typecheck
+npx --yes pnpm@10 test
+npx --yes pnpm@10 build
 ```
 
-Avec pnpm installé (`corepack enable` ou installation directe), `pnpm install`, `pnpm lint`,
-`pnpm typecheck`, `pnpm test` et `pnpm build` suffisent.
+With pnpm available (`corepack enable`, or a direct install), `pnpm install`, `pnpm lint`,
+`pnpm typecheck`, `pnpm test` and `pnpm build` are enough. `pnpm dev` starts the development
+server.
 
-Note : ESLint reste en version 9 tant que Node 22.12 est la version locale ; ESLint 10 exige
-Node 22.13 au minimum.
+### A note on toolchain versions
 
-## Données et attribution
+ESLint stays on version 9 and TypeScript on 5.9, because ESLint 10 requires Node 22.13 and the
+TypeScript ESLint rules do not yet support TypeScript 7. Both move up once the constraints lift.
 
-Source : STIB-MIVB – Open Data – portail Belgian Mobility, licence CC BY 4.0.
-Fond de carte : OpenFreeMap © OpenMapTiles, données OpenStreetMap.
+## Licensing and attribution
+
+Code is released under the [MIT licence](LICENSE).
+
+Data comes from **STIB-MIVB — Open Data**, published on the
+[Belgian Mobility](https://data.belgianmobility.io/) portal under CC BY 4.0. The published site
+credits the source with its feed date.
+
+The basemap is **OpenFreeMap © OpenMapTiles**, with data from **OpenStreetMap** contributors.

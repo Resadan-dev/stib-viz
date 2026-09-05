@@ -1,123 +1,126 @@
-# Bruxelles en mouvement : exploration d'une visualisation animée du réseau STIB
+# Brussels in motion: exploring an animated visualisation of the STIB network
 
-Date : 5 septembre 2026. Statut : exploration et brainstorming, aucun code.
+Date: 5 September 2026. Status: exploration and brainstorming, no code.
 
-Objectif : une carte de Bruxelles sur laquelle on voit, minute après minute, circuler tous les
-trams, bus et métros de la STIB, dans l'esprit de
-[france-rail-traffic](https://github.com/magrinj/france-rail-traffic) (démo :
+This is a historical record of the exploration phase. The choices it weighs were settled
+afterwards in [SCOPE.md](../SCOPE.md) and [ARCHITECTURE.md](../ARCHITECTURE.md); where the two
+disagree, those documents win.
+
+Goal: a map of Brussels showing, minute by minute, every STIB tram, bus and metro in motion, in
+the spirit of [france-rail-traffic](https://github.com/magrinj/france-rail-traffic) (demo:
 <https://france-rail-traffic.pages.dev/>).
 
-Tout ce qui suit a été vérifié le 5 septembre 2026 (pages consultées, réponses brutes des API,
-rapport de validation du GTFS du jour). Les points encore incertains sont marqués « à vérifier ».
+Everything below was verified on 5 September 2026 (pages read, raw API responses, the day's GTFS
+validation report). Points still uncertain are marked "to verify".
 
-> Correction du 5 septembre 2026, après téléchargement du GTFS : `shape_dist_traveled` est présent
-> dans `shapes.txt` mais **absent de `stop_times.txt`**. La position des arrêts le long des tracés
-> doit donc être calculée par projection (voir ARCHITECTURE.md, étape 5) ; la phrase de la
-> section 3.2 qui l'affirmait disponible était fausse et a été corrigée.
-
----
-
-## 1. Résumé en six points
-
-1. **C'est faisable avec des données ouvertes, sans accord particulier.** Le GTFS STIB contient les
-   tracés (`shapes.txt`), les couleurs officielles des lignes et les horaires de chaque course.
-   Licence CC BY 4.0, usage commercial autorisé, attribution obligatoire.
-2. **Le portail open data de la STIB a déménagé.** `data.stib-mivb.brussels` (OpenDataSoft) redirige
-   maintenant vers <https://data.belgianmobility.io/>, le portail commun des quatre opérateurs
-   belges (STIB-MIVB, De Lijn, TEC, SNCB), géré par la « Belgian Mobility Company ». Beaucoup de
-   tutoriels et de bibliothèques en ligne décrivent l'ancien portail : à prendre avec recul.
-3. **Les positions temps réel existent, mais ne sont pas des coordonnées GPS.** L'API renvoie, par
-   ligne, une liste de véhicules décrits par « dernier arrêt passé + distance en mètres ». Il
-   faut donc les projeter sur le tracé de la ligne pour obtenir un point sur la carte. C'est le
-   principal travail spécifique à Bruxelles.
-4. **Le problème le plus dur du projet français (le map-matching avec pfaedle) n'existe pas ici.**
-   Le GTFS STIB a déjà des tracés géographiques pour toutes les courses. Le pipeline sera donc
-   nettement plus simple.
-5. **Trois lectures possibles de « minute après minute »** : rejouer l'horaire théorique (comme la
-   référence), rejouer une journée réellement observée (positions enregistrées), ou afficher le
-   direct. Elles partagent le même moteur de rendu ; seule la fabrication des trajectoires change.
-6. **Recommandation** : commencer par le rejeu de l'horaire théorique (100 % statique, aucun
-   serveur, aucune clé), et lancer très tôt un petit enregistreur de positions temps réel pour
-   constituer des « vraies journées » à rejouer ensuite.
+> Correction, 5 September 2026, after downloading the feed: `shape_dist_traveled` is present in
+> `shapes.txt` but **absent from `stop_times.txt`**. The position of stops along shapes must
+> therefore be computed by projection (see ARCHITECTURE.md, step 5); the sentence in section 3.2
+> claiming it was available was wrong and has been corrected.
 
 ---
 
-## 2. Ce que fait la référence, et ce qui se transpose
+## 1. Six-point summary
 
-### 2.1 france-rail-traffic en bref
+1. **It is feasible with open data, with no special agreement.** The STIB GTFS feed carries the
+   shapes (`shapes.txt`), the official route colours and the timetable of every trip. Licensed
+   CC BY 4.0, commercial use allowed, attribution required.
+2. **The STIB open data portal has moved.** `data.stib-mivb.brussels` (OpenDataSoft) now redirects
+   to <https://data.belgianmobility.io/>, the joint portal of the four Belgian operators
+   (STIB-MIVB, De Lijn, TEC, SNCB), run by "Belgian Mobility Company". Many tutorials and
+   libraries online still describe the old portal: treat them with caution.
+3. **Real-time positions exist, but they are not GPS coordinates.** The API returns, per route, a
+   list of vehicles described as "last stop passed + distance in metres". They must be projected
+   onto the route's shape to become a point on the map. That is the main Brussels-specific work.
+4. **The hardest problem of the French project does not exist here.** Map-matching with pfaedle
+   becomes unnecessary: the STIB feed already has geographic shapes for every trip. The pipeline
+   will be markedly simpler.
+5. **Three readings of "minute by minute"**: replay the scheduled timetable (as the reference
+   does), replay a day actually observed (recorded positions), or show live traffic. They share
+   the same rendering engine; only trajectory production differs.
+6. **Recommendation**: start with replaying the scheduled timetable (fully static, no server, no
+   key), and start a small real-time position recorder early so that real days accumulate for
+   later replay.
 
-| Aspect | Choix du projet français |
+---
+
+## 2. What the reference does, and what carries over
+
+### 2.1 france-rail-traffic in brief
+
+| Aspect | Choice made by the French project |
 |---|---|
-| Nature des données | Horaires théoriques (GTFS SNCF, Transilien, Corse). Aucun retard, aucune suppression. |
-| Positions | Interpolation linéaire entre arrêts le long du tracé, vitesse constante. |
-| Tracés | Absents des GTFS : générés par map-matching sur OpenStreetMap avec pfaedle (C++, GPL). |
-| Pipeline | Python 3.11, sept étapes, ~25 min complet, ~6 min pour la fenêtre de 7 jours. |
-| Format livré | Binaire par catégorie : `pos.bin` (Float32 lon/lat entrelacés), `time.bin` (Float32 secondes depuis minuit), `idx.bin` (Uint32 index de début). Découpage par tranches d'une heure avec 600 s de recouvrement pour tenir 60 fps. |
-| Rendu | MapLibre GL JS + deck.gl `TripsLayer`, fond Carto Dark Matter, page unique `web/index.html` en JavaScript sans bundler. |
-| Visuel | Fond sombre, réseau coloré par intensité (cinq classes), quatre couleurs de trains, traînées dont la longueur encode le temps écoulé (donc la vitesse). |
-| Interface | Horloge, sélecteur de jour, compteurs par catégorie, courbe d'activité qui sert de barre de défilement, vitesses ×60 à ×1800, barre espace pour la pause. |
-| Chiffres | 13 602 courses, 1 481 trains simultanés au pic, 2,3 M de sommets, 27,9 Mo, plus de 110 fps sur Apple Silicon. |
-| Exploitation | GitHub Actions chaque nuit (cron 03:20 UTC) puis Cloudflare Pages. Fenêtre glissante de 7 jours. |
-| Licences | Code MIT, données ODbL par héritage. |
+| Nature of the data | Scheduled timetables (SNCF, Transilien and Corsica GTFS feeds). No delays, no cancellations. |
+| Positions | Linear interpolation between stops along the shape, constant speed. |
+| Shapes | Absent from the feeds: generated by map-matching against OpenStreetMap with pfaedle (C++, GPL). |
+| Pipeline | Python 3.11, seven steps, about 25 min in full, about 6 min for the seven-day window. |
+| Delivered format | Binary per category: `pos.bin` (Float32 lon/lat interleaved), `time.bin` (Float32 seconds since midnight), `idx.bin` (Uint32 start index). Cut into one-hour slices with 600 s overlap to hold 60 fps. |
+| Rendering | MapLibre GL JS + deck.gl `TripsLayer`, Carto Dark Matter basemap, a single `web/index.html` page in plain JavaScript, no bundler. |
+| Visuals | Dark basemap, network coloured by intensity (five classes), four train colours, trails whose length encodes elapsed time and therefore speed. |
+| Interface | Clock, day selector, per-category counters, activity curve doubling as the scrubber, speeds ×60 to ×1800, space bar to pause. |
+| Figures | 13,602 trips, 1,481 simultaneous trains at peak, 2.3 M vertices, 27.9 MB, over 110 fps on Apple Silicon. |
+| Operations | GitHub Actions every night (cron 03:20 UTC) then Cloudflare Pages. Seven-day rolling window. |
+| Licences | Code MIT, data ODbL by inheritance. |
 
-Capture d'écran de la démo (samedi 5 septembre 2026, 09:21, 772 trains) : panneau gauche avec
-bascule France/Corse et couches, cartouche droit avec horloge et sélecteur de jour, légende en bas
-à gauche avec compteurs, courbe d'activité et boutons de vitesse en bas au centre. Le tout est très
-sobre et lisible.
+Seen on the demo on Saturday 5 September 2026 at 09:21, with 772 trains running: left panel with a
+France/Corsica toggle and layer switches, right cartouche with clock and day selector, legend at
+bottom left with counters, activity curve and speed buttons at bottom centre. The whole thing is
+very sober and legible.
 
-### 2.2 Ce qui change pour Bruxelles
+### 2.2 What changes for Brussels
 
-| Sujet | France | Bruxelles |
+| Topic | France | Brussels |
 |---|---|---|
-| Échelle géographique | Un pays, zoom continental | 160 km², un seul niveau de zoom « ville » plus un zoom quartier |
-| Volume | 13 602 courses/jour, 1 481 véhicules au pic | ~800 véhicules actifs simultanément (chiffre du portail), de l'ordre de 10 000 à 15 000 courses par jour ouvré (à confirmer sur un jour donné) : même ordre de grandeur, donc le format binaire et le découpage horaire se transposent tels quels |
-| Tracés | Map-matching OSM nécessaire | `shapes.txt` fourni (750 tracés) avec `shape_dist_traveled` : interpolation directe |
-| Modes | Trains, sur voies | Métro (souterrain, 4 lignes), tram (18 lignes, surface et tunnels du prémétro), bus (~55 lignes), Noctis (11 lignes de nuit) |
-| Temps réel | Non traité | Disponible toutes les 15 s, ce qui ouvre les scénarios « journée réelle » et « direct » |
-| Fond de carte | Carto Dark Matter, monde entier | Un extrait de Bruxelles suffit ; possibilité d'un fond fait maison avec UrbIS |
-| Service de nuit | Trains de nuit qui traversent minuit | Noctis (vendredi et samedi soir) plus derniers métros vers 00:30 : même mécanisme « charger la veille » |
+| Scale | A country, continental zoom | 160 km², a single "city" zoom level plus a neighbourhood zoom |
+| Volume | 13,602 trips per day, 1,481 vehicles at peak | Around 800 active vehicles at once (portal figure), on the order of 10,000 to 15,000 trips on a weekday (to verify). Same order of magnitude: the binary format and hour slicing carry over unchanged. |
+| Shapes | OSM map-matching required | `shapes.txt` provided (750 shapes) with `shape_dist_traveled`: direct interpolation |
+| Modes | Trains, on rails | Metro (underground, 4 lines), tram (18 lines, surface and pre-metro tunnels), bus (about 55 lines), Noctis (11 night lines) |
+| Real time | Not handled | Available every 15 s, which opens the "observed day" and "live" scenarios |
+| Basemap | Carto Dark Matter, worldwide | A Brussels extract suffices; a home-made basemap from UrbIS is possible |
+| Night service | Night trains crossing midnight | Noctis (Friday and Saturday nights) plus last metros around 00:30: the same "load the previous day" mechanism |
 
 ---
 
-## 3. Inventaire des données disponibles
+## 3. Inventory of available data
 
-### 3.1 Portail Belgian Mobility (ex-portail STIB)
+### 3.1 Belgian Mobility portal (formerly the STIB portal)
 
-Adresse : <https://data.belgianmobility.io/> (catalogue : `/en/data.html?agency=stibmivb`, FAQ,
-base de connaissances, conditions). Portail développeur pour créer un compte et obtenir une clé :
+Address: <https://data.belgianmobility.io/> (catalogue: `/en/data.html?agency=stibmivb`, FAQ,
+knowledge base, terms). Developer portal to create an account and obtain a key:
 `https://api-management-opendata-production.developer.azure-api.net/signup`.
 
-**Licence et quotas** (page « Terms »)
+**Licence and quotas** (Terms page)
 
-- Licence CC BY 4.0. Usage commercial autorisé. Attribution : « Source: STIB-MIVB – Open Data –
-  [date de mise à jour] ». Données modifiées : « Contains data originally published by STIB-MIVB,
-  modified by [nom] ». La FAQ demande aussi de créditer « Belgian Mobility Company » avec un lien.
-- Accès anonyme : 100 requêtes par jour, 10 par minute.
-- Niveau « standard » (compte gratuit) : 12 000 requêtes par jour, 500 par minute.
-- Aucune clause vue sur l'archivage ou le rejeu des données temps réel.
+- CC BY 4.0. Commercial use allowed. Attribution: "Source: STIB-MIVB – Open Data –
+  [update date]". Modified data: "Contains data originally published by STIB-MIVB, modified by
+  [name]". The FAQ also asks for a credit to "Belgian Mobility Company" with a link.
+- Anonymous access: 100 requests per day, 10 per minute.
+- "Standard" tier (free account): 12,000 requests per day, 500 per minute.
+- No clause seen about archiving or replaying real-time data.
 
-**Jeux de données STIB-MIVB**
+**STIB-MIVB datasets**
 
-| Jeu | Format | Fréquence | Contenu | Remarque |
+| Dataset | Format | Frequency | Content | Note |
 |---|---|---|---|---|
-| GTFS statique | zip | quotidien | horaires, arrêts, tracés, couleurs | le socle du projet |
-| NeTEx EPIP | XML | quotidien | même chose au format européen | inutile ici |
-| VehiclePositions | JSON | 15 s | « ~800 positions GPS » d'après la vitrine, en réalité des positions linéaires (voir 3.2) | lecture anonyme possible |
-| WaitingTimes | JSON | temps réel | prochains passages par arrêt | utile pour valider les positions |
-| StopDetails | JSON | statique | id, nom fr/nl, latitude/longitude | vérifié |
-| stopsByLine | JSON | statique | par ligne et direction, liste ordonnée des arrêts | vérifié |
-| TravellersInformation | JSON | temps réel | perturbations fr/nl/en | bonus (overlay) |
-| ShapeFile | zip | hebdomadaire | tracés, arrêts, zones | redondant avec `shapes.txt` |
-| INSPIRE Roads / Rails | zip | hebdomadaire | infrastructure | curiosité |
-| GTFS-RT | protobuf | 30 s | la vitrine annonce trip updates et alertes pour la STIB, mais la base de connaissances écrit « STIB-MIVB does not produce GTFS-RT feeds » et ne donne d'URL que pour De Lijn, TEC et SNCB | contradiction à trancher avec un compte ; sans impact pour la visualisation, qui n'en a pas besoin |
+| Static GTFS | zip | daily | timetables, stops, shapes, colours | the foundation of the project |
+| NeTEx EPIP | XML | daily | the same content in the European format | not needed here |
+| VehiclePositions | JSON | 15 s | "around 800 GPS positions" per the catalogue, in reality linear positions (see 3.2) | anonymous read possible |
+| WaitingTimes | JSON | real time | next departures per stop | useful to validate positions |
+| StopDetails | JSON | static | id, French and Dutch names, latitude and longitude | verified |
+| stopsByLine | JSON | static | per route and direction, the ordered list of stops | verified |
+| TravellersInformation | JSON | real time | disruptions in French, Dutch and English | bonus, as an overlay |
+| ShapeFile | zip | weekly | shapes, stops, zones | redundant with `shapes.txt` |
+| INSPIRE Roads / Rails | zip | weekly | infrastructure | curiosity |
+| GTFS-RT | protobuf | 30 s | the catalogue announces trip updates and alerts for STIB, but the knowledge base states "STIB-MIVB does not produce GTFS-RT feeds" and gives URLs only for De Lijn, TEC and SNCB | contradiction to settle with an account; no impact on the visualisation, which does not need it |
 
-Points d'entrée observés (préfixe `https://api-management-discovery-production.azure-api.net/api/datasets/stibmivb/`) :
+Endpoints observed, all under the prefix
+`https://api-management-discovery-production.azure-api.net/api/datasets/stibmivb/`:
 `rt/VehiclePositions`, `rt/WaitingTimes`, `rt/TravellersInformation`, `static/StopDetails`,
-`static/stopsByLine`. Les GTFS statiques des autres opérateurs suivent le motif
-`https://opendata-discovery-gtfs-static.api.production.belgianmobility.io/api/gtfs/feed/{agence}/static` ;
-l'URL exacte pour `stibmivb` est à vérifier une fois le compte créé.
+`static/stopsByLine`. The static GTFS feeds of the other operators follow the pattern
+`opendata-discovery-gtfs-static.api.production.belgianmobility.io/api/gtfs/feed/{agency}/static`;
+the exact URL for `stibmivb` is to verify once an account exists.
 
-### 3.2 Format réel des positions temps réel (réponse brute du 5 septembre, ~09:40)
+### 3.2 Real format of real-time positions (raw response, 5 September, around 09:40)
 
 ```json
 {
@@ -129,301 +132,298 @@ l'URL exacte pour `stibmivb` est à vérifier une fois le compte créé.
     },
     {
       "lineid": "54",
-      "vehiclepositions": "[{\"directionId\":\"3243\",\"distanceFromPoint\":0,\"pointId\":\"1780\"}, ...]"
+      "vehiclepositions": "[{\"directionId\":\"3243\",\"distanceFromPoint\":0,\"pointId\":\"1780\"}, …]"
     }
   ],
   "totalCount": 70
 }
 ```
 
-Ce que cela implique :
+What this implies:
 
-- **Pas de latitude/longitude, pas d'identifiant de véhicule, pas d'identifiant de course, pas
-  d'horodatage.** Chaque véhicule est décrit par trois champs : `pointId` (dernier arrêt passé),
-  `distanceFromPoint` (mètres parcourus depuis cet arrêt, 0 = à l'arrêt) et `directionId`
-  (identifiant de l'arrêt terminus, qui indique la direction). Cette lecture est confirmée par la
-  documentation de MobilityTwin (« distance de chaque véhicule depuis le dernier arrêt ») et par
-  les données elles-mêmes (sur la ligne 95, un véhicule a `pointId` = `directionId` = 1781 avec
-  distance 0 : il est au terminus). Une validation empirique sur quelques lignes reste prudente
-  (à vérifier).
-- Le champ `vehiclepositions` est une chaîne JSON à l'intérieur du JSON (double sérialisation).
-  Même chose pour `gpscoordinates` dans StopDetails et `points` dans stopsByLine.
-- 70 lignes actives au moment du test (samedi matin). Un appel renvoie tout le réseau : un seul
-  appel toutes les 15 s suffit pour tout enregistrer.
-- Certains identifiants d'arrêts portent un suffixe (`4074B`, `4262F`, `1871B`) : quais ou
-  variantes. La correspondance avec les `stop_id` du GTFS est à vérifier.
+- **No latitude or longitude, no vehicle identifier, no trip identifier, no timestamp.** Each
+  vehicle is described by three fields: `pointId` (last stop passed), `distanceFromPoint` (metres
+  travelled since that stop, 0 meaning at the stop) and `directionId` (the identifier of the
+  terminus stop, which gives the direction). This reading is confirmed by the MobilityTwin
+  documentation ("the distance of each vehicle since the last stop") and by the data itself: on
+  route 95 a vehicle has `pointId` = `directionId` = 1781 with distance 0, so it sits at the
+  terminus. Empirical validation on a few routes remains prudent (to verify).
+- The `vehiclepositions` field is a JSON string inside the JSON (double serialisation). The same
+  goes for `gpscoordinates` in StopDetails and `points` in stopsByLine.
+- 70 routes active at the time of the test, a Saturday morning. One call returns the whole
+  network: a single call every 15 s is enough to record everything.
+- Some stop identifiers carry a suffix (`4074B`, `4262F`, `1871B`): platforms or variants. The
+  match with GTFS `stop_id` values is to verify.
 
-**Passer de « ligne, dernier arrêt, distance » à un point sur la carte**
+**From "route, last stop, distance" to a point on the map**
 
-1. Pour la ligne et la direction (via `directionId` et la liste ordonnée de stopsByLine),
-   choisir le tracé correspondant dans `shapes.txt`.
-2. Projeter l'arrêt `pointId` sur ce tracé pour obtenir son abscisse curviligne. Le GTFS STIB ne
-   la fournit pas dans `stop_times.txt` (colonne `shape_dist_traveled` absente, vérifié le
-   5 septembre 2026) ; elle se calcule une fois par tracé et se réutilise.
-3. Avancer de `distanceFromPoint` mètres le long du tracé : on obtient longitude, latitude et cap.
-4. Pour animer, apparier chaque véhicule d'un instantané au suivant (même ligne et direction,
-   progression monotone le long du tracé, vitesse plausible) afin de reconstituer des
-   trajectoires continues. MobilityTwin fait exactement ce travail et parle de « calculs pour
-   attribuer une identité unique à chaque véhicule le long d'un trajet ».
+1. For the route and direction (via `directionId` and the ordered list from stopsByLine), choose
+   the matching shape in `shapes.txt`.
+2. Project the `pointId` stop onto that shape to get its distance along it. The STIB feed does not
+   provide it in `stop_times.txt` (the `shape_dist_traveled` column is absent, verified on
+   5 September 2026); it is computed once per shape and reused.
+3. Advance `distanceFromPoint` metres along the shape: that yields longitude, latitude and bearing.
+4. To animate, match each vehicle of one snapshot to the next (same route and direction, monotonic
+   progress along the shape, plausible speed) so as to rebuild continuous trajectories.
+   MobilityTwin does exactly this work and speaks of "computations to attribute a unique identity
+   to each vehicle along a given trip".
 
-Pièges attendus : variantes de parcours et boucles (quel tracé choisir), déviations non
-présentes dans le GTFS, arrêts inconnus, véhicules haut-le-pied ou en régulation.
+Expected pitfalls: route variants and loops (which shape to choose), diversions absent from the
+feed, unknown stops, deadhead or held vehicles.
 
-### 3.3 GTFS statique STIB (rapport de validation du 5 septembre 2026, miroir gtfs.be)
+### 3.3 Static STIB GTFS feed (validation report of 5 September 2026, gtfs.be mirror)
 
-| Élément | Valeur |
+| Item | Value |
 |---|---|
-| Fichiers | agency, calendar, calendar_dates, feed_info, routes, shapes, stop_times, stops, translations, trips |
-| Lignes (`routes`) | 89 |
-| Courses (`trips`) | 75 696 sur la période de validité |
-| Arrêts | 2 784 |
-| Tracés (`shapes`) | 750, avec `shape_dist_traveled` (1 986 avertissements mineurs de cohérence de distance) |
-| Validité | 31 août au 27 septembre 2026 (fenêtre glissante d'environ quatre semaines) |
-| Couleurs | `route_color` et `route_text_color` renseignés (couleurs officielles des lignes) |
-| Divers | headsigns, accessibilité PMR, traductions fr/nl |
-| Taille | 14,4 Mo zippé |
+| Files | agency, calendar, calendar_dates, feed_info, routes, shapes, stop_times, stops, translations, trips |
+| Routes | 89 |
+| Trips | 75,696 over the validity period |
+| Stops | 2,784 |
+| Shapes | 750, with `shape_dist_traveled` in `shapes.txt` only: `stop_times.txt` has no such column, so the position of stops along shapes must be computed (1,986 minor distance-consistency warnings) |
+| Validity | 31 August to 27 September 2026 (a rolling window of about four weeks) |
+| Colours | `route_color` and `route_text_color` populated: the official route colours |
+| Other | headsigns, wheelchair accessibility, French and Dutch translations |
+| Size | 14.4 MB zipped |
 
-Conséquences pour le projet :
+Consequences for the project:
 
-- L'interpolation se fait directement sur les tracés : ni OSM, ni pfaedle, ni compilation C++.
-- Les couleurs officielles des lignes sont disponibles sans les recopier à la main.
-- La fenêtre de validité impose une reconstruction régulière (comme la référence, chaque nuit).
-- Miroir quotidien avec rapport de validation : <https://data.gtfs.be/stib/gtfs/>. Fiche
-  Transitland : opérateur `o-u151-stib`, flux `f-u151-stib`.
+- Interpolation happens directly on the shapes: no OSM, no pfaedle, no C++ build.
+- Official route colours are available without hand-copying them.
+- The validity window imposes a regular rebuild (as in the reference, every night).
+- Daily mirror with a validation report: <https://data.gtfs.be/stib/gtfs/>. Transitland record:
+  operator `o-u151-stib`, feed `f-u151-stib`.
 
-### 3.4 MobilityTwin.Brussels (ULB, laboratoire CoDE)
+### 3.4 MobilityTwin.Brussels (ULB, CoDE laboratory)
 
-Site : <https://mobilitytwin.brussels/> (documentation `/doc/`, onglet STIB). Plateforme de
-recherche qui archive depuis 2023 des données de mobilité bruxelloises (plus de 4 Tio).
-Inscription gratuite par e-mail, jeton Bearer, « pas de limite d'usage pour la recherche ».
+Site: <https://mobilitytwin.brussels/> (documentation under `/doc/`, STIB tab). A research
+platform that has archived Brussels mobility data since 2023 (more than 4 TiB). Free e-mail
+registration, Bearer token, "no usage limits for research".
 
-Points d'entrée STIB utiles, avec paramètres `timestamp` ou `start_timestamp`/`end_timestamp` :
+Useful STIB endpoints, taking `timestamp` or `start_timestamp` and `end_timestamp`:
 
-| Point d'entrée | Contenu | Historique |
+| Endpoint | Content | History |
 |---|---|---|
-| `/stib/vehicle-position` | positions estimées en GeoJSON (latitude/longitude) avec un uuid stable par trajet | depuis le 21 août 2024, 2,97 M d'enregistrements |
-| `/stib/vehicle-distance` | positions brutes (dernier arrêt + distance) | depuis le 24 février 2023, 4,85 M |
-| `/stib/segments`, `/stib/stops`, `/stib/shapefile` | géométries | depuis août 2024 |
-| `/stib/gtfs`, `/stib/gtfs-parquet` | archives GTFS | depuis avril 2024 |
-| `/stib/speed`, `/stib/aggregated-speed`, `/stib/punctuality` | dérivés | 2024-2025 |
-| `/stib/trips` | trajectoires au format MF-JSON | sur demande |
+| `/stib/vehicle-position` | estimated positions as GeoJSON (latitude, longitude) with a uuid stable per trip | since 21 August 2024, 2.97 M records |
+| `/stib/vehicle-distance` | raw positions (last stop + distance) | since 24 February 2023, 4.85 M |
+| `/stib/segments`, `/stib/stops`, `/stib/shapefile` | geometry | since August 2024 |
+| `/stib/gtfs`, `/stib/gtfs-parquet` | GTFS archives | since April 2024 |
+| `/stib/speed`, `/stib/aggregated-speed`, `/stib/punctuality` | derived data | 2024 and 2025 |
+| `/stib/trips` | trajectories in MF-JSON | on request |
 
-Intérêt : récupérer une journée réelle déjà convertie en coordonnées sans enregistrer soi-même,
-et comparer théorique et réel. Réserve : la licence des données dérivées n'est pas indiquée ;
-pour un site public, demander l'autorisation (contact indiqué sur le site : gaspard.merten@ulb.be).
+Value: obtaining a real day already converted to coordinates without recording it yourself, and
+comparing scheduled against observed. Caveat: the licence of the derived data is not stated; for a
+public site, ask for permission using the contact given on the site (to verify).
 
-### 3.5 Ce que propose le site de la STIB (réponse à la question « cartes du site »)
+### 3.5 What the STIB website offers
 
-- **Plans PDF** (page « Plans de réseau et plans de quartier ») : plan Brupass, plan Brupass XL,
-  plan Noctis, plan métro + lignes Chrono + SNCB, plus de 80 plans de quartier autour des
-  stations de métro. Ce sont des images : aucune donnée réutilisable, mais une excellente
-  référence graphique (couleurs de lignes, hiérarchie métro/tram/bus).
-- **Plan dynamique** (`/files/live/sites/STIBMIVB/files/Travel/DynamicPlan/index.html`) : carte
-  web des lignes en couleur, zoomable, sans véhicules en temps réel.
-- **Application mobile STIB** : « la carte interactive donne une vue en temps réel des véhicules
-  sur l'ensemble de notre réseau, des trains SNCB et des bus et trams TEC et De Lijn ». Aucune
-  version web trouvée, et aucune API publique derrière cette carte autre que celles du portail.
+- **PDF maps** on the "Network and district maps" page: Brupass map, Brupass XL map, Noctis map,
+  metro map with Chrono lines and SNCB, and more than 80 district maps around metro stations.
+  These are images: no reusable data, but an excellent graphic reference for route colours and the
+  metro/tram/bus hierarchy.
+- **Dynamic map** (`/files/live/sites/STIBMIVB/files/Travel/DynamicPlan/index.html`): a web map of
+  the routes in colour, zoomable, without real-time vehicles.
+- **STIB mobile app**: "the interactive map gives a real-time overview of the vehicles across our
+  whole network, SNCB trains and TEC and De Lijn buses and trams". No web version was found, and no
+  public API behind that map other than the portal ones.
 
-Conclusion : le site fournit de l'inspiration visuelle, pas de données. Les données passent par
-le portail Belgian Mobility.
+Conclusion: the website provides visual inspiration, not data. Data comes through the Belgian
+Mobility portal.
 
-### 3.6 Projets et outils existants (pour ne pas réinventer)
+### 3.6 Existing projects and tools (so as not to reinvent)
 
-| Projet | Ce qu'il apporte | Statut |
+| Project | What it contributes | Status |
 |---|---|---|
-| [TRAVIC](https://travic.app/) (geOps + Université de Fribourg) | Animation d'horaires GTFS pour 260 villes, référence historique du genre | Bruxelles-Central s'y trouve, mais seuls des trains SNCB apparaissent à l'écran : la STIB ne semble pas couverte (vérifié le 5 septembre) |
-| [All Transit](https://kylebarron.dev/blog/all-transit/) (Kyle Barron) | Même approche que la référence à l'échelle des États-Unis : abscisse curviligne, tuiles JSON par zoom, deck.gl `TripsLayer` ; leçons de performance (désactiver `useDevicePixels`, masquer les arrêts sous zoom 11) | référence technique |
-| [hvv.live / « The Moving City »](https://franz.hamburg/writing/the-moving-city.html) (Hambourg) | Direct par interpolation entre deux positions, Mapbox GL avec style piloté par les données, index spatial rbush, prétraitement sous 2 ms sur un iPhone 7 | référence pour le scénario « direct » |
-| [Mini Tokyo 3D](https://github.com/nagix/mini-tokyo-3d) | Plus de 1 100 trains simultanés en 3D, métro rendu à altitude négative grâce à deck.gl ; plugin GTFS/GTFS-RT | référence pour un rendu 3D du métro |
-| [TransitFlow](https://github.com/transitland/transitland-processing-animation) (Will Geary) | Export vidéo d'une journée de transit (Processing) | archivé, idée d'export vidéo à garder |
-| [StibTrack](https://github.com/dalisalvador/stib) | Application React Native de suivi temps réel STIB, avec un serveur relais pour ménager le quota | ancienne API, mais confirme le besoin d'un relais |
-| [stibgtfs2mqtt](https://github.com/danito/stibgtfs2mqtt/) | Combine API temps réel et GTFS ; note que les données de l'API et du GTFS « sont incohérentes » entre elles et que les Noctis manquent côté API | avertissement utile |
-| Sujet GitHub `stib-mivb` | Surtout des intégrations domotiques (temps d'attente) et des projets étudiants d'analyse de vitesse et de retards | rien qui rejoue une journée entière sur une carte |
+| [TRAVIC](https://travic.app/) (geOps and University of Freiburg) | GTFS timetable animation for 260 cities, the historical reference of the genre | Brussels-Central is present, but only SNCB trains appear on screen: STIB does not seem to be covered (checked 5 September) |
+| [All Transit](https://kylebarron.dev/blog/all-transit/) (Kyle Barron) | The same approach as the reference at United States scale: distance along shapes, JSON tiles per zoom, deck.gl `TripsLayer`; performance lessons (turn off `useDevicePixels`, hide stops below zoom 11) | technical reference |
+| [hvv.live, "The Moving City"](https://franz.hamburg/writing/the-moving-city.html) (Hamburg) | Live view by interpolating between two positions, Mapbox GL with data-driven styling, rbush spatial index, preprocessing under 2 ms on an iPhone 7 | reference for the "live" scenario |
+| [Mini Tokyo 3D](https://github.com/nagix/mini-tokyo-3d) | More than 1,100 simultaneous trains in 3D, metro rendered at negative altitude thanks to deck.gl; GTFS and GTFS-RT plugin | reference for a 3D metro render |
+| [TransitFlow](https://github.com/transitland/transitland-processing-animation) (Will Geary) | Video export of a transit day with Processing | archived; the video export idea is worth keeping |
+| [StibTrack](https://github.com/dalisalvador/stib) | React Native app tracking STIB in real time, with a relay server to spare the quota | old API, but confirms the need for a relay |
+| [stibgtfs2mqtt](https://github.com/danito/stibgtfs2mqtt/) | Combines the real-time API and the GTFS feed; notes that API and GTFS data "are inconsistent" with each other and that Noctis lines are missing on the API side | useful warning |
+| GitHub topic `stib-mivb` | Mostly home-automation integrations (waiting times) and student projects analysing speed and delays | nothing that replays a whole day on a map |
 
-Aucun projet public ne fait aujourd'hui pour Bruxelles ce que fait france-rail-traffic pour la
-France : la place est libre.
+No public project does for Brussels today what france-rail-traffic does for France: the space is
+open.
 
-### 3.7 Fonds de carte et géodonnées bruxelloises
+### 3.7 Basemaps and Brussels geodata
 
-| Option | Pour | Contre |
+| Option | For | Against |
 |---|---|---|
-| [OpenFreeMap](https://openfreemap.org/) | Tuiles vectorielles gratuites, sans clé ni quota, styles Positron, Bright, Liberty, Dark, auto-hébergeable | Style à personnaliser pour l'estomper |
-| Carto Dark Matter (choix de la référence) | Sombre et sobre, fonctionne immédiatement | Conditions d'usage Carto à respecter |
-| Protomaps / PMTiles | Un seul fichier pour Bruxelles, hébergé avec le site, aucune dépendance externe | Petit travail d'extraction et de style |
-| MapTiler, Stadia | Styles soignés | Clé et quota |
-| [UrbIS](https://datastore.brussels/web/urbis-download) (CIRB, licence open data) | Bâtiments 2D et 3D, voirie, parcelles : de quoi dessiner un fond « made in Brussels » (bâti gris, canal, parcs) voire une vue 3D | Travail cartographique à faire soi-même |
-| OpenStreetMap / OpenRailwayMap | Voies de tram et de métro si l'on veut dessiner les rails | Redondant avec `shapes.txt` |
+| [OpenFreeMap](https://openfreemap.org/) | Free vector tiles, no key, no quota, styles Positron, Bright, Liberty and Dark, self-hostable | Style to customise so it recedes |
+| Carto Dark Matter (the reference's choice) | Dark and sober, works immediately | Carto terms of use to respect |
+| Protomaps / PMTiles | A single file for Brussels, hosted with the site, no external dependency | A little extraction and styling work |
+| MapTiler, Stadia | Polished styles | Key and quota |
+| [UrbIS](https://datastore.brussels/web/urbis-download) (CIRB, open data licence) | 2D and 3D buildings, roads, parcels: enough to draw a "made in Brussels" basemap with grey buildings, the canal and parks, or even a 3D view | Cartographic work to do yourself |
+| OpenStreetMap / OpenRailwayMap | Tram and metro tracks if you want to draw the rails | Redundant with `shapes.txt` |
 
 ---
 
-## 4. Trois architectures possibles
+## 4. Three possible architectures
 
-Les trois partagent le même « moteur » (carte + trajectoires horodatées + contrôle du temps).
-Elles diffèrent par la fabrication des trajectoires.
+All three share the same engine: map, timestamped trajectories, time control. They differ in how
+trajectories are produced.
 
-### A. Rejouer l'horaire théorique (le plus proche de la référence)
-
-```
-GTFS zip (quotidien)
-  └─ choisir un jour de service (calendar + calendar_dates, charger aussi la veille pour la nuit)
-  └─ pour chaque course : stop_times (heures, shape_dist_traveled) + shape (tracé)
-  └─ échantillonner la trajectoire aux sommets du tracé, temps interpolé entre arrêts
-  └─ écrire un binaire par mode (métro, tram, bus, Noctis) et par tranche horaire
-  └─ site statique : MapLibre + deck.gl TripsLayer, scrubber, compteurs
-GitHub Actions chaque nuit → hébergement statique (Cloudflare Pages, GitHub Pages ou Vercel)
-```
-
-- Aucune clé, aucun serveur, aucune donnée personnelle, coût nul.
-- Ordre de grandeur : France = 2,3 M de sommets pour 13 602 courses ; Bruxelles devrait tenir
-  entre 1 et 3 M de sommets par jour, soit 10 à 40 Mo bruts, découpables par heure.
-- Limites : ni retards, ni déviations, ni suppressions ; vitesse constante entre arrêts (on peut
-  ajouter un temps d'arrêt fictif de 15 à 30 s pour que les véhicules « marquent » les arrêts).
-- Choix du jour : un mercredi hors vacances, un samedi et un dimanche donnent trois ambiances.
-
-### B. Rejouer une journée réelle (positions enregistrées)
+### A. Replay the scheduled timetable (closest to the reference)
 
 ```
-Enregistreur (cron toutes les 15 à 20 s, clé « standard ») → VehiclePositions brut, horodaté
-  └─ stockage compressé (≈ 30 Ko par instantané, ≈ 5 000 instantanés par jour)
-  └─ conversion « dernier arrêt + distance » → coordonnées via shapes.txt
-  └─ appariement des véhicules entre instantanés → trajectoires continues
-  └─ même binaire, même site qu'en A (avec un sélecteur « théorique / réel »)
+GTFS zip (daily)
+  └─ pick a service day (calendar + calendar_dates, load the previous day too for the night)
+  └─ per trip: stop_times (times, shape_dist_traveled) + shape (geometry)
+  └─ sample the trajectory at shape vertices, time interpolated between stops
+  └─ write one binary per mode (metro, tram, bus, Noctis) and per hour slice
+  └─ static site: MapLibre + deck.gl TripsLayer, scrubber, counters
+GitHub Actions every night → static hosting (Cloudflare Pages, GitHub Pages or Vercel)
 ```
 
-- Quota : un appel toutes les 15 s = 5 760 appels par jour, sous les 12 000 du niveau standard.
-- Ce que cela apporte : le vrai Bruxelles (embouteillages, régulation, grèves, jours de neige),
-  la comparaison théorique/réel, une carte de chaleur des retards, l'avance ou le retard de chaque
-  véhicule affiché en couleur.
-- Ce que cela coûte : un enregistreur qui tourne en permanence (Cloudflare Worker + R2, Vercel
-  cron + Blob, ou un simple Raspberry Pi), une clé API tenue secrète, et du soin dans
-  l'appariement.
-- Raccourci possible : MobilityTwin fournit déjà l'historique converti (voir 3.4), sous réserve de
-  licence.
+- No key, no server, no personal data, zero cost.
+- Order of magnitude: France comes to 2.3 M vertices for 13,602 trips; Brussels should land between
+  1 and 3 M vertices per day, so 10 to 40 MB raw, sliceable by hour.
+- Limits: no delays, no diversions, no cancellations; constant speed between stops (an artificial
+  dwell of 15 to 30 s can be added so vehicles visibly pause at stops).
+- Choice of day: a Wednesday outside school holidays, a Saturday and a Sunday give three moods.
 
-### C. Le direct
+### B. Replay an observed day (recorded positions)
 
-Même conversion qu'en B mais en continu : un relais serveur interroge l'API toutes les 15 s et
-sert un instantané mis en cache à tous les visiteurs (quel que soit leur nombre, un seul appel par
-15 s vers la STIB). Le navigateur interpole entre deux instantanés pour un mouvement fluide
-(technique hvv.live). Nécessite un serveur léger et masque la clé.
+```
+Recorder (cron every 15 to 20 s, "standard" key) → raw timestamped VehiclePositions
+  └─ compressed storage (about 30 KB per snapshot, about 5,000 snapshots per day)
+  └─ convert "last stop + distance" → coordinates via shapes.txt
+  └─ match vehicles between snapshots → continuous trajectories
+  └─ same binary, same site as A (with a "scheduled / observed" switch)
+```
 
-### Recommandation
+- Quota: one call every 15 s is 5,760 calls per day, below the 12,000 of the standard tier.
+- What it brings: the real Brussels (traffic jams, holding, strikes, snow days), the
+  scheduled-versus-observed comparison, a delay heat map, each vehicle coloured by how early or
+  late it runs.
+- What it costs: a recorder running permanently (Cloudflare Worker + R2, Vercel cron + Blob, or a
+  plain Raspberry Pi), an API key kept secret, and care in the matching.
+- Possible shortcut: MobilityTwin already provides converted history (see 3.4), subject to licence.
 
-1. **A d'abord** : résultat visible rapidement, pipeline simple, zéro exploitation.
-2. **Lancer l'enregistreur de B dès que la clé existe**, même si la conversion vient plus tard :
-   chaque jour non enregistré est perdu.
-3. **C en dernier**, comme mode supplémentaire sur le même site.
+### C. Live
+
+The same conversion as B but continuous: a relay server polls the API every 15 s and serves a
+cached snapshot to every visitor (however many there are, a single call every 15 s reaches STIB).
+The browser interpolates between two snapshots for smooth motion (the hvv.live technique). This
+needs a light server, which also hides the key.
+
+### Recommendation
+
+1. **A first**: a visible result quickly, a simple pipeline, zero operations.
+2. **Start B's recorder as soon as the key exists**, even if conversion comes later: every day not
+   recorded is lost.
+3. **C last**, as an extra mode on the same site.
 
 ---
 
-## 5. Choix techniques (pistes, pas de décision)
+## 5. Technical choices (directions, not decisions)
 
-| Brique | Option recommandée | Alternatives |
+| Building block | Recommended option | Alternatives |
 |---|---|---|
-| Rendu des véhicules | deck.gl `TripsLayer` (traînées gratuites, des milliers de trajectoires à 60 fps ; horodatages en Float32, donc « secondes depuis minuit » et pas des timestamps Unix) | couche WebGL maison dans MapLibre ; Three.js pour la 3D (Mini Tokyo 3D) ; canvas 2D suffisant pour 800 points sans traînées |
-| Carte | MapLibre GL JS (sans clé) | Mapbox GL (clé), Leaflet (pas de WebGL) |
-| Format de trajectoires | Binaire typé à la manière de la référence (`pos.bin`, `time.bin`, `idx.bin`), découpé par heure | Arrow/Parquet côté navigateur ; tuiles JSON par zoom (All Transit) |
-| Pipeline | Python (pandas ou polars, gtfs-kit ou partridge, shapely, pyproj) ; s'inspirer directement du dépôt de référence (MIT) en retirant l'étape pfaedle | Node/TypeScript pour n'avoir qu'un langage |
-| Prototype visuel sans écrire d'interface | Charger un CSV de trajectoires dans kepler.gl (couche « Trip ») pour juger le rendu en quelques minutes | Observable notebook |
-| Hébergement A | Site statique (Cloudflare Pages comme la référence, GitHub Pages, Vercel) | |
-| Hébergement B/C | Cloudflare Worker + R2/KV ou Vercel cron + Blob ; clé API en variable secrète | Petit VPS, Raspberry Pi |
-| Enregistrement | Une fonction planifiée toutes les 15 à 20 s, écriture brute sans transformation (on convertit plus tard, en cas de correction de l'algorithme) | |
+| Vehicle rendering | deck.gl `TripsLayer` (trails for free, thousands of trajectories at 60 fps; timestamps in Float32, so "seconds since midnight" rather than Unix timestamps) | A hand-written WebGL layer inside MapLibre; Three.js for 3D (Mini Tokyo 3D); a 2D canvas is enough for 800 points without trails |
+| Map | MapLibre GL JS (no key) | Mapbox GL (key), Leaflet (no WebGL) |
+| Trajectory format | Typed binary in the manner of the reference (`pos.bin`, `time.bin`, `idx.bin`), cut by hour | Arrow or Parquet in the browser; JSON tiles per zoom (All Transit) |
+| Pipeline | Python (pandas or polars, gtfs-kit or partridge, shapely, pyproj); draw directly on the reference repository, MIT licensed, dropping the pfaedle step | Node or TypeScript to keep a single language |
+| Visual prototype without an interface | Load a trajectory CSV into kepler.gl (Trip layer) to judge the render in minutes | An Observable notebook |
+| Hosting for A | Static site: Cloudflare Pages as the reference does, GitHub Pages or Vercel | |
+| Hosting for B and C | Cloudflare Worker with R2 or KV, or Vercel cron with Blob; API key in a secret variable | A small VPS, a Raspberry Pi |
+| Recording | A scheduled function every 15 to 20 s, writing raw with no transformation: convert later, in case the algorithm changes | |
 
-Ordre de grandeur de coût : A gratuit ; B quelques euros par mois au plus ; C idem.
+Cost order of magnitude: A free; B a few euros a month at most; C the same.
 
 ---
 
-## 6. Pistes visuelles
+## 6. Visual directions
 
-### Trois directions à trancher
+### Three directions to choose from
 
-1. **Nocturne, « la ville qui respire »** (proche de la référence). Fond très sombre et désaturé,
-   réseau en filigrane, véhicules lumineux avec traînées. Couleur par mode : métro en blanc chaud,
-   trams dans leur couleur officielle, bus en une teinte froide, Noctis en violet. Le spectacle
-   est dans le rythme : les vagues de 7 h, le creux de 14 h, l'extinction après minuit.
-2. **Plan officiel animé, clair.** Fond gris très pâle construit avec UrbIS (bâti, canal, parcs),
-   lignes dans leurs couleurs STIB (`route_color`), véhicules en pastilles portant le numéro de
-   ligne, typographie proche des plans de la STIB. Lisible en plein jour, plus « service
-   public » que « data art ».
-3. **Minimaliste, sans fond de carte.** Seulement le réseau en gris et les véhicules, façon
-   simulation ferroviaire suisse de Vasile Coțovanu : le tracé du réseau suffit à reconnaître
-   Bruxelles (pentagone, petite ceinture, canal, axe Louise, ligne 4/7). Très peu de pixels, très
-   élégant, s'exporte bien en vidéo.
+1. **Night-time, "the city breathing"** (close to the reference). Very dark, desaturated basemap,
+   the network as a watermark, luminous vehicles with trails. Colour by mode: warm white for
+   metro, official colours for trams, a cool hue for buses, violet for Noctis. The spectacle is in
+   the rhythm: the waves at 07:00, the lull at 14:00, the fade after midnight.
+2. **Animated official map, light.** A very pale grey basemap built from UrbIS (buildings, canal,
+   parks), routes in their STIB colours (`route_color`), vehicles as badges carrying the route
+   number, typography close to the STIB maps. Readable in broad daylight, more "public service"
+   than "data art".
+3. **Minimal, no basemap.** Only the network in grey and the vehicles, in the manner of Vasile
+   Coțovanu's Swiss rail simulation: the network outline alone is enough to recognise Brussels
+   (the Pentagon, the inner ring, the canal, the Louise axis, lines 4 and 7). Very few pixels,
+   very elegant, exports well to video.
 
-### Encodages qui marchent
+### Encodings that work
 
-- Traînée dont la longueur encode le temps écoulé (donc la vitesse), sans calcul.
-- Halo ou pulsation quand un véhicule est à l'arrêt (`distanceFromPoint` = 0 en réel, ou temps
-  d'arrêt fictif en théorique).
-- Métro en couche estompée sous la surface, avec en option une vue inclinée où les tunnels
-  passent sous les bâtiments 3D d'UrbIS (idée Mini Tokyo 3D, à réserver pour plus tard).
-- Réseau coloré par nombre de passages quotidiens, comme la référence, mais avec une palette qui
-  n'entre pas en collision avec les couleurs de lignes.
-- En mode réel : couleur du véhicule = avance ou retard par rapport à l'horaire.
+- A trail whose length encodes elapsed time, therefore speed, with no computation.
+- A halo or pulse when a vehicle is stopped (`distanceFromPoint` = 0 in the observed case, an
+  artificial dwell in the scheduled one).
+- Metro as a dimmed layer below the surface, optionally in a tilted view where tunnels pass under
+  UrbIS 3D buildings (idea from Mini Tokyo 3D, best kept for later).
+- The network coloured by daily run count, as in the reference, with a palette that does not
+  collide with the route colours.
+- In observed mode: vehicle colour showing how early or late it runs against the timetable.
 
 ### Interface
 
-- Horloge et jour de service, sélecteur de jour (semaine, samedi, dimanche, jour de grève ou
-  d'événement si enregistré).
-- Compteurs par mode (véhicules en circulation, courses depuis minuit, kilomètres).
-- Courbe d'activité sur 24 h qui sert de barre de défilement, vitesses ×60 à ×1800, espace pour
-  pause, pas à pas d'une minute.
-- Filtres par mode et par ligne ; clic sur un véhicule : ligne, destination, prochain arrêt.
-- Repères bruxellois : canal, petite ceinture, pentagone, communes ; « moments » à raconter
-  (premier métro 05:00, fin de service 00:30, rush de la Gare du Midi, sortie du stade).
+- Clock and service day, day selector (weekday, Saturday, Sunday, a strike or event day if
+  recorded).
+- Per-mode counters: vehicles running, trips departed since midnight, kilometres.
+- A 24-hour activity curve doubling as the scrubber, speeds ×60 to ×1800, space to pause, one
+  minute per step.
+- Filters by mode and by route; click a vehicle for its route, destination and next stop.
+- Brussels landmarks: the canal, the inner ring, the Pentagon, the communes; "moments" worth
+  telling (first metro at 05:00, end of service at 00:30, the Gare du Midi rush, the stadium
+  emptying).
 
-### Bonus
+### Extras
 
-- Export vidéo d'une journée (esprit TransitFlow) pour les réseaux sociaux.
-- Mode « embarqué » : suivre un seul tram 3, 4 ou 7 de terminus à terminus.
-- Cadran 24 h et petits multiples semaine/week-end.
+- Video export of one day (in the spirit of TransitFlow) for social networks.
+- An "on board" mode: follow a single tram 3, 4 or 7 from terminus to terminus.
+- A 24-hour dial and small multiples comparing weekdays and weekends.
 
 ---
 
-## 7. Risques et questions ouvertes
+## 7. Risks and open questions
 
-| Sujet | Risque | Comment lever le doute |
+| Topic | Risk | How to settle it |
 |---|---|---|
-| Sémantique de `distanceFromPoint` / `pointId` | dernier arrêt passé ou prochain arrêt ? | croiser quelques instantanés avec WaitingTimes et avec l'observation d'une ligne connue |
-| Identifiants d'arrêts avec suffixe (`4074B`) | non-correspondance avec les `stop_id` GTFS | table de correspondance à construire, vérifier sur StopDetails |
-| Variantes de parcours | mauvais tracé choisi pour un véhicule | choisir le tracé qui contient `pointId` et `directionId` dans le bon ordre |
-| GTFS-RT STIB | information contradictoire sur le portail | sans impact ; vérifier avec le compte par curiosité |
-| Licence MobilityTwin | non précisée | demander avant tout usage public |
-| Quotas | 12 000 appels par jour en standard | un enregistreur = un appel par 15 s, jamais d'appel direct depuis les navigateurs |
-| Précision des temps dans deck.gl | Float32 | secondes depuis minuit, pas d'epoch |
-| Performance mobile | All Transit signale des faiblesses | découpage horaire, `useDevicePixels: false`, tests sur téléphone tôt |
-| Données incohérentes API / GTFS | signalé par stibgtfs2mqtt | s'appuyer sur le GTFS pour la géométrie, sur l'API pour les positions seulement |
-| Attribution | obligatoire | pied de page : « Source: STIB-MIVB – Open Data – [date] », Belgian Mobility Company, fond de carte et OpenStreetMap |
+| Semantics of `distanceFromPoint` and `pointId` | last stop passed or next stop? | cross-check a few snapshots against WaitingTimes and against watching a known route |
+| Stop identifiers with a suffix (`4074B`) | no match with GTFS `stop_id` values | build a correspondence table, check against StopDetails |
+| Route variants | wrong shape chosen for a vehicle | pick the shape containing `pointId` and `directionId` in the right order |
+| STIB GTFS-RT | contradictory information on the portal | no impact; check with an account out of curiosity |
+| MobilityTwin licence | unstated | ask before any public use |
+| Quotas | 12,000 calls per day on the standard tier | one recorder means one call every 15 s, never a direct call from a browser |
+| Time precision in deck.gl | Float32 | seconds since midnight, not epoch |
+| Mobile performance | All Transit reports weaknesses | hour slicing, `useDevicePixels: false`, test on a phone early |
+| Inconsistent API and GTFS data | reported by stibgtfs2mqtt | rely on the GTFS feed for geometry, on the API for positions only |
+| Attribution | mandatory | footer: "Source: STIB-MIVB – Open Data – [date]", Belgian Mobility Company, basemap and OpenStreetMap |
 
 ---
 
-## 8. Prochaines étapes proposées
+## 8. Proposed next steps
 
-1. **Créer le compte développeur** sur le portail Belgian Mobility et souscrire au niveau
-   « standard » (action à faire par vous : création de compte).
-2. **Trancher la direction visuelle** parmi les trois de la section 6, ou en combiner deux
-   (par exemple nocturne par défaut, clair en option).
-3. **Choisir le périmètre de la première version** : A seul, ou A plus l'enregistreur de B.
-4. **Première session de code** (quand vous le déciderez) : un notebook qui charge le GTFS du
-   jour, compte les courses d'un mercredi, produit les trajectoires de deux ou trois lignes et
-   les affiche dans kepler.gl. C'est le test le moins cher pour valider le rendu et les volumes.
-5. **En parallèle** : un enregistreur minimal des positions brutes, pour commencer à constituer
-   des journées réelles.
+1. **Create the developer account** on the Belgian Mobility portal and subscribe to the "standard"
+   tier (an action for you: account creation).
+2. **Choose the visual direction** among the three in section 6, or combine two (night-time by
+   default, light as an option, for instance).
+3. **Choose the scope of the first version**: A alone, or A plus B's recorder.
+4. **First coding session** (whenever you decide): a notebook that loads the day's feed, counts a
+   Wednesday's trips, produces trajectories for two or three routes and displays them in
+   kepler.gl. That is the cheapest way to validate the render and the volumes.
+5. **In parallel**: a minimal raw-position recorder, so that real days start accumulating.
 
 ---
 
-## Sources consultées le 5 septembre 2026
+## Sources consulted on 5 September 2026
 
-- Dépôt et démo de référence : <https://github.com/magrinj/france-rail-traffic>,
+- Reference repository and demo: <https://github.com/magrinj/france-rail-traffic>,
   <https://france-rail-traffic.pages.dev/>
-- Portail Belgian Mobility : <https://data.belgianmobility.io/en/data.html>,
+- Belgian Mobility portal: <https://data.belgianmobility.io/en/data.html>,
   `/en/terms.html`, `/en/faq.html`, `/en/knowledge-base.html`
-- Réponses brutes des API STIB : VehiclePositions, stopsByLine, StopDetails (accès anonyme)
-- Rapport de validation GTFS STIB : <https://data.gtfs.be/stib/gtfs/>
-- MobilityTwin.Brussels : <https://mobilitytwin.brussels/tag/stib/>
-- Plans STIB : <https://www.stib-mivb.be/travel/network-and-district-maps>
-- TRAVIC : <https://travic.app/> ; All Transit : <https://kylebarron.dev/blog/all-transit/> ;
-  hvv.live : <https://franz.hamburg/writing/the-moving-city.html> ;
-  Mini Tokyo 3D : <https://github.com/nagix/mini-tokyo-3d>
-- deck.gl TripsLayer : <https://deck.gl/docs/api-reference/geo-layers/trips-layer>
-- OpenFreeMap : <https://openfreemap.org/> ; UrbIS : <https://datastore.brussels/web/urbis-download>
+- Raw STIB API responses: VehiclePositions, stopsByLine, StopDetails (anonymous access)
+- STIB GTFS validation report: <https://data.gtfs.be/stib/gtfs/>
+- MobilityTwin.Brussels: <https://mobilitytwin.brussels/tag/stib/>
+- STIB maps: <https://www.stib-mivb.be/travel/network-and-district-maps>
+- TRAVIC: <https://travic.app/>; All Transit: <https://kylebarron.dev/blog/all-transit/>;
+  hvv.live: <https://franz.hamburg/writing/the-moving-city.html>;
+  Mini Tokyo 3D: <https://github.com/nagix/mini-tokyo-3d>
+- deck.gl TripsLayer: <https://deck.gl/docs/api-reference/geo-layers/trips-layer>
+- OpenFreeMap: <https://openfreemap.org/>; UrbIS: <https://datastore.brussels/web/urbis-download>
