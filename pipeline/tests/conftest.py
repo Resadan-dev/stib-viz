@@ -11,12 +11,20 @@ Shape C is the S1 -> S2 leg only, used by bus 95, whose stop S2B sits 11 m north
 
 from __future__ import annotations
 
+import datetime as dt
 import io
 import zipfile
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+
+from stibviz.gtfs import Feed, load_feed
+from stibviz.service_day import DayTrips, select_day
+from stibviz.shapes import Shape, build_shapes, project_patterns, trip_patterns
+from stibviz.trajectories import TripTrajectory, build_trajectories
+from stibviz.vehicles import VehicleAssembly, assemble_vehicles
 
 # --- Geometry -----------------------------------------------------------------------------
 
@@ -203,3 +211,40 @@ def gtfs_zip_bytes(tables: Mapping[str, str]) -> bytes:
 def sample_gtfs_zip(tmp_path: Path) -> Path:
     """The synthetic feed written to a temporary zip."""
     return write_gtfs_zip(tmp_path / "gtfs.zip", SAMPLE_TABLES)
+
+
+# --- Pipeline state up to trajectories, for the modules downstream ---------------------------
+
+ROUTE_INDEX = {"M1": 0, "B95": 1, "N06": 2}
+MODE_OF_ROUTE = {0: "metro", 1: "bus", 2: "noctis"}
+
+
+@dataclass(frozen=True)
+class PipelineState:
+    feed: Feed
+    day: DayTrips
+    shapes: dict[str, Shape]
+    assembly: VehicleAssembly
+    trajectories: dict[str, TripTrajectory]
+
+
+def build_state(zip_path: Path, date: dt.date) -> PipelineState:
+    """Run the pipeline on a feed up to trajectories, the input of slicing, stats and encoding."""
+    feed = load_feed(zip_path)
+    day = select_day(feed, date)
+    shapes = build_shapes(feed, tolerance_m=2.0)
+    patterns = trip_patterns(day)
+    projections = project_patterns(set(patterns.values), shapes, feed.stops)
+    assembly = assemble_vehicles(day, feed.stops)
+    trajectories = build_trajectories(day, patterns, projections, shapes, assembly, ROUTE_INDEX)
+    return PipelineState(feed, day, shapes, assembly, trajectories)
+
+
+@pytest.fixture
+def wednesday_state(sample_gtfs_zip: Path) -> PipelineState:
+    return build_state(sample_gtfs_zip, dt.date(2026, 9, 9))
+
+
+@pytest.fixture
+def friday_state(sample_gtfs_zip: Path) -> PipelineState:
+    return build_state(sample_gtfs_zip, dt.date(2026, 9, 11))
