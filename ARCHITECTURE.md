@@ -398,7 +398,9 @@ reduced motion, the page starts paused.
    state.
 
 The workflow declares `permissions: contents: read` and checks out without persisting credentials:
-least privilege, so a compromised dependency cannot write to the repository.
+least privilege, so a compromised dependency cannot write to the repository. Every action is
+pinned to a commit SHA rather than a tag, so a moved or compromised tag cannot change what
+runs; Dependabot keeps those pins current.
 
 ### 7.2 `nightly.yml` (cron after the GTFS feed is published, plus manual dispatch)
 
