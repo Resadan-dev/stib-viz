@@ -25,3 +25,11 @@ are read and taken seriously.
 
 - The accuracy or availability of STIB-MIVB open data itself. Report those to the data publisher.
 - Denial of service against third-party services the site links to (map tiles, data portal).
+
+## Known accepted risk
+
+- `image-size` (transitive dependency of `@deck.gl/geo-layers`, via its glTF and texture
+  loaders) has an open denial-of-service advisory with no patched version available as of
+  September 2026. stib-viz never loads glTF models, 3D tiles or texture images — only trip
+  positions and the network GeoJSON reach deck.gl — so this code path is never invoked. Tracked
+  via Dependabot; will be bumped once a fix is published.

@@ -46,5 +46,10 @@
     "@deck.gl/layers": "9.3.11",
     "@deck.gl/mapbox": "9.3.11",
     "maplibre-gl": "6.7.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "fflate": "^0.7.5"
+    }
   }
 }
