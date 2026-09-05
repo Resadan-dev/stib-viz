@@ -31,6 +31,9 @@ from stibviz.vehicles import VehicleAssembly
 
 # Used only to give a time to trailing stops whose times could not be interpolated.
 NOMINAL_SPEED_MPS = 10.0
+# Smallest gap between two vertex times. It must survive the Float32 encoding of the slices,
+# whose resolution near 86,400 s is 0.008 s; 0.05 s is invisible and safe.
+MIN_STEP_S = 0.05
 
 
 @dataclass(frozen=True)
@@ -106,8 +109,8 @@ class _PathBuilder:
                 if t == last_t:
                     return  # the same vertex again
                 self.close()  # standing still: the trail ends here and restarts later
-            elif t <= last_t:
-                t = last_t + 1e-3  # guard against a rounding tie after repair
+            elif t < last_t + MIN_STEP_S:
+                t = last_t + MIN_STEP_S  # a rounding tie after repair, or too close for Float32
         self._along.append(along)
         self._t.append(t)
 

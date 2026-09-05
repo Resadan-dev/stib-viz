@@ -101,6 +101,7 @@ def test_write_day_produces_the_documented_files(
     manifest = write_day(bundle, tmp_path)
     day_dir = tmp_path / "2026-09-09"
     assert (day_dir / "manifest.json").is_file()
+    assert (day_dir / "vehicles.json").is_file()
     assert json.loads((day_dir / "manifest.json").read_text(encoding="utf-8")) == manifest
     slice_files = sorted(p.name for p in (day_dir / "slices").iterdir())
     assert slice_files == sorted(f"{s.hour:02d}-{s.mode}.bin" for s in bundle.slices)
@@ -131,7 +132,9 @@ def test_manifest_content(wednesday_state: PipelineState, tmp_path: Path) -> Non
         "text_color": "FFFFFF",
         "long_name": "GARE - NORD",
     }
-    v1 = manifest["vehicles"][0]
+    assert manifest["vehicles_file"] == "vehicles.json" and manifest["vehicle_count"] == 6
+    vehicles = json.loads((tmp_path / "2026-09-09" / "vehicles.json").read_text(encoding="utf-8"))
+    v1 = vehicles[0]
     assert v1["block"] == "V1"
     assert v1["trips"][1] == {
         "route_idx": 0,
@@ -207,3 +210,19 @@ def test_index_ignores_directories_without_a_manifest(
     (tmp_path / "2026-09-10").mkdir()
     index = write_index(tmp_path, bundle.feed_info, generated_at=bundle.generated_at)
     assert [d["date"] for d in index["days"]] == ["2026-09-09"]
+
+
+def test_times_too_close_for_float32_stay_strictly_increasing() -> None:
+    from stibviz.slicing import Slice
+    from stibviz.trajectories import Path as TrajectoryPath
+
+    path = TrajectoryPath(
+        lon=np.array([4.35, 4.351, 4.352]),
+        lat=np.array([50.85, 50.85, 50.85]),
+        t=np.array([54000.0, 54000.0000001, 54010.0]),
+        vehicle=0,
+        trip=0,
+        route=0,
+    )
+    decoded = decode_slice(encode_slice(Slice(hour=19, mode="bus", paths=(path,))))
+    assert np.all(np.diff(decoded.times) > 0)

@@ -53,7 +53,7 @@ REQUIRED_MANIFEST_KEYS = (
     "peak",
     "per_minute",
     "routes",
-    "vehicles",
+    "vehicles_file",
     "slices",
     "stops_files",
     "anomalies",
@@ -166,12 +166,12 @@ def check_build(
     anomalies = {
         "stop_offset": stop_offset,
         "stop_order": stop_order,
-        "time_repaired": sum(t.time_repaired for t in trajectories),
-        "truncated_after_28h": sum(t.truncated for t in trajectories),
-        "dropped_before_start": day.dropped_before_start,
-        "dropped_after_span": day.dropped_after_span,
-        "without_stop_times": day.without_stop_times,
-        "block_overlap": bundle.assembly.overlapping_blocks,
+        "time_repaired": sum(int(t.time_repaired) for t in trajectories),
+        "truncated_after_28h": sum(int(t.truncated) for t in trajectories),
+        "dropped_before_start": int(day.dropped_before_start),
+        "dropped_after_span": int(day.dropped_after_span),
+        "without_stop_times": int(day.without_stop_times),
+        "block_overlap": int(bundle.assembly.overlapping_blocks),
     }
     allowed = anomaly_tolerance * max(n_trips, 1)
     for key in TOLERATED_ANOMALIES:
@@ -258,6 +258,8 @@ def check_day_dir(
     for entry in manifest["stops_files"]:
         if not (day_dir / entry["path"]).is_file():
             blocking.append(f"{entry['path']}: listed in the manifest but missing")
+    if not (day_dir / manifest["vehicles_file"]).is_file():
+        blocking.append(f"{manifest['vehicles_file']}: listed in the manifest but missing")
 
     anomalies = {key: int(value) for key, value in manifest["anomalies"].items()}
     info = {"slices": len(manifest["slices"]), "slice_bytes": total_bytes}

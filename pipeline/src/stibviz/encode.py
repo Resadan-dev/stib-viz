@@ -82,6 +82,22 @@ class DecodedSlice:
     offsets: dict[str, int]
 
 
+def _strictly_increasing_f4(t: NDArray[np.float64]) -> NDArray[np.float32]:
+    """Cast times to Float32 while keeping them strictly increasing.
+
+    Two vertices closer than the Float32 resolution (0.008 s near the end of the day) would
+    collapse to the same value; the later one is moved to the next representable number, a shift
+    far below anything visible.
+    """
+    values = t.astype("<f4")
+    if np.all(np.diff(values) > 0):
+        return values
+    for i in range(1, len(values)):
+        if values[i] <= values[i - 1]:
+            values[i] = np.nextafter(values[i - 1], np.float32(np.inf))
+    return values
+
+
 def encode_slice(a_slice: Slice) -> bytes:
     """Serialise one slice to the STV1 layout."""
     vertices, paths = a_slice.vertices, len(a_slice.paths)
@@ -93,7 +109,7 @@ def encode_slice(a_slice: Slice) -> bytes:
         n = len(path.t)
         positions[2 * cursor : 2 * (cursor + n) : 2] = path.lon
         positions[2 * cursor + 1 : 2 * (cursor + n) : 2] = path.lat
-        times[cursor : cursor + n] = path.t
+        times[cursor : cursor + n] = _strictly_increasing_f4(path.t)
         index[i] = cursor
         cursor += n
     index[paths] = vertices
@@ -246,6 +262,23 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
     _write_json(data_dir / "lookup" / f"{version}.json", bundle.lookup)
 
     route_index = {route.route_id: i for i, route in enumerate(bundle.routes)}
+    vehicles = [
+        {
+            "block": vehicle.block_id,
+            "trips": [
+                {
+                    "route_idx": route_index[trip.route_id],
+                    "headsign": trip.headsign,
+                    "start": trip.start,
+                    "end": trip.end,
+                    "from_layover": trip.from_layover,
+                }
+                for trip in vehicle.trips
+            ],
+        }
+        for vehicle in bundle.assembly.vehicles
+    ]
+    _write_json(day_dir / "vehicles.json", vehicles)
     stats = bundle.stats
     manifest: dict[str, Any] = {
         "date": bundle.date.isoformat(),
@@ -276,22 +309,8 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
             }
             for route in bundle.routes
         ],
-        "vehicles": [
-            {
-                "block": vehicle.block_id,
-                "trips": [
-                    {
-                        "route_idx": route_index[trip.route_id],
-                        "headsign": trip.headsign,
-                        "start": trip.start,
-                        "end": trip.end,
-                        "from_layover": trip.from_layover,
-                    }
-                    for trip in vehicle.trips
-                ],
-            }
-            for vehicle in bundle.assembly.vehicles
-        ],
+        "vehicles_file": "vehicles.json",
+        "vehicle_count": len(bundle.assembly.vehicles),
         "slices": slice_entries,
         "stops_files": stop_entries,
         "anomalies": dict(bundle.anomalies),
