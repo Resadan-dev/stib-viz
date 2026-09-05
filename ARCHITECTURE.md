@@ -1,206 +1,205 @@
-# stib-viz : architecture de la version 1
+# stib-viz: version 1 architecture
 
-Statut : figée le 5 septembre 2026, révisée le même jour après une relecture d'architecture
-(dix constats intégrés, voir section 11). Périmètre dans [SCOPE.md](SCOPE.md), contexte dans
-[docs/01-exploration.md](docs/01-exploration.md). Les versions des bibliothèques sont choisies
-au moment de l'implémentation, documentation officielle à l'appui.
+Status: frozen on 5 September 2026, revised the same day after an architecture review
+(ten findings folded in, see section 11). Scope in [SCOPE.md](SCOPE.md), background in
+[docs/01-exploration.md](docs/01-exploration.md). Library versions are chosen at implementation
+time, against the official documentation.
 
-## 1. Principes
+## 1. Principles
 
-1. **Statique d'abord.** Tout le travail lourd se fait dans le pipeline. Le navigateur télécharge
-   des tableaux binaires et les dessine ; il ne calcule ni horaires ni géométries.
-2. **Un contrat de données indépendant de la source.** Le site consomme une « journée » décrite par
-   un manifeste et des tranches binaires. L'horaire théorique remplit ce contrat aujourd'hui ; un
-   enregistreur temps réel le remplira demain sans toucher au site. Le contrat est testé des deux
-   côtés : le pipeline l'écrit, le site le décode, sur le même extrait versionné.
-3. **Reproductible et vérifié.** Le pipeline est une fonction pure du GTFS et d'une date. Chaque
-   exécution passe des contrôles chiffrés avant publication.
-4. **Tests d'abord.** Chaque module naît d'un test qui échoue. La logique est séparée du rendu pour
-   rester testable sans navigateur.
-5. **Petit et lisible.** Pas de framework d'interface, pas de serveur, pas de base de données.
+1. **Static first.** All heavy work happens in the pipeline. The browser downloads binary arrays
+   and draws them; it computes neither timetables nor geometry.
+2. **A data contract independent of its source.** The site consumes a "day" described by a
+   manifest and binary slices. The scheduled timetable fills that contract today; a real-time
+   recorder will fill it tomorrow without touching the site. The contract is tested from both
+   sides: the pipeline writes it, the site decodes it, from the same versioned extract.
+3. **Reproducible and verified.** The pipeline is a pure function of the GTFS feed and a date.
+   Every run passes numeric checks before publication.
+4. **Tests first.** Every module starts from a failing test. Logic is kept apart from rendering so
+   it stays testable without a browser.
+5. **Small and readable.** No UI framework, no server, no database.
 
-## 2. Vue d'ensemble
+## 2. Overview
 
 ```mermaid
 flowchart LR
-  A[GTFS STIB<br/>portail Belgian Mobility] -->|téléchargement quotidien| B[Pipeline Python<br/>uv]
-  B -->|journées : manifeste + tranches binaires + réseau| C[(dist/data)]
-  D[Site Vite + TypeScript<br/>MapLibre + deck.gl] -->|build| E[(dist)]
+  A[STIB GTFS<br/>Belgian Mobility portal] -->|daily download| B[Python pipeline<br/>uv]
+  B -->|days: manifest + binary slices + network| C[(dist/data)]
+  D[Vite + TypeScript site<br/>MapLibre + deck.gl] -->|build| E[(dist)]
   C --> E
   E -->|wrangler pages deploy| F[Cloudflare Pages]
-  G[OpenFreeMap<br/>tuiles sombres] -.->|à l'exécution| H[Navigateur]
+  G[OpenFreeMap<br/>dark tiles] -.->|at runtime| H[Browser]
   F --> H
-  I[GitHub Actions<br/>cron nocturne + push] --> B
+  I[GitHub Actions<br/>nightly cron + push] --> B
   I --> D
 ```
 
-Deux exécutables, un contrat entre eux :
+Two executables, one contract between them:
 
-- `pipeline/` produit `dist/data/` : un index des journées, puis par journée un manifeste, des
-  tranches binaires par heure et par mode, des fichiers d'arrêts par heure, et par version de flux
-  une couche réseau et une table de correspondance pour la v2.
-- `web/` est un site statique qui lit `dist/data/` et anime.
+- `pipeline/` produces `dist/data/`: an index of days, then per day a manifest, binary slices by
+  hour and mode, per-hour stop files, and per feed version a network layer and a lookup table
+  for v2.
+- `web/` is a static site that reads `dist/data/` and animates it.
 
-## 3. Organisation du dépôt
+## 3. Repository layout
 
 ```
 stib-viz/
-├── SCOPE.md  ARCHITECTURE.md  README.md  LICENSE
-├── docs/                         exploration, décisions, captures
+├── SCOPE.md  ARCHITECTURE.md  README.md  SECURITY.md  LICENSE
+├── docs/                         exploration, decisions, screenshots
 ├── pipeline/                     Python 3.12, uv, ruff, pytest
 │   ├── pyproject.toml
 │   ├── src/stibviz/
 │   │   ├── cli.py                stibviz fetch | build | check | index
-│   │   ├── fetch.py              téléchargement GTFS avec ETag et empreinte
-│   │   ├── gtfs.py               lecture et validation des tables
-│   │   ├── service_day.py        date → services actifs → courses de la journée 04:00-04:00
-│   │   ├── shapes.py             tracés : distance cumulée, projection des arrêts, simplification
-│   │   ├── vehicles.py           enchaînement des courses par block_id, battements, coupures
-│   │   ├── trajectories.py       échantillonnage (lon, lat, t) le long des tracés
-│   │   ├── slicing.py            découpage par tranche horaire avec recouvrement asymétrique
-│   │   ├── network.py            couche réseau, dictionnaire des arrêts, table pour la v2
-│   │   ├── stats.py              compteurs par minute, kilomètres, lignes
-│   │   ├── encode.py             écriture des binaires, des fichiers d'arrêts et du manifeste
-│   │   └── checks.py             contrôles de qualité, seuils, anomalies par objet
+│   │   ├── fetch.py              GTFS download with ETag and digest
+│   │   ├── gtfs.py               table reading and validation
+│   │   ├── service_day.py        date → active services → trips of the 04:00-04:00 day
+│   │   ├── shapes.py             shapes: cumulative distance, stop projection, simplification
+│   │   ├── vehicles.py           trip chaining by block_id, layovers, deadhead cuts
+│   │   ├── trajectories.py       (lon, lat, t) sampling along shapes
+│   │   ├── slicing.py            hour slicing with asymmetric overlap
+│   │   ├── network.py            network layer, stop dictionary, v2 lookup table
+│   │   ├── stats.py              per-minute series, kilometres, routes
+│   │   ├── encode.py             binary slices, stop files and manifest writing
+│   │   └── checks.py             quality checks, thresholds, per-object anomalies
 │   └── tests/
-│       ├── fixtures/gtfs-extrait/   extrait réel de trois lignes (un métro, un tram dont le
-│       │                            tracé repasse près de lui-même, un Noctis), moins de 500 Ko,
-│       │                            avec ses valeurs attendues versionnées
-│       └── …                        fixtures synthétiques minimales et tests unitaires
-├── web/                          Vite, TypeScript strict, pnpm
+│       ├── fixtures/gtfs-extract/   real three-route extract (one metro, one tram whose shape
+│       │                            passes close to itself, one Noctis), under 500 KB, with its
+│       │                            versioned expected values
+│       └── …                        minimal synthetic fixtures and unit tests
+├── web/                          Vite, strict TypeScript, pnpm
 │   ├── index.html
 │   ├── src/
-│   │   ├── main.ts               assemblage
-│   │   ├── data/                 index, manifeste, décodage des tranches, cache et préchargement
-│   │   ├── time/                 horloge de journée de service, lecteur (vitesse, pause)
-│   │   ├── render/               carte MapLibre, couches deck.gl, positions courantes, sélection
-│   │   ├── ui/                   horloge, sélecteur de jour, compteurs, courbe et défilement,
-│   │   │                         filtres, panneau véhicule, à propos
-│   │   ├── state/                état unique et synchronisation avec l'URL
-│   │   ├── theme/                style de fond nocturne, couleurs des modes
-│   │   └── i18n/                 fr.ts, textes centralisés
-│   ├── tests/                    vitest, dont le test de contrat sur la journée de fixture
-│   └── e2e/                      Playwright, test de fumée sur la journée de fixture
-├── .github/workflows/
-│   ├── ci.yml                    lint, types, tests unitaires, contrat, fumée, à chaque push et PR
-│   └── nightly.yml               pipeline sept jours + build + déploiement Cloudflare Pages
-└── dist/                         généré, ignoré par git
+│   │   ├── main.ts               assembly
+│   │   ├── data/                 index, manifest, slice decoding, cache and prefetch
+│   │   ├── time/                 service-day clock, player (speed, pause)
+│   │   ├── render/               MapLibre map, deck.gl layers, current positions, selection
+│   │   ├── ui/                   clock, day selector, counters, activity curve and scrubber,
+│   │   │                         filters, vehicle panel, about
+│   │   ├── state/                single state object and URL synchronisation
+│   │   ├── theme/                night basemap style, mode colours
+│   │   └── i18n/                 fr.ts, centralised UI copy
+│   ├── tests/                    vitest, including the contract test on the fixture day
+│   └── e2e/                      Playwright, smoke test on the fixture day
+├── .github/
+│   ├── dependabot.yml            monthly updates: actions, npm, uv
+│   └── workflows/
+│       ├── ci.yml                lint, types, unit tests, contract, smoke, on push and PR
+│       └── nightly.yml           seven-day pipeline + build + Cloudflare Pages deployment
+└── dist/                         generated, git-ignored
 ```
 
-La journée de fixture du site n'est pas un fichier versionné : la CI la produit à chaque
-exécution avec `stibviz build` sur l'extrait `pipeline/tests/fixtures/gtfs-extrait/`. Elle ne
-peut donc pas dériver du code du pipeline.
+The site's fixture day is not a versioned file: CI produces it on every run with `stibviz build`
+against the `pipeline/tests/fixtures/gtfs-extract/` extract. It therefore cannot drift from the
+pipeline code.
 
-## 4. Le pipeline
+## 4. The pipeline
 
-### 4.1 Entrées
+### 4.1 Inputs
 
-- URL du GTFS statique STIB sur le portail Belgian Mobility (téléchargeable sans clé, environ
-  14,5 Mo, mis à jour chaque matin). Un fichier local peut la remplacer pour les tests et le
-  travail hors ligne.
-- Paramètres, tous avec une valeur par défaut versionnée : tolérance de simplification (2 m),
-  début de la journée de service (04:00), recouvrement des tranches (300 s avant la borne basse,
-  120 s après la borne haute), seuil de coupure des déplacements à vide (100 m), tolérance
-  d'anomalies par objet (0,1 % des courses), fenêtre de journées (hier, aujourd'hui, plus cinq).
+- URL of the static STIB GTFS feed on the Belgian Mobility portal (downloadable without a key,
+  around 14.5 MB, refreshed every morning). A local file can replace it for tests and offline work.
+- Parameters, each with a versioned default: simplification tolerance (2 m), service-day start
+  (04:00), slice overlap (300 s before the lower bound, 120 s after the upper bound), deadhead cut
+  threshold (100 m), per-object anomaly tolerance (0.1% of trips), day window (yesterday, today,
+  plus five).
 
-### 4.2 Étapes
+### 4.2 Steps
 
-| Étape | Module | Entrée → sortie | Points d'attention |
+| Step | Module | Input → output | Points of attention |
 |---|---|---|---|
-| 1. Télécharger | `fetch` | URL → `gtfs.zip`, ETag, SHA-256 | Requête conditionnelle `If-None-Match` ; le zip est vérifié (taille, entrées attendues, pas de chemin sortant du dossier) |
-| 2. Lire et valider | `gtfs` | zip → tables typées | Fichiers et colonnes obligatoires, plage de validité couvrant les dates demandées, heures `HH:MM:SS` avec `HH` pouvant dépasser 24 |
-| 3. Journée de service | `service_day` | date → identifiants de services → courses | `calendar` plus exceptions `calendar_dates`. Règle : une course appartient à la journée si son premier départ est dans `[04:00, 28:00)` en temps GTFS de la date. Sa trajectoire est écrite jusqu'à son arrivée ; la partie au-delà de 28:00 est tronquée par interpolation et comptée comme anomalie. Une course dont le départ précède 04:00 est écartée et comptée. La veille n'est jamais chargée : les Noctis du vendredi appartiennent, par cette règle, au ruban du vendredi |
-| 4. Tracés | `shapes` | `shapes.txt` → polylignes en mètres, distance cumulée | Projection locale en mètres (Lambert belge 72 ou équirectangulaire centrée sur Bruxelles). La distance cumulée est calculée sur la géométrie d'origine et contrôlée contre `shape_dist_traveled` de `shapes.txt` |
-| 5. Projection des arrêts | `shapes` | (tracé d'origine, séquence d'arrêts) → abscisse curviligne de chaque arrêt | Le GTFS STIB n'a pas `shape_dist_traveled` dans `stop_times`. Projection sur le tracé **d'origine**, contrainte à être croissante le long du tracé ; écart arrêt-tracé mesuré et contrôlé |
-| 6. Simplification | `shapes` | tracé d'origine → sous-ensemble de sommets | Douglas-Peucker ne retient que des sommets d'origine, qui gardent leur abscisse d'origine. Entre deux sommets retenus, la position s'interpole le long de la corde en proportion des abscisses d'origine. Les kilomètres et les temps sont toujours calculés sur les abscisses d'origine, jamais sur la longueur des cordes |
-| 7. Véhicules | `vehicles` | courses → suites de courses par `block_id` | Le battement au terminus n'est pas émis comme segment : le chemin s'arrête à l'arrivée et le suivant reprend au départ ; la tête immobile est affichée par la couche de points (section 6.3). Si la course suivante démarre à plus de 100 m de l'arrivée, il s'agit d'un déplacement à vide : rien n'est dessiné entre les deux. Une course sans `block_id` forme un véhicule à elle seule ; un `block_id` dont deux courses se chevauchent dans le temps est scindé en deux véhicules et compté comme anomalie |
-| 8. Trajectoires | `trajectories` | course → liste de `(lon, lat, t)` | Vitesse constante entre deux arrêts consécutifs ; sommets échantillonnés aux sommets retenus du tracé plus les arrêts ; temps en secondes depuis 04:00 |
-| 9. Tranches | `slicing` | trajectoires → au plus 24 tranches par mode | La tranche `h` contient les portions actives dans `[h − 300 s, h + 1 h + 120 s)`, coupées par interpolation aux bornes. Le recouvrement amont est dimensionné par la longueur de traînée, l'aval par la latence de bascule. Seules les tranches non vides sont écrites ; la liste du manifeste fait foi |
-| 10. Réseau et table v2 | `network` | tracés d'origine simplifiés + courses → segments arrêt à arrêt avec nombre de passages ; dictionnaire des arrêts ; table de correspondance | Cinq classes d'intensité ; le métro porte un attribut « souterrain ». La table de correspondance (section 5.7) n'est pas lue par le site v1 |
-| 11. Statistiques | `stats` | courses, véhicules → compteurs | Par mode et par minute (1 440 valeurs) : véhicules actifs, courses parties depuis 04:00 en cumul, kilomètres parcourus depuis 04:00 en cumul ; liste des lignes avec couleurs |
-| 12. Encodage | `encode` | tout → fichiers de `dist/data/<date>/` | Voir section 5 |
-| 13. Contrôles | `checks` | fichiers produits → rapport | Voir section 4.3 |
+| 1. Download | `fetch` | URL → `gtfs.zip`, ETag, SHA-256 | Conditional `If-None-Match` request; the archive is validated (size, expected entries, no path escaping the destination directory) |
+| 2. Read and validate | `gtfs` | archive → typed tables | Required files and columns, validity range covering the requested dates, `HH:MM:SS` times where `HH` may exceed 24 |
+| 3. Service day | `service_day` | date → service ids → trips | `calendar` plus `calendar_dates` exceptions. Rule: a trip belongs to the day when its first departure falls in `[04:00, 28:00)` in GTFS time of that date. Its trajectory is written through to arrival; any part beyond 28:00 is truncated by interpolation and counted as an anomaly. A trip departing before 04:00 is dropped and counted. The previous day is never loaded: by this rule, Friday's Noctis trips belong to Friday's span |
+| 4. Shapes | `shapes` | `shapes.txt` → polylines in metres, cumulative distance | Local projection in metres (Belgian Lambert 72 or an equirectangular projection centred on Brussels). Cumulative distance is computed on the original geometry and checked against `shape_dist_traveled` from `shapes.txt` |
+| 5. Stop projection | `shapes` | (original shape, stop sequence) → distance along the shape for each stop | The STIB feed has no `shape_dist_traveled` in `stop_times`. Projection onto the **original** shape, constrained to increase along it; stop-to-shape offset measured and checked |
+| 6. Simplification | `shapes` | original shape → subset of vertices | Douglas-Peucker keeps only original vertices, which retain their original distances. Between two kept vertices, position interpolates along the chord in proportion to the original distances. Kilometres and times are always computed from the original distances, never from chord lengths |
+| 7. Vehicles | `vehicles` | trips → trip sequences per `block_id` | The terminus layover is not emitted as a segment: the path stops at arrival and the next one starts at departure; the idle head is drawn by the point layer (section 6.3). If the next trip starts more than 100 m from the arrival point it is a deadhead move: nothing is drawn between the two. A trip without a `block_id` forms a vehicle of its own; a `block_id` whose trips overlap in time is split into two vehicles and counted as an anomaly |
+| 8. Trajectories | `trajectories` | trip → list of `(lon, lat, t)` | Constant speed between two consecutive stops; vertices sampled at the kept shape vertices plus the stops; time in seconds since 04:00 |
+| 9. Slices | `slicing` | trajectories → at most 24 slices per mode | Slice `h` holds the portions active in `[h − 300 s, h + 1 h + 120 s)`, cut by interpolation at the bounds. Upstream overlap is sized by trail length, downstream overlap by switching latency. Only non-empty slices are written; the manifest list is authoritative |
+| 10. Network and v2 table | `network` | simplified original shapes + trips → stop-to-stop segments with run counts; stop dictionary; lookup table | Five intensity classes; metro carries an "underground" flag. The lookup table (section 5.7) is not read by the v1 site |
+| 11. Statistics | `stats` | trips, vehicles → counters | Per mode and per minute (1,440 values): active vehicles, trips departed since 04:00 cumulatively, kilometres covered since 04:00 cumulatively; route list with colours |
+| 12. Encoding | `encode` | everything → files under `dist/data/<date>/` | See section 5 |
+| 13. Checks | `checks` | produced files → report | See section 4.3 |
 
-### 4.3 Contrôles de qualité
+### 4.3 Quality checks
 
-Deux niveaux, avec seuils versionnés :
+Two levels, with versioned thresholds:
 
-- **Anomalies globales, bloquantes** : la journée n'est pas publiée.
-- **Anomalies par objet, tolérées** sous 0,1 % des courses de la journée : l'objet est écarté ou
-  corrigé, l'anomalie est journalisée et résumée dans le manifeste (`anomalies`). Au-delà du seuil,
-  la journée est bloquée.
+- **Global anomalies, blocking**: the day is not published.
+- **Per-object anomalies, tolerated** under 0.1% of the day's trips: the object is dropped or
+  corrected, the anomaly is logged and summarised in the manifest (`anomalies`). Above the
+  threshold the day is blocked.
 
-Contrôles bloquants :
+Blocking checks:
 
-1. Fichiers et colonnes obligatoires présents ; la plage de validité couvre la date.
-2. Toutes les courses de la journée ont un tracé présent dans `shapes.txt`.
-3. Nombre de courses et de véhicules égal au décompte direct des courses dont le départ est dans
-   le ruban.
-4. Pic de véhicules simultanés égal au décompte direct par minute.
-5. Poids : au plus 2,5 Mo par tranche, 35 Mo par journée recouvrement compris ; nombre de sommets
-   journalier borné.
-6. Chaque ligne a une couleur et un libellé.
-7. Le manifeste respecte son schéma JSON ; chaque tranche listée existe et aucune tranche non
-   listée n'existe.
-8. Relecture des binaires écrits : décodage et vérification d'un échantillon de trajectoires.
-9. Distance cumulée recalculée cohérente avec `shape_dist_traveled` de `shapes.txt` (écart
-   relatif sous 1 % par tracé).
+1. Required files and columns present; the validity range covers the date.
+2. Every trip of the day has a shape present in `shapes.txt`.
+3. Trip and vehicle counts equal a direct count of the trips whose departure falls in the span.
+4. Peak simultaneous vehicles equals a direct per-minute count.
+5. Size: at most 2.5 MB per slice, 35 MB per day including overlap; daily vertex count bounded.
+6. Every route has a colour and a label.
+7. The manifest validates against its JSON schema; every listed slice exists and no unlisted slice
+   exists.
+8. Read-back of the written binaries: decoding and verification of a sample of trajectories.
+9. Recomputed cumulative distance consistent with `shape_dist_traveled` from `shapes.txt`
+   (relative error under 1% per shape).
 
-Anomalies par objet :
+Per-object anomalies:
 
-1. Écart arrêt-tracé au-delà de 80 m (la médiane globale doit rester sous 15 m).
-2. Abscisses d'arrêts non croissantes le long du tracé.
-3. Temps non croissants le long d'une trajectoire.
-4. Course dont le départ précède 04:00 ou dont l'arrivée dépasse 28:00 (tronquée).
-5. Chevauchement temporel à l'intérieur d'un `block_id`.
-6. Déplacement à vide détecté (information seulement, jamais comptée comme anomalie).
+1. Stop-to-shape offset above 80 m (the global median must stay under 15 m).
+2. Stop distances not increasing along the shape.
+3. Times not increasing along a trajectory.
+4. Trip departing before 04:00, or arriving after 28:00 (truncated).
+5. Time overlap inside a `block_id`.
+6. Deadhead move detected (informational only, never counted as an anomaly).
 
-Les valeurs mesurées pour le mercredi 9 septembre 2026 (18 784 courses, 1 299 véhicules, pic de
-776 véhicules à 17:03) sont un **critère d'acceptation manuel du jalon M1**, pas un test de CI :
-elles expirent avec le flux le 27 septembre 2026. La CI s'appuie sur l'extrait versionné et ses
-propres valeurs attendues.
+The values measured for Wednesday 9 September 2026 (18,784 trips, 1,299 vehicles, peak of 776
+vehicles at 17:03) are a **manual acceptance criterion for milestone M1**, not a CI test: they
+expire with the feed on 27 September 2026. CI relies on the versioned extract and its own
+expected values.
 
-### 4.4 Interface en ligne de commande
+### 4.4 Command line interface
 
 ```
-stibviz fetch  --url <URL> --out cache/          télécharge si le flux a changé
+stibviz fetch  --url <URL> --out cache/          download when the feed has changed
 stibviz build  --gtfs cache/gtfs.zip --date 2026-09-09 --out dist/data/
 stibviz check  --day dist/data/2026-09-09/
-stibviz index  --data dist/data/                 écrit dist/data/index.json
+stibviz index  --data dist/data/                 writes dist/data/index.json
 ```
 
-Chaque commande renvoie un code de sortie non nul en cas d'échec et écrit un journal lisible.
+Every command returns a non-zero exit code on failure and writes a readable log.
 
-### 4.5 Performance visée
+### 4.5 Target performance
 
-Moins de 60 s par journée, moins de 8 minutes pour les sept journées sur un exécuteur GitHub
-standard. L'analyse de faisabilité a lu et agrégé le GTFS complet en une trentaine de secondes
-avec pandas ; la génération des trajectoires est vectorisée avec numpy.
+Under 60 s per day, under 8 minutes for the seven days on a standard GitHub runner. The
+feasibility analysis read and aggregated the complete feed in about thirty seconds with pandas;
+trajectory generation is vectorised with numpy.
 
-## 5. Contrat de données
+## 5. Data contract
 
-Tout ce que le site connaît des données passe par ces fichiers. Le pipeline est le seul à les
-écrire ; un enregistreur temps réel les écrira au même format en v2.
+Everything the site knows about the data passes through these files. The pipeline is their only
+writer; a real-time recorder will write the same format in v2.
 
-### 5.1 Arborescence
+### 5.1 Layout
 
 ```
 dist/data/
-├── index.json                       journées disponibles, version du flux, date de génération
-├── network/<version-du-flux>.json   couche réseau et dictionnaire des arrêts, partagés
-├── lookup/<version-du-flux>.json    table de correspondance pour la v2, non lue par le site v1
+├── index.json                       available days, feed version, generation date
+├── network/<feed-version>.json      network layer and stop dictionary, shared
+├── lookup/<feed-version>.json       v2 lookup table, not read by the v1 site
 └── 2026-09-09/
-    ├── manifest.json                statistiques, lignes, véhicules, index des tranches
+    ├── manifest.json                statistics, routes, vehicles, slice index
     ├── slices/
     │   ├── 04-metro.bin  04-tram.bin  04-bus.bin
     │   ├── 05-metro.bin  ...
-    │   └── 27-bus.bin               l'heure 27 correspond à 03:00 le lendemain
+    │   └── 27-bus.bin               hour 27 is 03:00 the next morning
     └── stops/
-        ├── 04.json  05.json  ...    arrêts des courses actives dans l'heure, chargés au clic
+        ├── 04.json  05.json  ...    stops of the trips active in that hour, loaded on click
 ```
 
-Seules les tranches non vides existent : un mercredi n'a aucun fichier Noctis, un samedi en a pour
-les heures 00 à 03 du lendemain. Le site ne demande que ce que le manifeste liste.
+Only non-empty slices exist: a Wednesday has no Noctis file at all, a Saturday has them for hours
+00 to 03 of the next morning. The site requests only what the manifest lists.
 
 ### 5.2 `index.json`
 
@@ -218,12 +217,12 @@ les heures 00 à 03 du lendemain. Le site ne demande que ce que le manifeste lis
 }
 ```
 
-`source` vaut `schedule` en v1 ; une journée enregistrée en v2 vaudra `recorded`, ce qui permet au
-site de proposer le choix sans ouvrir les manifestes.
+`source` is `schedule` in v1; a day recorded in v2 will be `recorded`, which lets the site offer
+the choice without opening every manifest.
 
 ### 5.3 `manifest.json`
 
-Budget : 300 Ko au plus. Il ne contient ni géométrie ni arrêts.
+Budget: 300 KB at most. It carries neither geometry nor stops.
 
 ```json
 {
@@ -238,13 +237,13 @@ Budget : 300 Ko au plus. Il ne contient ni géométrie ni arrêts.
     "departures": { "metro": [0, 0, "…"], "tram": ["…"], "bus": ["…"], "noctis": ["…"] },
     "km":         { "metro": [0, 0, "…"], "tram": ["…"], "bus": ["…"], "noctis": ["…"] }
   },
-  "lines": [
+  "routes": [
     { "id": "1", "name": "1", "mode": "metro", "color": "B5378C", "text_color": "FFFFFF",
       "long_name": "GARE DE L'OUEST - STOCKEL" }
   ],
   "vehicles": [
     { "block": "10474606", "trips": [
-      { "line_idx": 12, "headsign": "BRUSSELS CITY", "start": 4080, "end": 6060 }
+      { "route_idx": 12, "headsign": "BRUSSELS CITY", "start": 4080, "end": 6060 }
     ] }
   ],
   "slices": [
@@ -255,260 +254,259 @@ Budget : 300 Ko au plus. Il ne contient ni géométrie ni arrêts.
 }
 ```
 
-Chaque série `per_minute` compte 1 440 valeurs, de 04:00 à 03:59 le lendemain ; `vehicles` est
-un instantané, `departures` et `km` sont des cumuls depuis 04:00. Les compteurs et la courbe
-d'activité de l'interface se lisent directement dans ces séries. Les temps de `vehicles[].trips`
-sont en secondes depuis 04:00 ; ils suffisent à placer la tête d'un véhicule en battement.
+Each `per_minute` series holds 1,440 values, from 04:00 to 03:59 the next morning; `vehicles` is
+an instantaneous count, `departures` and `km` are cumulative since 04:00. The interface counters
+and the activity curve read straight from these series. Times in `vehicles[].trips` are seconds
+since 04:00; they are enough to place the head of a vehicle during its layover.
 
-### 5.4 Tranche binaire `HH-mode.bin`
+### 5.4 Binary slice `HH-mode.bin`
 
-Petit-boutien, un seul fichier par heure et par mode, écrit seulement s'il contient un chemin :
+Little-endian, one file per hour and mode, written only when it holds at least one path:
 
-| Champ | Type | Contenu |
+| Field | Type | Content |
 |---|---|---|
-| en-tête | 6 × Uint32 | magie `0x53545631` (« STV1 »), version, nombre de sommets `V`, nombre de chemins `P`, heure de la tranche, réservé |
-| positions | Float32 × 2V | longitude, latitude entrelacées |
-| temps | Float32 × V | secondes depuis 04:00 de la journée de service |
-| index | Uint32 × (P + 1) | position de départ de chaque chemin dans les tableaux, dernier élément égal à `V` |
-| véhicule | Uint32 × P | index dans `manifest.vehicles` |
-| course | Uint16 × P | index de la course dans le véhicule |
-| ligne | Uint16 × P | index dans `manifest.lines`, source de la couleur |
+| header | 6 × Uint32 | magic `0x53545631` ("STV1"), version, vertex count `V`, path count `P`, slice hour, reserved |
+| positions | Float32 × 2V | longitude, latitude interleaved |
+| times | Float32 × V | seconds since 04:00 of the service day |
+| index | Uint32 × (P + 1) | start offset of each path in the arrays, last element equal to `V` |
+| vehicle | Uint32 × P | index into `manifest.vehicles` |
+| trip | Uint16 × P | index of the trip within the vehicle |
+| route | Uint16 × P | index into `manifest.routes`, the source of the colour |
 
-Un chemin est une portion continue de trajectoire d'un véhicule dans la tranche ; il ne contient
-jamais deux sommets consécutifs identiques. Un véhicule peut donner plusieurs chemins (coupure au
-terminus, déplacement à vide, bornes de tranche). Positions, temps et index se passent tels quels
-à deck.gl ; la couleur par sommet est dépliée une fois au chargement à partir de `ligne`.
+A path is a continuous portion of one vehicle's trajectory within the slice; it never holds two
+identical consecutive vertices. A vehicle may yield several paths (terminus cut, deadhead move,
+slice bounds). Positions, times and index are passed to deck.gl as they are; the per-vertex colour
+is unfolded once at load time from `route`.
 
-Précision : en Float32, la longitude est quantifiée à 3 cm et la latitude à 40 cm à Bruxelles, ce
-qui est invisible à l'échelle de la ville. Les secondes depuis 04:00 restent des entiers exacts.
-Si le poids devient un problème, la v2 quantifie les positions sur 16 bits relatifs à la boîte
-englobante (voir SCOPE.md section 6).
+Precision: in Float32, longitude quantises to 3 cm and latitude to 40 cm at Brussels, invisible at
+city scale. Seconds since 04:00 stay exact integers. Should size become a problem, v2 quantises
+positions to 16 bits relative to the bounding box (see SCOPE.md section 6).
 
-### 5.5 Couche réseau `network/<version>.json`
+### 5.5 Network layer `network/<version>.json`
 
-GeoJSON de segments arrêt à arrêt, simplifiés, avec `mode`, `runs` (passages par jour de semaine
-type), `class` (1 à 5) et `underground` (vrai pour le métro), plus un dictionnaire `stops` qui
-donne pour chaque `stop_id` sa position et son nom en français. Un seul fichier par version de
-flux, environ 1 Mo, en cache long.
+GeoJSON of simplified stop-to-stop segments, with `mode`, `runs` (runs on a typical weekday),
+`class` (1 to 5) and `underground` (true for metro), plus a `stops` dictionary giving each
+`stop_id` its position and French name. One file per feed version, around 1 MB, long cache.
 
-### 5.6 Arrêts d'une heure `stops/HH.json`
+### 5.6 Stops of one hour `stops/HH.json`
 
-Pour chaque course active dans l'heure, la liste de ses arrêts avec l'heure théorique de passage,
-clé `"<index véhicule>:<index course>"` :
+For each trip active in the hour, the list of its stops with their scheduled time, keyed by
+`"<vehicle index>:<trip index>"`:
 
 ```json
 { "412:3": [[46800, "1781"], [46920, "4351"], [47040, "4359"]] }
 ```
 
-Chargé au premier clic dans l'heure, jamais avant. Les noms viennent du dictionnaire `stops` de la
-couche réseau.
+Loaded on the first click within that hour, never earlier. Names come from the `stops` dictionary
+of the network layer.
 
-### 5.7 Table de correspondance `lookup/<version>.json`
+### 5.7 Lookup table `lookup/<version>.json`
 
-Écrite par la v1, lue seulement par le convertisseur temps réel de la v2 : pour chaque tracé, la
-liste ordonnée de ses arrêts avec leur abscisse curviligne ; pour chaque ligne et direction, les
-tracés candidats. C'est le seul artefact dont l'enregistreur aura besoin en plus des modules du
-pipeline.
+Written by v1, read only by the v2 real-time converter: for each shape, the ordered list of its
+stops with their distance along the shape; for each route and direction, the candidate shapes.
+It is the only artefact the recorder will need beyond the pipeline modules.
 
-## 6. Le site
+## 6. The site
 
-### 6.1 Flux de données au chargement
+### 6.1 Loading flow
 
-1. Lire `index.json` ; choisir la journée (URL, sinon aujourd'hui, sinon la plus proche).
-2. Lire le manifeste et la couche réseau ; construire la courbe d'activité et les compteurs.
-3. Charger les tranches de l'heure courante pour les modes visibles, parmi celles que le
-   manifeste liste ; démarrer la lecture.
-4. Pendant la lecture, précharger l'heure suivante ; garder trois heures en cache mémoire.
-5. **Une seule tranche par mode est montée à un instant donné.** Le recouvrement sert au
-   préchargement et à la bascule, jamais à un double affichage. Si la tranche suivante n'est pas
-   prête au moment de la bascule, la lecture attend visiblement au lieu d'afficher une heure
-   incomplète.
-6. Au changement de journée, tout recommencer depuis l'étape 2.
+1. Read `index.json`; choose the day (URL, else today, else the nearest one).
+2. Read the manifest and the network layer; build the activity curve and the counters.
+3. Load the current hour's slices for the visible modes, among those the manifest lists; start
+   playback.
+4. While playing, prefetch the next hour; keep three hours in memory cache.
+5. **Exactly one slice per mode is mounted at any instant.** Overlap serves prefetching and
+   switching, never a double display. If the next slice is not ready when the switch is due,
+   playback waits visibly rather than showing an incomplete hour.
+6. On a day change, restart from step 2.
 
-Budget de première image : manifeste au plus 300 Ko, couche réseau au plus 1 Mo (cache long),
-une heure de tranches au plus 2,5 Mo ; au plus 4 Mo au total, hors tuiles de fond.
+First-frame budget: manifest at most 300 KB, network layer at most 1 MB (long cache), one hour of
+slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
 
-### 6.2 Modules et responsabilités
+### 6.2 Modules and responsibilities
 
-| Module | Rôle | Testé par |
+| Module | Role | Tested by |
 |---|---|---|
-| `data/` | Chargement et décodage des fichiers du contrat, cache et préchargement, arrêts à la demande | vitest : décodage de la journée de fixture produite par le pipeline (test de contrat), cache, ordre de préchargement, tranches absentes jamais demandées |
-| `time/` | Horloge de journée de service (secondes depuis 04:00), lecteur à vitesse variable basé sur `requestAnimationFrame`, conversion en heure civile, attente de tranche | vitest : 90 000 s affiche 05:00 le lendemain, vitesses, pause, bornes, attente |
-| `render/` | Carte MapLibre, style nocturne, couche réseau, couches deck.gl, positions courantes des véhicules, sélection au clic | vitest pour le calcul de position, le battement et l'unicité des véhicules montés ; fumée Playwright pour le rendu |
-| `state/` | Objet d'état unique, abonnements, lecture et écriture de l'URL | vitest : aller-retour URL, valeurs invalides ignorées |
-| `ui/` | Composants DOM sans framework : horloge, sélecteur, compteurs, courbe et défilement, filtres, panneau véhicule, à propos | vitest avec DOM simulé pour la logique ; fumée pour l'assemblage |
-| `theme/` | Couleurs des modes, style de fond, constantes visuelles | revue visuelle |
-| `i18n/` | Textes français | test qui vérifie l'absence de clé manquante |
+| `data/` | Loading and decoding the contract files, cache and prefetch, stops on demand | vitest: decoding the fixture day produced by the pipeline (contract test), cache, prefetch order, absent slices never requested |
+| `time/` | Service-day clock (seconds since 04:00), variable-speed player driven by `requestAnimationFrame`, civil-time conversion, slice waiting | vitest: 90,000 s renders as 05:00 next day, speeds, pause, bounds, waiting |
+| `render/` | MapLibre map, night style, network layer, deck.gl layers, current vehicle positions, click selection | vitest for position computation, layover and single-mount uniqueness; Playwright smoke test for rendering |
+| `state/` | Single state object, subscriptions, URL read and write | vitest: URL round trip, invalid values ignored |
+| `ui/` | Framework-free DOM components: clock, selector, counters, activity curve and scrubber, filters, vehicle panel, about | vitest with a simulated DOM for the logic; smoke test for the assembly |
+| `theme/` | Mode colours, basemap style, visual constants | visual review |
+| `i18n/` | French UI copy | a test that checks for missing keys |
 
-### 6.3 Rendu
+### 6.3 Rendering
 
-- Quatre `TripsLayer` deck.gl, une par mode, alimentées en attributs binaires : positions, temps et
-  index de départ passés tels quels ; couleur par sommet dépliée une fois au chargement de la
-  tranche à partir du champ `ligne`. Les propriétés exactes du passage binaire (`startIndices`,
-  attributs, type de chemin ouvert) sont fixées sur la documentation officielle au jalon M2, avec
-  un test qui vérifie que deck.gl ne recopie ni ne renormalise les chemins. Seule `currentTime`
-  change à chaque image. Longueur de traînée constante en secondes de journée (valeur initiale
-  150 s, toujours inférieure au recouvrement amont de 300 s), fondu activé : la longueur visible
-  encode la vitesse.
-- Une `ScatterplotLayer` pour les têtes de véhicules : à chaque image, la position courante de
-  chaque chemin actif est obtenue par recherche dichotomique dans son tableau de temps puis
-  interpolation. Un véhicule en battement entre deux courses (`end` de l'une, `start` de la
-  suivante dans le manifeste, même terminus) garde la position de fin de sa dernière course :
-  son point reste, sa traînée s'éteint. Moins de 800 points au pic, coût négligeable. Cette
-  couche porte la sélection au clic ; le panneau charge alors `stops/HH.json` si nécessaire.
-- Un véhicule n'est jamais dessiné deux fois : une seule tranche montée par mode (section 6.1) ;
-  un test vitest le vérifie sur la journée de fixture.
-- La couche réseau est une `GeoJsonLayer` sombre, sous les véhicules ; le métro y est plus estompé.
-- Filtrer un mode masque sa couche et retire ses tranches du préchargement.
-- Options de performance : `useDevicePixels` désactivable sur écrans très denses ; couches créées
-  une fois ; aucune allocation par image en dehors de la bascule de tranche.
+- Four deck.gl `TripsLayer`, one per mode, fed with binary attributes: positions, times and start
+  indices passed as they are; the per-vertex colour is unfolded once when the slice loads, from
+  the `route` field. The exact properties of the binary path (`startIndices`, attributes, open
+  path type) are fixed against the official documentation at milestone M2, with a test verifying
+  that deck.gl neither copies nor renormalises the paths. Only `currentTime` changes per frame.
+  Trail length is a constant in service-day seconds (initial value 150 s, always below the 300 s
+  upstream overlap), fading enabled: the visible length encodes speed.
+- One `ScatterplotLayer` for vehicle heads: each frame, the current position of every active path
+  comes from a binary search in its time array followed by interpolation. A vehicle in layover
+  between two trips (`end` of one, `start` of the next in the manifest, same terminus) keeps the
+  end position of its last trip: the dot stays, the trail fades. Fewer than 800 points at peak,
+  negligible cost. This layer carries click selection; the panel then loads `stops/HH.json` if
+  needed.
+- A vehicle is never drawn twice: exactly one slice mounted per mode (section 6.1); a vitest check
+  verifies this on the fixture day.
+- The network layer is a dark `GeoJsonLayer` beneath the vehicles; metro is dimmer still.
+- Filtering a mode hides its layer and drops its slices from the prefetch queue.
+- Performance options: `useDevicePixels` can be turned off on very dense screens; layers are
+  created once; no allocation per frame outside slice switching.
 
-### 6.4 État et URL
+### 6.4 State and URL
 
-Un seul objet d'état (journée, instant, vitesse, lecture, filtres, vue caméra, véhicule
-sélectionné). Chaque changement notifie les composants. L'URL se met à jour avec un léger délai :
+A single state object (day, instant, speed, playing, filters, camera view, selected vehicle).
+Every change notifies the components. The URL updates on a short debounce:
 
 ```
 /?d=2026-09-09&t=17:03&s=300&m=metro,tram,bus,noctis&c=50.846,4.352,12.4,0,0&p=1
 ```
 
-Le lien recrée exactement la scène. Les valeurs invalides sont ignorées une à une.
+The link recreates the scene exactly. Invalid values are ignored one by one.
 
-### 6.5 Style nocturne
+### 6.5 Night-time style
 
-- Fond : style OpenFreeMap sombre, réduit à la voirie, l'eau, les parcs et quelques toponymes,
-  tous très sombres. Le fond ne doit jamais concurrencer les véhicules.
-- Modes : métro blanc chaud, tram dans sa couleur officielle, bus bleu froid unique, Noctis violet.
-  Les valeurs exactes vivent dans `theme/` et sont réglées au jalon M2 sur le rendu réel.
-- Réseau : cinq niveaux d'un même gris bleuté, du presque invisible au discret.
-- Interface : panneaux translucides sombres, typographie sobre, chiffres à largeur fixe.
+- Basemap: a dark OpenFreeMap style, reduced to roads, water, parks and a few place names, all
+  very dark. The basemap must never compete with the vehicles.
+- Modes: warm white for metro, official colour for trams, a single cool blue for buses, violet for
+  Noctis. Exact values live in `theme/` and are tuned at milestone M2 against the real render.
+- Network: five levels of one blue-grey, from nearly invisible to discreet.
+- Interface: dark translucent panels, sober typography, tabular figures.
 
-### 6.6 Accessibilité et clavier
+### 6.6 Accessibility and keyboard
 
-Espace : lecture et pause. Flèches : une minute ; avec Majuscule : dix minutes. Touches 1 à 4 :
-vitesses ×60, ×120, ×300, ×600. Tous les boutons ont un libellé et un état de focus visible. Si
-l'utilisateur préfère moins de mouvement, la page démarre en pause.
+Space: play and pause. Arrow keys: one minute; with Shift: ten minutes. Keys 1 to 4: speeds ×60,
+×120, ×300, ×600. Every button has a label and a visible focus state. When the user prefers
+reduced motion, the page starts paused.
 
-## 7. Intégration et déploiement
+## 7. Integration and deployment
 
-### 7.1 `ci.yml` (à chaque push et pull request)
+### 7.1 `ci.yml` (every push and pull request)
 
-1. Pipeline : `uv sync`, `ruff check`, `pytest --cov` avec seuil 80 %, dont les tests sur
-   l'extrait `gtfs-extrait/` et ses valeurs attendues.
-2. Journée de fixture : `stibviz build` puis `stibviz check` sur l'extrait, sortie dans un dossier
-   temporaire consommé par les étapes suivantes.
-3. Site : `pnpm install`, `tsc --noEmit`, `eslint`, `vitest --coverage` avec seuil 80 %, dont le
-   test de contrat qui décode la journée de fixture.
-4. Fumée : `pnpm build` avec la journée de fixture, puis Playwright : la page se charge, le canevas
-   existe, l'horloge avance en lecture, l'URL se met à jour, le panneau véhicule s'ouvre depuis un
-   état injecté.
+1. Pipeline: `uv sync`, `ruff check`, `ruff format --check`, `pytest --cov` with an 80% threshold,
+   including the tests against the `gtfs-extract/` extract and its expected values.
+2. Fixture day: `stibviz build` then `stibviz check` against the extract, output into a temporary
+   directory consumed by the following steps.
+3. Site: `pnpm install`, `tsc --noEmit`, `eslint`, `prettier --check`, `vitest --coverage` with an
+   80% threshold, including the contract test that decodes the fixture day.
+4. Smoke: `pnpm build` with the fixture day, then Playwright: the page loads, the canvas exists,
+   the clock advances during playback, the URL updates, the vehicle panel opens from an injected
+   state.
 
-### 7.2 `nightly.yml` (cron après la publication du GTFS, et déclenchement manuel)
+The workflow declares `permissions: contents: read` and checks out without persisting credentials:
+least privilege, so a compromised dependency cannot write to the repository.
 
-1. `stibviz fetch` avec cache d'ETag ; si le flux est inchangé et que toutes les journées de la
-   fenêtre sont déjà publiées, arrêt anticipé.
-2. `stibviz build` puis `stibviz check` pour chacune des sept journées, indépendamment : une
-   journée en échec est mise de côté sans interrompre les autres.
-3. `stibviz index` sur les seules journées valides.
-4. `pnpm build`, copie de `dist/data/` dans le site construit.
-5. `wrangler pages deploy` vers le projet Cloudflare Pages, branche de production `main`.
-6. Seulement ensuite, code de sortie non nul si au moins une journée a échoué, pour être averti
-   sans priver le site des journées valides. Journaux conservés quatorze jours.
+### 7.2 `nightly.yml` (cron after the GTFS feed is published, plus manual dispatch)
 
-Secrets GitHub : `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Variable : nom du projet Pages.
+1. `stibviz fetch` with an ETag cache; if the feed is unchanged and every day of the window is
+   already published, exit early.
+2. `stibviz build` then `stibviz check` for each of the seven days, independently: a failing day is
+   set aside without interrupting the others.
+3. `stibviz index` over the valid days only.
+4. `pnpm build`, copy `dist/data/` into the built site.
+5. `wrangler pages deploy` to the Cloudflare Pages project, production branch `main`.
+6. Only then, a non-zero exit code if at least one day failed, so failures are visible without
+   depriving the site of the valid days. Logs kept for fourteen days.
+
+GitHub secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Variable: the Pages project name.
+The token is scoped to Pages deployment on this project only.
 
 ### 7.3 Cloudflare Pages
 
-- Limites connues : 20 000 fichiers et 25 Mo par fichier par déploiement. Sept journées font
-  moins de 900 fichiers de moins de 3 Mo : large marge.
-- En-têtes : `index.json` sans cache ; manifestes, tranches et arrêts en cache court (une heure) ;
-  couche réseau et table de correspondance nommées par version de flux, cache long.
-- Compression : à mesurer au jalon M1 sur une tranche réelle plutôt qu'à supposer. Si le gain
-  dépasse 15 %, servir les tranches sous un type de contenu que la plateforme compresse ; sinon
-  le poids reste maîtrisé à la source par la simplification.
+- Known limits: 20,000 files and 25 MB per file per deployment. Seven days come to fewer than 900
+  files under 3 MB each: ample margin.
+- Headers: `index.json` uncached; manifests, slices and stop files on a short cache (one hour);
+  network layer and lookup table named by feed version, long cache.
+- Compression: to be measured at milestone M1 on a real slice rather than assumed. If the gain
+  exceeds 15%, serve slices under a content type the platform compresses; otherwise size stays
+  controlled at the source by simplification.
 
-## 8. Extension vers le temps réel (v2)
+## 8. Extending to real time (v2)
 
-Rien de ce qui suit n'est construit en v1 ; tout est prévu pour ne rien casser.
+None of this is built in v1; all of it is prepared so nothing breaks.
 
-- **Contrat inchangé.** Une journée réelle est un dossier `2026-09-09-live/` avec `source:
-  "recorded"` dans `index.json` et dans son manifeste. Le site affiche un choix « théorique /
-  réel » quand les deux existent pour une date.
-- **À vérifier en priorité : un GTFS-RT existe peut-être pour la STIB.** Le catalogue du
-  portail Belgian Mobility annonce, pour STIB-MIVB, un flux GTFS-RT avec deux composantes
-  (mises à jour de trajets, alertes de service), toutes les 30 s ; la base de connaissances du
-  même portail affirme l'inverse (« STIB-MIVB does not produce GTFS-RT feeds ») et ne publie
-  d'URL que pour De Lijn, TEC et SNCB. Sondé sans compte le 5 septembre 2026, l'hôte du flux
-  temps réel ne résout même pas en DNS : la question reste ouverte. À trancher dès la création
-  du compte développeur, avant d'écrire le convertisseur : un GTFS-RT donnerait directement des
-  retards par arrêt et par course, avec l'identité de la course, sans avoir à reconstruire
-  l'identité des véhicules comme l'exige VehiclePositions ci-dessous. S'il existe, il remplace
-  l'enregistreur décrit plus bas ; sinon, la voie VehiclePositions reste la solution de repli.
-- **Enregistreur séparé.** Un service minimal interroge l'API VehiclePositions toutes les quinze à
-  vingt secondes avec une clé « standard » (12 000 requêtes par jour autorisées, 5 760 utilisées)
-  et archive les réponses brutes horodatées. Candidats : Worker Cloudflare planifié à la minute
-  qui effectue quatre appels espacés, ou machine domestique. Aucun appel ne part jamais d'un
-  navigateur.
-- **Conversion réutilisant le pipeline.** La table `lookup/<version>.json` donne, pour une ligne
-  et une direction, les tracés candidats et la position des arrêts le long de chacun : une
-  position « dernier arrêt + distance » devient une abscisse curviligne puis un point sans rejouer
-  la lecture du GTFS. Un nouveau module apparie les véhicules d'un instantané au suivant et produit
-  des trajectoires ; `slicing`, `encode` et `checks` ne changent pas.
-- **Identifiants : correspondance à établir, pas acquise.** Les `stop_id` du GTFS et les `pointId`
-  de l'API partagent le même schéma (`0470F`, `4074B`), mais l'appariement exact, les suffixes de
-  quai et les variantes doivent être vérifiés sur des données enregistrées. Les `lineid` de l'API
-  correspondent aux `route_short_name` pour les lignes vues le 5 septembre 2026 ; un éventuel
-  préfixe des trams (« T81 ») et l'absence signalée des Noctis côté API sont des cas connus à
-  traiter : une journée enregistrée pourra être privée d'un mode et devra le dire.
+- **Contract unchanged.** A recorded day is a `2026-09-09-live/` directory with `source:
+  "recorded"` in `index.json` and in its manifest. The site offers a "scheduled / observed" choice
+  when both exist for a date.
+- **To check first: a GTFS-RT feed may exist for STIB.** The Belgian Mobility portal catalogue
+  announces, for STIB-MIVB, a GTFS-RT feed with two components (trip updates, service alerts)
+  every 30 s; the knowledge base on the same portal states the opposite ("STIB-MIVB does not
+  produce GTFS-RT feeds") and publishes URLs only for De Lijn, TEC and SNCB. Probed without an
+  account on 5 September 2026, the real-time feed host does not even resolve in DNS: the question
+  is open. Settle it as soon as the developer account exists, before writing the converter: a
+  GTFS-RT feed would give delays per stop and per trip directly, with the trip identity, removing
+  the need to reconstruct vehicle identity as VehiclePositions requires below. If it exists, it
+  replaces the recorder described next; otherwise the VehiclePositions route remains the fallback.
+- **Separate recorder.** A minimal service polls the VehiclePositions API every fifteen to twenty
+  seconds with a "standard" key (12,000 requests per day allowed, 5,760 used) and archives the raw
+  timestamped responses. Candidates: a Cloudflare Worker scheduled every minute issuing four spaced
+  calls, or a home machine. No call ever originates from a browser, and the key never reaches the
+  client.
+- **Conversion reusing the pipeline.** The `lookup/<version>.json` table gives, for a route and a
+  direction, the candidate shapes and the position of stops along each: a "last stop + distance"
+  reading becomes a distance along the shape and then a point, without replaying the GTFS reading.
+  A new module matches vehicles between consecutive snapshots and produces trajectories; `slicing`,
+  `encode` and `checks` are unchanged.
+- **Identifiers: a correspondence to establish, not a given.** GTFS `stop_id` values and API
+  `pointId` values share the same shape (`0470F`, `4074B`), but the exact matching, platform
+  suffixes and variants must be verified against recorded data. API `lineid` values match
+  `route_short_name` for the routes seen on 5 September 2026; a possible tram prefix ("T81") and
+  the reported absence of Noctis on the API side are known cases to handle: a recorded day may
+  lack a mode entirely and must say so.
 
-## 9. Journal des décisions
+## 9. Decision log
 
-| Décision | Alternatives écartées | Raison |
+| Decision | Alternatives rejected | Reason |
 |---|---|---|
-| Trajectoires précalculées | Calcul dans le navigateur à partir des horaires | Moins de code côté site, format identique pour une source enregistrée |
-| Tolérance 2 m | 5 m, 10 m | Volume comparable à la référence tout en gardant les courbes de rue nettes |
-| Projection des arrêts sur le tracé d'origine, avant simplification | Projection après simplification | Une épingle rabotée par la simplification peut inverser deux arrêts |
-| Recouvrement asymétrique 300 s / 120 s | 600 s de chaque côté | Le recouvrement amont sert la traînée, l'aval la bascule ; +12 % de volume au lieu de +33 % |
-| Un fichier par heure et par mode, tranches vides non écrites | Trois fichiers comme la référence ; un seul fichier par jour | Chargement paresseux par heure et par filtre, aucune requête inutile |
-| Arrêts hors du manifeste, dans des fichiers par heure | Arrêts dans le manifeste | Le manifeste passerait de 300 Ko à plusieurs Mo pour une information consultée au clic |
-| Battement non dessiné comme segment | Segment de longueur nulle | Cas dégénéré pour le rendu de chemins ; la couche de points suffit |
-| Anomalies par objet tolérées sous 0,1 % | Tout-ou-rien | Une course aberrante ne doit pas priver le site d'une journée |
-| Float32 lon/lat | Coordonnées entières relatives | Simplicité en v1 ; quantification documentée en v2 |
-| Ruban 04:00 → 04:00 par le premier départ | Minuit à minuit avec veille | Aucune couture, Noctis inclus naturellement, règle testable |
-| Véhicules par `block_id` | Courses indépendantes | Battements visibles, compteurs exacts, base du suivi en v2 |
-| Coupure des déplacements à vide | Ligne droite entre terminus | Pas de trait fictif à travers la ville |
-| Vitesse maximale ×600 | ×1800 comme la référence | À ×1800 une image avance de 30 s de service, effet stroboscopique et préchargement intenable |
-| TripsLayer + ScatterplotLayer | Couche WebGL maison | Éprouvé, traînées gratuites, sélection au clic simple |
-| Sans framework d'interface | React, Svelte | Une dizaine de composants simples ; bundle minimal |
-| pandas + numpy + shapely + pyproj | polars, GeoPandas | Déjà validé sur le GTFS complet en une trentaine de secondes |
-| GitHub Actions + wrangler | Build intégré Cloudflare Pages | Planification nocturne native, même schéma que la référence |
-| Journée de fixture produite en CI | Fixture versionnée | Impossible de dériver du code du pipeline |
+| Pre-computed trajectories | Computing in the browser from timetables | Less site code, same format for a recorded source |
+| 2 m tolerance | 5 m, 10 m | Volume comparable to the reference while keeping street curves crisp |
+| Stop projection on the original shape, before simplification | Projection after simplification | A hairpin flattened by simplification can invert two stops |
+| Asymmetric overlap 300 s / 120 s | 600 s on each side | Upstream overlap serves the trail, downstream serves switching; +12% volume instead of +33% |
+| One file per hour and mode, empty slices not written | Three files as in the reference; one file per day | Lazy loading per hour and per filter, no useless request |
+| Stops outside the manifest, in per-hour files | Stops inside the manifest | The manifest would grow from 300 KB to several MB for data read on click |
+| Layover not drawn as a segment | Zero-length segment | Degenerate case for path rendering; the point layer is enough |
+| Per-object anomalies tolerated under 0.1% | All-or-nothing | One aberrant trip must not deprive the site of a whole day |
+| Float32 lon/lat | Relative integer coordinates | Simplicity in v1; quantisation documented for v2 |
+| 04:00 → 04:00 span keyed on first departure | Midnight to midnight with the previous day loaded | No seam, Noctis included naturally, testable rule |
+| Vehicles by `block_id` | Independent trips | Visible layovers, exact counters, foundation for following in v2 |
+| Deadhead moves cut | Straight line between termini | No fictional line across the city |
+| TripsLayer + ScatterplotLayer | A hand-written WebGL layer | Proven, trails for free, simple click selection |
+| No UI framework | React, Svelte | About a dozen simple components; minimal bundle |
+| pandas + numpy + shapely + pyproj | polars, GeoPandas | Already validated against the full feed in about thirty seconds |
+| GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
+| Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
 
-## 10. Points techniques ouverts
+## 10. Open technical points
 
-À trancher pendant l'implémentation, avec un test à l'appui :
+To settle during implementation, each with a test behind it:
 
-- Choix entre projection Lambert 72 et équirectangulaire locale pour les distances et la
-  simplification : les deux sont exactes au centimètre à l'échelle de Bruxelles ; retenir la plus
-  simple à tester.
-- Propriétés exactes du passage d'attributs binaires à `TripsLayer` : à fixer sur la documentation
-  officielle de la version retenue, avec le test de non-recopie décrit en 6.3.
-- Temps d'arrêt fictif aux stations : le GTFS STIB donne presque toujours des temps d'arrêt nuls.
-  La v1 les respecte ; un paramètre `dwell_seconds` reste disponible si le rendu semble trop lisse.
-- Compression des tranches : mesure au jalon M1, décision selon le gain (section 7.3).
-- Changement d'heure : les journées de fin mars et de fin octobre gardent 24 heures GTFS ; l'écart
-  d'une heure civile est affiché tel quel et documenté dans le panneau à propos.
-- Correspondance des identifiants avec l'API temps réel : à établir en v2 sur des données
-  enregistrées (section 8).
+- Choice between Belgian Lambert 72 and a local equirectangular projection for distances and
+  simplification: both are exact to the centimetre at Brussels scale; keep whichever is simpler to
+  test.
+- Exact properties for passing binary attributes to `TripsLayer`: to be fixed against the official
+  documentation of the chosen version, with the no-copy test described in 6.3.
+- Artificial dwell time at stops: the STIB feed almost always reports zero dwell. v1 honours that;
+  a `dwell_seconds` parameter stays available if the render looks too smooth.
+- Slice compression: measured at milestone M1, decision based on the gain (section 7.3).
+- Daylight saving: the late-March and late-October days keep 24 GTFS hours; the one-hour civil
+  offset is shown as is and documented in the about panel.
+- Identifier correspondence with the real-time API: to be established in v2 against recorded data
+  (section 8).
 
-## 11. Historique
+## 11. History
 
-- 5 septembre 2026, v1.0 : rédaction après les dix questions de cadrage.
-- 5 septembre 2026, v1.1 : relecture d'architecture, dix constats intégrés : taille du manifeste
-  et compteurs cumulés ; règle du ruban par premier départ et troncature à 28:00 ; recouvrement
-  asymétrique et budget journalier ; extrait GTFS versionné, journée de fixture produite en CI,
-  chiffres du 9 septembre reclassés en acceptation manuelle ; champ `ligne` par chemin, battement
-  sans segment, propriétés binaires à fixer ; projection avant simplification et calcul des
-  distances sur le tracé d'origine ; une seule tranche montée par mode et tranches vides non
-  écrites ; anomalies par objet et ordre du déploiement nocturne ; vitesse plafonnée à ×600 ;
-  `source` dans l'index, table de correspondance pour la v2, prudence sur les identifiants.
+- 5 September 2026, v1.0: written after the ten framing questions.
+- 5 September 2026, v1.1: architecture review, ten findings folded in: manifest size and cumulative
+  counters; span rule keyed on first departure and truncation at 28:00; asymmetric overlap and
+  daily budget; versioned GTFS extract, fixture day produced in CI, the 9 September figures
+  reclassified as manual acceptance; `route` field per path, layover without a segment, binary
+  properties to be fixed; projection before simplification and distances computed on the original
+  shape; exactly one slice mounted per mode and empty slices not written; per-object anomalies and
+  nightly deployment ordering; speed capped at ×600; `source` in the index, lookup table for v2,
+  caution on identifiers.
+- 5 September 2026, v1.2: repository documentation translated to English ahead of publication;
+  workflow hardened with least-privilege permissions.

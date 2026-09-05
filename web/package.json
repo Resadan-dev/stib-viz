@@ -2,7 +2,7 @@
   "name": "stib-viz-web",
   "version": "0.1.0",
   "private": true,
-  "description": "Site statique de stib-viz : Bruxelles en mouvement.",
+  "description": "stib-viz website: a night-time animation of STIB traffic in Brussels.",
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "engines": {
@@ -29,5 +29,11 @@
     "typescript-eslint": "8.69.0",
     "vite": "8.2.2",
     "vitest": "5.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Resadan-dev/stib-viz.git",
+    "directory": "web"
   }
 }

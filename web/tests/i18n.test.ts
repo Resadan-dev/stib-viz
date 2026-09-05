@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { fr } from "../src/i18n/fr";
 
-describe("textes français", () => {
-  it("n'a aucune clé vide", () => {
+describe("French UI copy", () => {
+  it("has no empty value", () => {
     for (const [key, value] of Object.entries(fr)) {
-      expect(value.trim(), `clé ${key}`).not.toBe("");
+      expect(value.trim(), `key ${key}`).not.toBe("");
     }
   });
 
-  it("nomme l'application", () => {
+  it("names the application", () => {
     expect(fr.appTitle).toBe("Bruxelles en mouvement");
   });
 });

@@ -1,28 +1,64 @@
-# Python
+# --- Secrets and credentials (never commit any of these) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials.json
+service-account*.json
+.wrangler/
+.dev.vars
+
+# --- Python / uv ---
 .venv/
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 .coverage
+.coverage.*
 coverage.xml
 htmlcov/
 *.egg-info/
+build/
 
-# Node
+# --- Node / pnpm ---
 node_modules/
-web/dist/
-web/coverage/
-web/test-results/
-web/playwright-report/
+.pnpm-store/
+*.tsbuildinfo
 
-# Données générées et caches du pipeline
+# --- Build output, generated data and caches ---
 dist/
+coverage/
 cache/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
 
-# Environnement et divers
-.env
-.env.*
-*.log
+# --- Editors and OS ---
+.idea/
+.vscode/
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# --- Local agent/tooling state ---
+.claude/settings.local.json
+
+# --- Logs and scratch files ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+tmp/
+scratch/

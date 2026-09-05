@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege: the workflow only reads the repository.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -19,6 +23,8 @@ jobs:
         working-directory: pipeline
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
@@ -29,7 +35,7 @@ jobs:
       - run: uv run pytest
 
   web:
-    name: Site (TypeScript)
+    name: Web (TypeScript)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -37,6 +43,8 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
         with:
           package_json_file: web/package.json

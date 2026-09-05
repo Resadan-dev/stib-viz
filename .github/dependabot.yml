@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+    groups:
+      dev-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: uv
+    directory: /pipeline
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+    groups:
+      dev-dependencies:
+        patterns: ["*"]

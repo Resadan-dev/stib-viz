@@ -1,12 +1,15 @@
 [project]
 name = "stibviz"
 version = "0.1.0"
-description = "Pipeline de stib-viz : transforme le GTFS STIB en trajectoires pour le site."
-authors = [
-    { name = "Dany Vanmuylder", email = "danydynamo@gmail.com" }
-]
+description = "stib-viz pipeline: turns the STIB GTFS feed into trajectories for the website."
+authors = [{ name = "Dany Vanmuylder" }]
+readme = "../README.md"
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = []
+
+[project.urls]
+Repository = "https://github.com/Resadan-dev/stib-viz"
 
 [project.scripts]
 stibviz = "stibviz.cli:main"
