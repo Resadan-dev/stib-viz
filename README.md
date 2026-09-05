@@ -6,11 +6,12 @@ the open data published on the Belgian Mobility portal.
 
 Inspired by [france-rail-traffic](https://github.com/magrinj/france-rail-traffic).
 
-**Status: milestone M3 (interface).** The pipeline builds one service day and the site replays
-it: night map, network layer, animated vehicles, clock, speeds, per-mode counters and filters,
-line selection, official colours, vehicle panel, activity curve doubling as the scrubber, about
-panel, keyboard shortcuts and a shareable URL. The rolling seven-day window and the nightly
-deployment arrive with milestone M4.
+**Status: milestone M4 (seven days and production).** The pipeline builds a rolling week of
+service days and the site replays any of them: night map, network layer, animated vehicles,
+clock, day selector, speeds, per-mode counters and filters, line selection, official colours,
+vehicle panel with stepping and follow mode, activity curve doubling as the scrubber, about
+panel, keyboard shortcuts and a shareable URL. A nightly workflow rebuilds the week and deploys
+it to Cloudflare Pages once the project and its secrets exist (see Deployment).
 
 ## Documents
 
@@ -103,6 +104,30 @@ modes), `l` (selected line), `colours` (`official`), `c` (`lat,lon,zoom`) and `p
 The Playwright smoke tests run against the built site with the fixture day in `web/public/data`
 (build it from `pipeline/tests/fixtures/gtfs-extract/gtfs.zip` for 2026-09-11). Once,
 `pnpm e2e:install` downloads the browser; then `pnpm build` and `pnpm e2e`.
+
+## Deployment
+
+The `Nightly` workflow (`.github/workflows/nightly.yml`) runs twice a day: it downloads the feed,
+plans which days of the rolling week are missing from the published site, builds them, builds the
+site and deploys it with wrangler. Without Cloudflare credentials it builds and tests but skips the
+deployment, so a fork works out of the box. To publish, once:
+
+1. Create a Cloudflare Pages project with direct upload, for example named `stib-viz`, with `main`
+   as its production branch (Workers & Pages, Create, Pages, Upload assets), or from a terminal:
+
+   ```bash
+   npx wrangler pages project create stib-viz --production-branch main
+   ```
+
+2. Create an API token limited to Cloudflare Pages edits on the account (My Profile, API Tokens,
+   Create Token, a custom token with the permission Account, Cloudflare Pages, Edit).
+3. In the GitHub repository, add the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`,
+   and the variables `CLOUDFLARE_PAGES_PROJECT` (the project name) and `SITE_URL` (the site
+   address, `https://stib-viz.pages.dev` for the example above).
+4. Run the `Nightly` workflow by hand once from the Actions tab; the following runs are scheduled.
+
+The headers Cloudflare Pages serves, cache rules and security headers including the
+Content-Security-Policy, live in `web/public/_headers`.
 
 ### A note on toolchain versions
 

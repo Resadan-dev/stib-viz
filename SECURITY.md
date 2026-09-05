@@ -6,6 +6,10 @@
 backend, no accounts and no cookies. It reads public open data from the Belgian Mobility portal
 and publishes pre-computed files.
 
+The published site sends a strict Content-Security-Policy and the usual hardening headers from
+`web/public/_headers`; a Playwright test applies that policy to the preview so a change that would
+break under it is caught before deployment.
+
 ## Reporting a vulnerability
 
 Please report security issues privately through GitHub's

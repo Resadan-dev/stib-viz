@@ -448,25 +448,40 @@ runs; Dependabot keeps those pins current.
 
 ### 7.2 `nightly.yml` (cron after the GTFS feed is published, plus manual dispatch)
 
-1. `stibviz fetch` with an ETag cache; if the feed is unchanged and every day of the window is
-   already published, exit early.
-2. `stibviz build` then `stibviz check` for each of the seven days, independently: a failing day is
-   set aside without interrupting the others.
-3. `stibviz index` over the valid days only.
-4. `pnpm build`, copy `dist/data/` into the built site.
-5. `wrangler pages deploy` to the Cloudflare Pages project, production branch `main`.
-6. Only then, a non-zero exit code if at least one day failed, so failures are visible without
-   depriving the site of the valid days. Logs kept for fourteen days.
+Two runs a day, 04:45 and 10:45 UTC, plus manual dispatch; the first adds the new day of the
+window, the second catches a feed published late. A run that has nothing to do stops in a minute.
 
-GitHub secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Variable: the Pages project name.
-The token is scoped to Pages deployment on this project only.
+1. `stibviz fetch` with the ETag cache kept between runs by `actions/cache`; then the published
+   `index.json` is read from the live site.
+2. `stibviz plan` lists the days of the window (yesterday to five days ahead) that the feed
+   covers, unless the site already publishes every one of them for this feed version, in which
+   case the plan is empty and the run ends. The whole window is rebuilt as soon as one day is
+   missing, because a deployment replaces the site and a partial build would lose the others.
+3. `.github/scripts/build-days.sh` runs `stibviz build` (which checks what it wrote) for each day,
+   independently: a failing day is set aside and reported, the others are still written; then
+   `stibviz index` over the valid days only.
+4. `pnpm build` with the data in `web/public/data`, so `dist/` holds the site and its data.
+5. `wrangler pages deploy` to the Cloudflare Pages project, production branch `main`, only when
+   the Cloudflare secrets exist and at least one day was built: a fork builds without deploying,
+   and a night where every day fails never replaces the live site with an empty one.
+6. Only then, a non-zero exit code if at least one day failed, so failures are visible without
+   depriving the site of the valid days. The per-day report is kept fourteen days as an artifact.
+
+GitHub secrets: `CLOUDFLARE_API_TOKEN` (scoped to Pages edits on this account), `CLOUDFLARE_ACCOUNT_ID`.
+Variables: `CLOUDFLARE_PAGES_PROJECT` (the Pages project name) and `SITE_URL` (where the published
+index is read from). None of them exist in a fresh clone; README.md says how to create them.
 
 ### 7.3 Cloudflare Pages
 
 - Known limits: 20,000 files and 25 MB per file per deployment. Seven days come to fewer than 900
   files under 3 MB each: ample margin.
-- Headers: `index.json` uncached; manifests, slices and stop files on a short cache (one hour);
-  network layer and lookup table named by feed version, long cache.
+- Headers, in `web/public/_headers`: `index.json` uncached; everything else under `data/` on a
+  one-hour cache; network layer, lookup table and hashed assets immutable for a year. Security
+  headers on every response: `nosniff`, a strict referrer policy, a permissions policy denying
+  camera, microphone and geolocation, HSTS, and a Content-Security-Policy that allows scripts,
+  styles, fonts and workers from the site only, connections to the site and to OpenFreeMap,
+  images from the site, `data:` and `blob:`, no framing and no plugins. A Playwright test applies
+  that policy to the preview and fails on any violation.
 - Compression: to be measured at milestone M1 on a real slice rather than assumed. If the gain
   exceeds 15%, serve slices under a content type the platform compresses; otherwise size stays
   controlled at the source by simplification.
@@ -538,6 +553,9 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Line chosen in a text field with a native datalist | A select with 73 options | Typing the number people know is faster than scrolling; suggestions and validation come from the browser; no white native list over the night map |
 | Vehicles of a line stepped through with two buttons, follow mode on the camera | Clicking heads only | Heads are a few pixels wide among hundreds; stepping never misses, and the follow mode is what the stepping is for. A manual drag ends it |
 | Picking radius of 6 px around heads | deck.gl default of 0 | Clicking a three-pixel dot in a dense area is otherwise a matter of luck |
+| Day change reloads the page with the new URL | Swapping the day in place | The URL already carries the whole scene; a reload is a two-line restart with no state to invalidate, for a one-second blink |
+| `stibviz plan` against the published index | Rebuilding the week every night | A run with nothing to do ends in a minute; a new feed still rebuilds every day |
+| Deployment gated on the presence of the secrets | Failing without them | A fork or a fresh clone builds and tests the nightly run without a Cloudflare account |
 
 ## 10. Open technical points
 

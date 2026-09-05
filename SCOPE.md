@@ -256,11 +256,14 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
 
 **M4 Seven days and production**
 
-- [ ] Pipeline: seven-day rolling window, index of valid days only
-- [ ] `ui/`: day selector
-- [ ] `nightly.yml`: ETag fetch, per-day build and check, index, site build, wrangler deployment,
-      deferred exit code
-- [ ] Cloudflare Pages project, GitHub secrets, cache headers
+- [x] Pipeline: seven-day rolling window, `plan` against the published index, index of valid
+      days only
+- [x] `ui/`: day selector
+- [x] `nightly.yml`: ETag fetch, early exit, per-day build and check, index, site build, wrangler
+      deployment, deferred exit code, report kept fourteen days
+- [x] Cloudflare Pages `_headers`: cache rules and security headers, the Content-Security-Policy
+      exercised by a Playwright test
+- [ ] Cloudflare Pages project, GitHub secrets and variables created (by hand, see README)
 - [ ] Budgets verified on a real week: size, pipeline duration, CI minutes
 
 **M5 Polish**
