@@ -6,8 +6,9 @@ the open data published on the Belgian Mobility portal.
 
 Inspired by [france-rail-traffic](https://github.com/magrinj/france-rail-traffic).
 
-**Status: milestone M1 (one day).** The pipeline turns the GTFS feed into the data files the
-site will consume, for one service day, and checks them. No animation yet.
+**Status: milestone M2 (see it move).** The pipeline builds one service day and the site replays
+it: night map, network layer, animated vehicles, clock, play and pause. Counters, filters, the
+scrubber and the vehicle panel arrive with milestone M3.
 
 ## Documents
 
@@ -77,6 +78,27 @@ uv run stibviz check --day ../dist/data/2026-09-09
 
 `build` prints the check report and the figures of the day, and refuses to write a day that fails
 a blocking check. `cache/` and `dist/` are ignored by git.
+
+## Running the site
+
+The site reads its data from `web/public/data`, which git ignores. Build a day into it, then start
+the development server:
+
+```bash
+uv run stibviz build --gtfs ../cache/gtfs.zip --date 2026-09-09 --out ../web/public/data
+```
+
+```bash
+cd ../web && npx --yes pnpm@10 dev
+```
+
+Then open `http://localhost:5173/?d=2026-09-09&t=17:03`. The URL accepts `d` (day), `t` (civil
+time `HH:MM`), `p` (`1` playing, `0` paused) and `c` (`lat,lon,zoom`). The space bar plays and
+pauses.
+
+The Playwright smoke tests run against the built site with the fixture day in `web/public/data`
+(build it from `pipeline/tests/fixtures/gtfs-extract/gtfs.zip` for 2026-09-11). Once,
+`pnpm e2e:install` downloads the browser; then `pnpm build` and `pnpm e2e`.
 
 ### A note on toolchain versions
 

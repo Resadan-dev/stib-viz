@@ -73,17 +73,18 @@ stib-viz/
 ├── web/                          Vite, strict TypeScript, pnpm
 │   ├── index.html
 │   ├── src/
-│   │   ├── main.ts               assembly
-│   │   ├── data/                 index, manifest, slice decoding, cache and prefetch
-│   │   ├── time/                 service-day clock, player (speed, pause)
+│   │   ├── main.ts               entry point: starts the app, shows a fatal error
+│   │   ├── app.ts                wiring: loading, mounting, animation loop, stibviz debug API
+│   │   ├── data/                 contract types and parsers, loader, STV1 decoding, slice store
+│   │   ├── time/                 service-day clock, player (speed, pause, waiting)
 │   │   ├── render/               MapLibre map, deck.gl layers, current positions, selection
 │   │   ├── ui/                   clock, day selector, counters, activity curve and scrubber,
 │   │   │                         filters, vehicle panel, about
 │   │   ├── state/                single state object and URL synchronisation
 │   │   ├── theme/                night basemap style, mode colours
 │   │   └── i18n/                 fr.ts, centralised UI copy
-│   ├── tests/                    vitest, including the contract test on the fixture day
-│   └── e2e/                      Playwright, smoke test on the fixture day
+│   ├── tests/                    vitest (jsdom for the UI), including the contract test
+│   └── e2e/                      Playwright smoke tests on the fixture day, tiles blocked
 ├── .github/
 │   ├── dependabot.yml            monthly updates: actions, npm, uv
 │   └── workflows/
@@ -347,11 +348,17 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
 
 - Four deck.gl `TripsLayer`, one per mode, fed with binary attributes: positions, times and start
   indices passed as they are; the per-vertex colour is unfolded once when the slice loads, from
-  the `route` field. The exact properties of the binary path (`startIndices`, attributes, open
-  path type) are fixed against the official documentation at milestone M2, with a test verifying
-  that deck.gl neither copies nor renormalises the paths. Only `currentTime` changes per frame.
-  Trail length is a constant in service-day seconds (initial value 150 s, always below the 300 s
-  upstream overlap), fading enabled: the visible length encodes speed.
+  the `route` field. Fixed at milestone M2 against deck.gl 9.3: `data` is
+  `{ length: P, startIndices: index, attributes: { getPath: { value: positions, size: 2 },
+  getTimestamps: { value: times, size: 1 }, getColor: { value: colours, size: 4, normalized: true } } }`
+  with `_pathType: "open"` and `positionFormat: "XY"`. `PathLayer` sets
+  `normalize: !props._pathType`, so the arrays are used as they are; a vitest asserts that the
+  descriptor hands over the very typed arrays of the decoded slice, and that the same `data` object
+  is reused from one frame to the next, because deck.gl compares it by reference and a new object
+  would re-upload the whole hour on every frame. Only `currentTime` changes per frame. Trail length
+  is a constant in service-day seconds (150 s, always below the 300 s upstream overlap), fading
+  enabled: the visible length encodes speed. Joints and caps are square: invisible at two pixels,
+  and the difference between 55 and 60 frames per second at the peak on an integrated GPU.
 - One `ScatterplotLayer` for vehicle heads: each frame, the current position of every active path
   comes from a binary search in its time array followed by interpolation. A vehicle in layover
   between two trips (`end` of one, `start` of the next in the manifest, same terminus) keeps the
@@ -361,6 +368,12 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
 - A vehicle is never drawn twice: exactly one slice mounted per mode (section 6.1); a vitest check
   verifies this on the fixture day.
 - The network layer is a dark `GeoJsonLayer` beneath the vehicles; metro is dimmer still.
+- Layovers, in practice: between two paths of the same vehicle within the mounted slice, the head
+  is held at the end of the first when both ends lie within 100 m of each other (the deadhead
+  threshold of the pipeline); a wider gap is a deadhead move and draws nothing. Before the first
+  path or after the last one, `vehicles.json` decides: the head is held when the adjacent trip is
+  marked `from_layover` and the instant falls between the two trips. The list is fetched after the
+  first frame; until then only the in-slice rule applies.
 - Filtering a mode hides its layer and drops its slices from the prefetch queue.
 - Performance options: `useDevicePixels` can be turned off on very dense screens; layers are
   created once; no allocation per frame outside slice switching.
@@ -378,8 +391,9 @@ The link recreates the scene exactly. Invalid values are ignored one by one.
 
 ### 6.5 Night-time style
 
-- Basemap: a dark OpenFreeMap style, reduced to roads, water, parks and a few place names, all
-  very dark. The basemap must never compete with the vehicles.
+- Basemap: our own MapLibre style (`theme/basemap.ts`) over OpenFreeMap vector tiles, reduced to
+  water, parks, three road classes and city, town and suburb names, all very dark; no point of
+  interest. The basemap must never compete with the vehicles, and the page works without it.
 - Modes: warm white for metro, official colour for trams, a single cool blue for buses, violet for
   Noctis. Exact values live in `theme/` and are tuned at milestone M2 against the real render.
 - Network: five levels of one blue-grey, from nearly invisible to discreet.
@@ -397,8 +411,8 @@ reduced motion, the page starts paused.
 
 1. Pipeline: `uv sync`, `ruff check`, `ruff format --check`, `pytest --cov` with an 80% threshold,
    including the tests against the `gtfs-extract/` extract and its expected values.
-2. Fixture day: `stibviz build` then `stibviz check` against the extract, output into a temporary
-   directory consumed by the following steps.
+2. Fixture day: `stibviz build` then `stibviz check` against the extract, uploaded as a one-day
+   artifact that the web job downloads into `web/public/data`.
 3. Site: `pnpm install`, `tsc --noEmit`, `eslint`, `prettier --check`, `vitest --coverage` with an
    80% threshold, including the contract test that decodes the fixture day.
 4. Smoke: `pnpm build` with the fixture day, then Playwright: the page loads, the canvas exists,
@@ -491,13 +505,15 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Vertex times at least 0.05 s apart, Float32 pushed to the next representable value when equal | 1 ms nudge | Float32 resolution near 86,400 s is 0.008 s; a 1 ms nudge collapsed and the check on written files caught it |
 | GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
 | Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
+| Own MapLibre style over OpenFreeMap tiles | The OpenFreeMap dark or fiord styles | Full control of what is drawn: no point of interest, rare labels; the style is a tested object rather than a fetched file |
+| Layover held from the slice first, from `vehicles.json` second | Zero-length paths in the slices | Degenerate paths break rendering; the trip list is small and only read after the first frame |
+| Square trail joints and caps | Round joints and caps | Invisible at two pixels; 55 → 60 frames per second at the 17:03 peak on an integrated Intel GPU |
+| Engines in their own chunks (maplibre, deck) | One bundle | About 460 KB gzipped of engines cached across deployments; the application chunk is under 10 KB |
 
 ## 10. Open technical points
 
 To settle during implementation, each with a test behind it:
 
-- Exact properties for passing binary attributes to `TripsLayer`: to be fixed against the official
-  documentation of the chosen version, with the no-copy test described in 6.3.
 - Artificial dwell time at stops: the STIB feed almost always reports zero dwell. v1 honours that;
   a `dwell_seconds` parameter stays available if the render looks too smooth.
 - Slice compression: measured at milestone M1, decision based on the gain (section 7.3).
