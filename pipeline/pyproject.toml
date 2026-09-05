@@ -35,6 +35,8 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF"]
+# The data licence mandates "Source: STIB-MIVB – Open Data – [date]" with en dashes.
+allowed-confusables = ["–"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
