@@ -1,0 +1,28 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+
+# Node
+node_modules/
+web/dist/
+web/coverage/
+web/test-results/
+web/playwright-report/
+
+# Données générées et caches du pipeline
+dist/
+cache/
+
+# Environnement et divers
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
