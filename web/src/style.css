@@ -412,8 +412,7 @@ main.map {
   font-size: 0.9rem;
 }
 
-.lines__clear,
-.picker__all {
+.lines__clear {
   padding: 0.35rem 0.65rem;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
@@ -424,8 +423,7 @@ main.map {
   cursor: pointer;
 }
 
-.lines__clear:hover,
-.picker__all:hover {
+.lines__clear:hover {
   color: var(--ink);
 }
 
@@ -978,9 +976,27 @@ main.map {
 .picker__footer {
   display: flex;
   flex: none;
-  justify-content: flex-end;
-  padding-top: 0.1rem;
-  border-top: 1px solid var(--panel-border);
+  padding-top: 0.6rem;
+}
+
+/* Full width: with a line selected this is the way out, so it is the easiest thing to hit.
+   Neutral rather than accented, so it does not compete with the stepper above it. */
+.picker__all {
+  flex: 1;
+  min-height: 2.2rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.05);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.picker__all:hover {
+  background: rgb(255 255 255 / 0.1);
+  border-color: rgb(120 140 180 / 0.4);
 }
 
 .picker__tab:focus-visible,

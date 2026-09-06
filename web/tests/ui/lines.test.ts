@@ -151,4 +151,16 @@ describe("createLinePicker", () => {
     expect(onSelect).toHaveBeenCalledTimes(2);
     expect(onSelect).toHaveBeenLastCalledWith(null);
   });
+
+  it("offers the way back to every line only while one is selected, spelled out in full", () => {
+    const { picker, section } = mount();
+    const footer = section.querySelector<HTMLElement>(".picker__footer");
+    const all = section.querySelector<HTMLButtonElement>(".picker__all");
+    expect(all?.textContent).toBe(fr.showAllLines);
+    expect(footer?.hidden).toBe(true);
+    picker.update("7");
+    expect(footer?.hidden).toBe(false);
+    picker.update(null);
+    expect(footer?.hidden).toBe(true);
+  });
 });

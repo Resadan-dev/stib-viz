@@ -40,6 +40,7 @@ export const fr = {
   officialColours: "Couleurs officielles des lignes",
   lineLabel: "Ligne",
   allLines: "Toutes les lignes",
+  showAllLines: "Réafficher toutes les lignes",
   chooseLine: "Choisir une ligne",
   changeLine: "changer de ligne",
   pickerModes: "Filtrer par mode",

@@ -145,9 +145,12 @@ export function createLinePicker(
   const vehicles = document.createElement("div");
   vehicles.className = "picker__vehicles";
 
+  // Shown only while a line is selected, where it is the obvious way out; spelled out in full
+  // and across the whole width, because that is the action people look for at that moment.
   const footer = document.createElement("div");
   footer.className = "picker__footer";
-  const all = button("picker__all", fr.allLines);
+  footer.hidden = true;
+  const all = button("picker__all", fr.showAllLines);
   all.addEventListener("click", () => {
     onSelect(null);
   });
@@ -209,6 +212,7 @@ export function createLinePicker(
       element.setAttribute("aria-pressed", name === line ? "true" : "false");
     }
     clear.hidden = line === null;
+    footer.hidden = line === null;
     if (line === null) {
       trigger.replaceChildren(document.createTextNode(fr.chooseLine));
       trigger.removeAttribute("aria-label");

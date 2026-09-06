@@ -111,7 +111,7 @@ test("steps through the vehicles of the selected line and follows the chosen one
   await expect(stepper.locator(".stepper__count")).toHaveText(/Véhicule 2 sur \d+/);
 
   // Every line back, from the picker: the stepper has nothing left to walk through.
-  await picker.getByRole("button", { name: "Toutes les lignes" }).click();
+  await picker.getByRole("button", { name: "Réafficher toutes les lignes" }).click();
   await expect.poll(() => param(page, "l")).toBeNull();
   await expect(stepper).toBeHidden();
   await expect(page.getByRole("button", { name: "Choisir une ligne" })).toBeVisible();
