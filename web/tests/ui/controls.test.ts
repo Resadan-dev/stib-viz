@@ -65,13 +65,15 @@ describe("bindKeyboard", () => {
     expect(vi.mocked(h.step).mock.calls.map((call) => call[0])).toEqual([60, -60, 600, -600]);
   });
 
-  it("picks a speed with the digits 1 to 4 and escapes with Escape", () => {
+  it("picks a speed with one digit per speed and escapes with Escape", () => {
     const h = handlers();
     unbind = bindKeyboard(document, h);
-    for (const key of ["1", "2", "3", "4", "5"]) {
+    for (const key of ["1", "2", "3", "4", "5", "6", "0"]) {
       press(key);
     }
-    expect(vi.mocked(h.setSpeed).mock.calls.map((call) => call[0])).toEqual([60, 120, 300, 600]);
+    expect(vi.mocked(h.setSpeed).mock.calls.map((call) => call[0])).toEqual([
+      60, 120, 300, 600, 1200,
+    ]);
     press("Escape");
     expect(h.escape).toHaveBeenCalledTimes(1);
   });

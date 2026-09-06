@@ -37,6 +37,27 @@ export function parseHexColor(hex: string): Rgb | undefined {
   ];
 }
 
+/** Relative luminance of a colour, as WCAG 2.2 defines it. */
+function relativeLuminance([r, g, b]: Rgb): number {
+  const channel = (value: number): number => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** Contrast ratio between two six-digit hexadecimal colours, from 1 to 21. */
+export function contrastRatio(foreground: string, background: string): number {
+  const front = parseHexColor(foreground);
+  const back = parseHexColor(background);
+  if (front === undefined || back === undefined) {
+    throw new Error(`unreadable colour: ${foreground} on ${background}`);
+  }
+  const a = relativeLuminance(front);
+  const b = relativeLuminance(back);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
 /**
  * Palette scheme: trams keep their official colour, every other mode takes the palette colour.
  * Official scheme: every route takes its own colour from the feed, the palette as a fallback.

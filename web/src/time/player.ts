@@ -10,7 +10,9 @@
 import type { Store } from "../state/store";
 import { SERVICE_DAY_LENGTH_S, clampTime } from "./clock";
 
-export const SPEEDS = [60, 120, 300, 600] as const;
+// A frame at x1200 advances twenty service seconds, so the vehicles step rather than glide.
+// It is there to cross a quiet night quickly, not to watch the traffic.
+export const SPEEDS = [60, 120, 300, 600, 1200] as const;
 export const DEFAULT_SPEED = 300;
 
 export interface PlayerState {

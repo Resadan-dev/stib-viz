@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { requireFixtureDay } from "./fixture";
+
 /**
  * Milestone M3 flows on the fixture day: URL synchronisation, filters, speeds, line selection,
  * colour scheme, the vehicle panel, the scrubber and the about dialog.
@@ -42,6 +44,7 @@ test("writes speed, filters, colours, line and instant back to the URL", async (
 });
 
 test("reads the same state back from the URL", async ({ page }) => {
+  await requireFixtureDay(page);
   await page.route(/tiles\.openfreemap\.org/, (route) => route.fulfill({ status: 204 }));
   await page.goto(`/?d=${DAY}&t=08:30&s=120&m=metro&l=1&colours=official&p=0`);
   await page.waitForFunction(() => window.stibviz?.ready() === true);

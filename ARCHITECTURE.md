@@ -390,8 +390,12 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
   selection does. Colours come from the feed, not invented: STIB reuses roughly a dozen colours
   across its routes, so the toggle can still show two unrelated lines in the same colour — noted
   in the about panel.
-- Performance options: `useDevicePixels` can be turned off on very dense screens; layers are
-  created once; no allocation per frame outside slice switching.
+- Performance: deck.gl renders at the screen ratio capped to 1.5 (`render/quality.ts`), so a
+  phone at ratio 2 fills 44% fewer fragments for a picture whose trails are two pixels wide; the
+  basemap keeps the full ratio, being cheap. Layers are created once; no allocation per frame
+  outside slice switching. Measured on an integrated Intel GPU at the 17:03 peak with about 930
+  vehicles: 55 to 60 frames per second in a 1600 by 1000 window, around 34 on a 390 by 844 phone
+  viewport at ratio 2, which meets the "loads, reads and plays" promise SCOPE.md makes for mobile.
 
 ### 6.4 State and URL
 
@@ -423,9 +427,15 @@ rewrites it a few times a second at most, well under the browser throttling of `
 
 ### 6.6 Accessibility and keyboard
 
-Space: play and pause. Arrow keys: one minute; with Shift: ten minutes. Keys 1 to 4: speeds ×60,
-×120, ×300, ×600. Every button has a label and a visible focus state. When the user prefers
-reduced motion, the page starts paused.
+Space: play and pause. Arrow keys: one minute; with Shift: ten minutes. One digit per speed, 1 to
+5: ×60, ×120, ×300, ×600, ×1200. Every button has a label and a visible focus state. When the
+visitor prefers reduced motion the page starts paused and the camera jumps instead of gliding.
+
+The palette is held to WCAG 2.2 AA by a unit test that reads the tokens out of `style.css` and
+measures each against the panel background; the smoke suite runs an axe audit of the page, of the
+vehicle panel and of the about dialog, and walks every control to check it takes focus with a
+visible ring. Mode filters are pills rather than bare checkboxes so their pointer targets keep the
+24 pixels of clearance success criterion 2.5.8 asks for.
 
 ## 7. Integration and deployment
 

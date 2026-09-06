@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import type { HeadSnapshot, Snapshot } from "../src/app";
+import { requireFixtureDay } from "./fixture";
 
 /**
  * Smoke tests on the fixture day (Friday 11 September 2026: metro 1, tram 7, Noctis N06).
@@ -79,6 +80,7 @@ test("pauses and resumes from the button and the space bar", async ({ page }) =>
 });
 
 test("requests only the slices the manifest lists and mounts one per mode", async ({ page }) => {
+  await requireFixtureDay(page);
   const requested: string[] = [];
   page.on("request", (request) => {
     const path = new URL(request.url()).pathname;
@@ -110,6 +112,7 @@ test("requests only the slices the manifest lists and mounts one per mode", asyn
 });
 
 test("metro 1 and tram 7 vehicles move along their routes", async ({ page }) => {
+  await requireFixtureDay(page);
   await openDay(page, "t=08:00&p=0");
   const before = await snapshot(page);
   await page.evaluate((time) => window.stibviz?.seek(time), EIGHT_OCLOCK_S + 60);

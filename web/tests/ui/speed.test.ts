@@ -14,11 +14,11 @@ describe("createSpeedControl", () => {
     expect(group?.getAttribute("aria-label")).toBe(fr.speedLabel);
     const buttons = parent.querySelectorAll("button");
     expect(buttons).toHaveLength(SPEEDS.length);
-    expect(buttons[3]?.textContent).toBe("×600");
-    buttons[3]?.click();
-    expect(onSelect).toHaveBeenCalledWith(600);
-    control.update(600);
-    expect(buttons[3]?.getAttribute("aria-pressed")).toBe("true");
-    expect(buttons[2]?.getAttribute("aria-pressed")).toBe("false");
+    expect(buttons[4]?.textContent).toBe("×1200");
+    buttons[4]?.click();
+    expect(onSelect).toHaveBeenCalledWith(1200);
+    control.update(1200);
+    expect(buttons[4]?.getAttribute("aria-pressed")).toBe("true");
+    expect(buttons[3]?.getAttribute("aria-pressed")).toBe("false");
   });
 });

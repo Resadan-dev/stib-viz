@@ -41,6 +41,7 @@ import { initialState, type AppState, type ModeVisibility } from "./state/app-st
 import { createStore } from "./state/store";
 import { applyUrlState, readUrlState, syncUrl, writeUrlState } from "./state/url";
 import { nightStyle } from "./theme/basemap";
+import { prefersReducedMotion } from "./theme/motion";
 import { MODE_COLORS, routeColor } from "./theme/colors";
 import { SERVICE_DAY_LENGTH_S, hourOf, minuteOf } from "./time/clock";
 import { createPlayer } from "./time/player";
@@ -209,8 +210,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   shell.kind.textContent = dayKindLabel(entry.kind);
   shell.attribution.textContent = day.manifest.attribution;
 
-  const reducedMotion =
-    options.reducedMotion ?? window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reducedMotion = options.reducedMotion ?? prefersReducedMotion(window);
   // The URL may name a day the index does not have: the chosen day always wins.
   const store = createStore({
     ...applyUrlState(initialState(entry.date, { playing: !reducedMotion }), url),
@@ -286,6 +286,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const camera = store.get().camera;
   const view = createMapView(shell.map, nightStyle(), {
     ...(camera === null ? {} : { camera }),
+    reducedMotion,
     onBasemapUnavailable: (message) => {
       console.warn(`${fr.basemapUnavailable} (${message})`);
     },

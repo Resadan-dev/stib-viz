@@ -19,7 +19,7 @@ describe("createPlayer", () => {
   it("reads its state from the store it is given", () => {
     const { store, player: p } = player();
     expect(p.state()).toEqual({ time: 0, speed: DEFAULT_SPEED, playing: false, waiting: false });
-    expect(SPEEDS).toEqual([60, 120, 300, 600]);
+    expect(SPEEDS).toEqual([60, 120, 300, 600, 1200]);
     p.seek(120);
     expect(store.get().time).toBe(120);
   });

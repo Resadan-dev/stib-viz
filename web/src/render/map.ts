@@ -12,6 +12,8 @@ import { Map as MapLibreMap, setWorkerUrl, type StyleSpecification } from "mapli
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
 import { BRUSSELS_VIEW } from "../theme/colors";
+import { easeDurationMs } from "../theme/motion";
+import { devicePixels } from "./quality";
 
 export interface MapView {
   map: MapLibreMap;
@@ -34,6 +36,8 @@ export const PICKING_RADIUS_PX = 6;
 
 export interface MapOptions {
   camera?: { latitude: number; longitude: number; zoom: number };
+  /** When the visitor prefers reduced motion the camera jumps instead of gliding. */
+  reducedMotion?: boolean;
   onBasemapUnavailable?: (message: string) => void;
 }
 
@@ -70,6 +74,7 @@ export function createMapView(
     interleaved: false,
     layers: [],
     pickingRadius: PICKING_RADIUS_PX,
+    useDevicePixels: devicePixels(window.devicePixelRatio),
   });
   map.addControl(overlay);
 
@@ -94,7 +99,7 @@ export function createMapView(
       map.easeTo({
         center: position,
         zoom: Math.max(map.getZoom(), FOLLOW_MIN_ZOOM),
-        duration: 700,
+        duration: easeDurationMs(options.reducedMotion ?? false),
       });
     },
     follow(position) {

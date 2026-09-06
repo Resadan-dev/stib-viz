@@ -4,7 +4,7 @@
   --panel-border: rgb(120 140 180 / 0.16);
   --ink: #e8e4dc;
   --ink-muted: #8b93a5;
-  --ink-faint: #59627a;
+  --ink-faint: #737a91;
   --accent: #ffe8c4;
   --focus: #7cc4ff;
   --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -302,7 +302,9 @@ main.map {
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem 0.9rem;
+  /* Wide enough that each checkbox keeps a 24 px pointer target clear of its neighbours,
+     which is what WCAG 2.2 asks of an undersized target (success criterion 2.5.8). */
+  gap: 0.4rem;
   margin: 0;
   padding: 0;
   border: 0;
@@ -320,11 +322,24 @@ main.map {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
   font-size: 0.85rem;
   cursor: pointer;
 }
 
+.filters__mode:hover {
+  border-color: rgb(120 140 180 / 0.4);
+}
+
+.filters__mode:has(input:checked) {
+  background: rgb(255 255 255 / 0.05);
+}
+
 .filters input {
+  width: 1rem;
+  height: 1rem;
   margin: 0;
   accent-color: var(--accent);
 }

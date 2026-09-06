@@ -14,7 +14,7 @@ const OWNS_ACTIVATION = new Set(["BUTTON", "A"]);
 const MINUTE_S = 60;
 
 /**
- * Space plays and pauses; arrows step one minute, ten with Shift; digits 1 to 4 pick a speed;
+ * Space plays and pauses; arrows step one minute, ten with Shift; one digit per speed;
  * Escape clears the selection (ARCHITECTURE.md, section 6.6). Fields keep every key; a focused
  * button keeps Space so it is not toggled twice, but arrows and digits still drive playback.
  */
@@ -45,8 +45,9 @@ export function bindKeyboard(target: EventTarget, handlers: KeyboardHandlers): (
         handlers.escape();
         return;
       default: {
-        const speed = SPEEDS[Number(event.key) - 1];
-        if (/^[1-4]$/.test(event.key) && speed !== undefined) {
+        const rank = Number(event.key);
+        const speed = SPEEDS[rank - 1];
+        if (Number.isInteger(rank) && rank >= 1 && speed !== undefined) {
           handlers.setSpeed(speed);
         }
       }

@@ -100,9 +100,10 @@ largest slice being 1.29 MB.
 
 - The span runs from 04:00 to 04:00 the next morning. The clock shows civil time (01:30, not
   25:30) and marks the crossing into the next day.
-- Speeds: ×60, ×120, ×300, ×600. Default ×300, which plays the day in under five minutes. Beyond
-  ×600 a single frame would advance more than ten seconds of service time and the animation would
-  turn strobe-like. Pause by button or space bar; arrow keys step one minute, ten minutes with Shift.
+- Speeds: ×60, ×120, ×300, ×600, ×1200. Default ×300, which plays the day in under five minutes.
+  At ×1200 a frame advances twenty seconds of service time, so the vehicles step rather than
+  glide: it is there to cross a quiet night quickly, not to watch the traffic. Pause by button or
+  space bar; arrow keys step one minute, ten minutes with Shift.
 - If the next hour is not loaded when the slice changes, playback waits visibly rather than
   showing an incomplete hour.
 - The activity curve (vehicles running per minute, stacked by mode) doubles as the scrubber:
@@ -269,8 +270,8 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
 **M5 Polish**
 
 - [ ] Night style: mode colours tuned on the real render, basemap adjusted
-- [ ] Performance: `useDevicePixels`, measurement on a 2020 laptop, mobile usable
-- [ ] Accessibility: focus, keyboard, `prefers-reduced-motion`
+- [x] Performance: device pixels capped at 1.5, measured at the peak on desktop and on a phone
+- [x] Accessibility: focus, keyboard, `prefers-reduced-motion`, axe audit in the smoke suite
 - [ ] Documentation: README, about panel, `docs/`, v2 list up to date
 - [ ] Final review
 
