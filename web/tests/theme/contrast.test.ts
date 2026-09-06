@@ -13,8 +13,36 @@ import { contrastRatio, parseHexColor } from "../../src/theme/colors";
 const PANEL_OVER_GROUND = "090C15";
 const MINIMUM = 4.5;
 
+/** Flattens a translucent surface onto an opaque one, the way the browser paints it. */
+function over(surface: readonly [number, number, number, number], background: string): string {
+  const under = parseHexColor(background);
+  if (under === undefined) {
+    throw new Error(`unreadable background ${background}`);
+  }
+  const [r, g, b, alpha] = surface;
+  return [r, g, b]
+    .map((channel, i) => Math.round(channel * alpha + (under[i] ?? 0) * (1 - alpha)))
+    .map((channel) => channel.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Reads an `rgb(r g b / a)` token out of the stylesheet. */
+function surfaceToken(css: string, name: string): readonly [number, number, number, number] {
+  const pattern = /--([a-z-]+):\s*rgb\((\d+) (\d+) (\d+) \/ ([0-9.]+)\);/g;
+  for (const match of css.matchAll(pattern)) {
+    if (match[1] === name) {
+      return [Number(match[2]), Number(match[3]), Number(match[4]), Number(match[5])];
+    }
+  }
+  throw new Error(`missing surface token --${name}`);
+}
+
+function stylesheet(): string {
+  return readFileSync(fileURLToPath(new URL("../../src/style.css", import.meta.url)), "utf-8");
+}
+
 function tokens(): Map<string, string> {
-  const css = readFileSync(fileURLToPath(new URL("../../src/style.css", import.meta.url)), "utf-8");
+  const css = stylesheet();
   const found = new Map<string, string>();
   for (const match of css.matchAll(/--([a-z-]+):\s*(#[0-9a-f]{6});/gi)) {
     found.set(match[1] ?? "", (match[2] ?? "").slice(1));
@@ -50,6 +78,25 @@ describe("the night palette", () => {
         throw new Error(`missing token ${name}`);
       }
       expect(contrastRatio(colour, PANEL_OVER_GROUND), `--${name}`).toBeGreaterThanOrEqual(MINIMUM);
+    }
+  });
+
+  it("keeps the line picker readable at half opacity over the night ground", () => {
+    const ground = palette.get("ground");
+    if (ground === undefined) {
+      throw new Error("missing token ground");
+    }
+    const surface = surfaceToken(stylesheet(), "panel-sheer");
+    expect(surface[3]).toBeLessThanOrEqual(0.5);
+    const flattened = over(surface, ground);
+    for (const name of ["ink", "ink-muted", "ink-faint", "accent"]) {
+      const colour = palette.get(name);
+      if (colour === undefined) {
+        throw new Error(`missing token ${name}`);
+      }
+      expect(contrastRatio(colour, flattened), `--${name} on the picker`).toBeGreaterThanOrEqual(
+        MINIMUM,
+      );
     }
   });
 

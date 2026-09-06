@@ -1,6 +1,8 @@
 :root {
   --ground: #04060c;
   --panel: rgb(10 14 24 / 0.78);
+  /* The line picker sits over the map itself, so it stays sheerer than the control panel. */
+  --panel-sheer: rgb(10 14 24 / 0.5);
   --panel-border: rgb(120 140 180 / 0.16);
   --ink: #e8e4dc;
   --ink-muted: #8b93a5;
@@ -801,21 +803,27 @@ main.map {
   width: min(26rem, calc(100vw - 2.5rem));
 }
 
+/* A column whose middle row scrolls: the title, the tabs and the footer stay put, so the mode
+   being shown is always visible above the badges. */
 .picker {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.7rem;
   max-height: min(32rem, calc(100vh - 4.5rem));
   padding: 0.9rem 1rem;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
-  background: var(--panel);
-  backdrop-filter: blur(14px) saturate(120%);
+  background: var(--panel-sheer);
+  /* Stronger blur than the control panel: at half opacity a lit trail would otherwise show
+     through the badges. */
+  backdrop-filter: blur(20px) saturate(120%);
   box-shadow: 0 20px 50px rgb(0 0 0 / 0.45);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .picker__header {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 0.6rem;
 }
@@ -833,6 +841,7 @@ main.map {
 .picker__tabs {
   display: flex;
   flex-wrap: wrap;
+  flex: none;
   gap: 0.2rem;
   border-bottom: 1px solid var(--panel-border);
 }
@@ -863,6 +872,14 @@ main.map {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(2.7rem, 1fr));
   gap: 0.4rem;
+  /* min-height lets the row shrink below its content, which is what makes it the scrolling one. */
+  min-height: 0;
+  /* Room for the focus ring inside the scrolling box, taken back on the sides so the badges keep
+     the padding of the picker itself. */
+  padding: 0.25rem;
+  margin: 0 -0.25rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .picker__line {
@@ -893,7 +910,10 @@ main.map {
 
 .picker__footer {
   display: flex;
+  flex: none;
   justify-content: flex-end;
+  padding-top: 0.1rem;
+  border-top: 1px solid var(--panel-border);
 }
 
 .picker__tab:focus-visible,

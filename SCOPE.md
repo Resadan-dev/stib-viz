@@ -114,9 +114,10 @@ largest slice being 1.29 MB.
 - Clock, date and day type (weekday, Saturday, Sunday), selector for the seven days.
 - Per-mode counters: vehicles running, trips departed since 04:00, kilometres.
 - Per-mode filters (show or hide metro, tram, bus, Noctis).
-- Single-line selection: a picker in the bottom right corner of the map, translucent and not
+- Single-line selection: a picker in the bottom right corner of the map, half-opaque and not
   modal, lists every line of the day as a badge in its official colours with one tab per mode,
-  the way the STIB site presents its network; a badge in the control panel shows the choice. The
+  the way the STIB site presents its network; the title, the tabs and the footer stay in view
+  while the badges scroll, and a badge in the control panel shows the choice. The
   picker stays open while lines are compared, keeps the choice when closed, and one button brings
   every line back. Every other vehicle dims, the chosen line stays at full opacity; nothing is
   hidden, so context is kept, and clearing the selection restores normal colours.
