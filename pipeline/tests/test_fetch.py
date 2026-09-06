@@ -73,6 +73,29 @@ def test_second_fetch_sends_the_etag_and_keeps_the_cached_file(tmp_path: Path, b
     assert second.path.read_bytes() == body
 
 
+def test_a_cached_file_that_no_longer_matches_its_digest_is_downloaded_again(
+    tmp_path: Path, body: bytes
+) -> None:
+    """A 304 says the feed has not changed, not that the copy on disk is still the one fetched.
+
+    The archive and the metadata beside it are written one after the other, and the cache they
+    live in outlives the run. A truncated copy would otherwise be handed on with the digest of
+    the file it used to be, and the day would be built from it.
+    """
+    server = FakeServer(body)
+    first = fetch_gtfs(URL, tmp_path, transport=server)
+    (tmp_path / "gtfs.zip").write_bytes(body[: len(body) // 2])
+
+    result = fetch_gtfs(URL, tmp_path, transport=server)
+
+    assert result.changed
+    assert result.sha256 == first.sha256
+    assert result.path.read_bytes() == body
+    # A copy that cannot be vouched for is never offered as current, so the portal was asked
+    # for the whole archive rather than for a 304 that would have blessed it.
+    assert "If-None-Match" not in server.requests[1]
+
+
 def test_a_new_version_replaces_the_cached_file(tmp_path: Path, body: bytes) -> None:
     fetch_gtfs(URL, tmp_path, transport=FakeServer(body, etag='"v1"'))
     feed_info = SAMPLE_TABLES["feed_info.txt"].replace("test_2026", "test_2027")

@@ -485,23 +485,38 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   let frames = 0;
   let fpsAnchor = performance.now();
   let fps = 0;
+  let frameFailed = false;
   function frame(now: number): void {
-    player.tick(now);
-    const state = store.get();
-    ensureMounted(hourOf(state.time), state.modes);
-    render(state.time, state.vehicle, state.line);
-    if (state.follow && state.vehicle !== null) {
-      const head = selectedHead(lastCount, state.vehicle);
-      if (head !== null) {
-        view.follow(head.position);
+    try {
+      player.tick(now);
+      const state = store.get();
+      ensureMounted(hourOf(state.time), state.modes);
+      render(state.time, state.vehicle, state.line);
+      if (state.follow && state.vehicle !== null) {
+        const head = selectedHead(lastCount, state.vehicle);
+        if (head !== null) {
+          view.follow(head.position);
+        }
+      }
+      frames += 1;
+      if (now - fpsAnchor >= 1000) {
+        fps = (frames * 1000) / (now - fpsAnchor);
+        frames = 0;
+        fpsAnchor = now;
+      }
+    } catch (error: unknown) {
+      // Anything thrown here would otherwise skip the call below and end the loop for good: the
+      // map would freeze on its last picture, on a page nobody is watching, with the reason left
+      // in a console nobody has open. Said once, and playback stops rather than throwing sixty
+      // times a second.
+      if (!frameFailed) {
+        frameFailed = true;
+        console.error(error);
+        player.pause();
+        status.show(fr.dataError);
       }
     }
-    frames += 1;
-    if (now - fpsAnchor >= 1000) {
-      fps = (frames * 1000) / (now - fpsAnchor);
-      frames = 0;
-      fpsAnchor = now;
-    }
+    // Outside the catch on purpose: one bad frame costs a frame, not the session.
     requestAnimationFrame(frame);
   }
 

@@ -76,9 +76,20 @@ jobs:
           if [ "$FORCE" = "true" ]; then args+=(--force); fi
           set +e
           uv run stibviz week "${args[@]}"
-          echo "status=$?" >> "$GITHUB_OUTPUT"
-          echo "built=$(grep -c ': built$' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
-          echo "failed=$(grep -c ': FAILED' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # A crash before the report is written leaves no file to count. Counting nothing has
+          # to read as "nothing built", never as the empty string: every `!= '0'` test below
+          # takes an empty string for a yes, and would deploy whatever happens to sit in the
+          # data directory.
+          if [ -f "$REPORT" ]; then
+            echo "built=$(grep -c ': built$' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
+            echo "failed=$(grep -c ': FAILED' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
+          else
+            echo "built=0" >> "$GITHUB_OUTPUT"
+            echo "failed=1" >> "$GITHUB_OUTPUT"
+          fi
         env:
           FORCE: ${{ inputs.force }}
         working-directory: pipeline
@@ -115,7 +126,9 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
       - name: Fail if a day failed
-        if: steps.week.outputs.failed != '0'
+        # The exit code of the command counts too, not only what the report says: a run that
+        # died before writing anything would otherwise end green with an untouched site.
+        if: steps.week.outputs.failed != '0' || steps.week.outputs.status != '0'
         run: |
-          cat "$REPORT"
+          cat "$REPORT" || echo "no report: the run stopped before it could write one"
           exit 1

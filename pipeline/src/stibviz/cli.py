@@ -117,20 +117,27 @@ def _write_checked_day(
     feed: Feed, date: dt.date, out: Path, *, tolerance_m: float, anomaly_tolerance: float
 ) -> DayOutcome:
     """Build one day, write it and check the written files; a failed day leaves nothing behind."""
+    day_dir = out / date.isoformat()
     try:
         result = build_day(feed, date, tolerance_m=tolerance_m, anomaly_tolerance=anomaly_tolerance)
+        if not result.report.ok:
+            return DayOutcome(False, "blocked: " + "; ".join(result.report.blocking), result.report)
+        write_day(result.bundle, out)
+        verdict = check_day_dir(day_dir)
+        if not verdict.ok:
+            shutil.rmtree(day_dir)
+            return DayOutcome(
+                False, "written files failed their checks: " + "; ".join(verdict.blocking)
+            )
     except (DateNotCoveredError, ShapeError) as exc:
         return DayOutcome(False, str(exc))
-    if not result.report.ok:
-        return DayOutcome(False, "blocked: " + "; ".join(result.report.blocking), result.report)
-    write_day(result.bundle, out)
-    day_dir = out / date.isoformat()
-    verdict = check_day_dir(day_dir)
-    if not verdict.ok:
-        shutil.rmtree(day_dir)
-        return DayOutcome(
-            False, "written files failed their checks: " + "; ".join(verdict.blocking)
-        )
+    except Exception as exc:
+        # Days are built independently, and that has to hold for the failures nobody foresaw
+        # too. An exception escaping here used to take the whole run with it, discarding the
+        # index and the report of every day that had already built. Half a written day is worse
+        # than none, so whatever this one left behind goes with it.
+        shutil.rmtree(day_dir, ignore_errors=True)
+        return DayOutcome(False, f"unexpected error: {exc!r}")
     stats = result.bundle.stats
     return DayOutcome(
         True,

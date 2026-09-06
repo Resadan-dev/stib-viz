@@ -111,6 +111,21 @@ def _header(headers: dict[str, str], name: str) -> str | None:
     return None
 
 
+def _cached_copy_is_intact(zip_path: Path, meta: dict[str, object]) -> bool:
+    """Whether the archive on disk is still the one whose digest the metadata records.
+
+    A 304 says the feed has not changed; it says nothing about the copy kept beside it. The two
+    files are written one after the other and the cache outlives the run, so a kill between the
+    two writes, or anything else that touches the directory, leaves a pair that no longer agrees.
+    Only a copy that can be vouched for is offered as current, and hashing 14 MB costs far less
+    than a day built from a truncated archive.
+    """
+    try:
+        return hashlib.sha256(zip_path.read_bytes()).hexdigest() == meta.get("sha256")
+    except OSError:
+        return False
+
+
 def fetch_gtfs(url: str, cache_dir: Path, transport: Transport | None = None) -> FetchResult:
     """Download the feed into ``cache_dir/gtfs.zip`` unless the cached copy is still current."""
     send = transport or _urllib_transport
@@ -123,7 +138,7 @@ def fetch_gtfs(url: str, cache_dir: Path, transport: Transport | None = None) ->
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
 
     headers = {"User-Agent": USER_AGENT, "Accept": "application/zip, application/octet-stream"}
-    if meta and meta.get("etag"):
+    if meta and meta.get("etag") and _cached_copy_is_intact(zip_path, meta):
         headers["If-None-Match"] = meta["etag"]
 
     status, response_headers, body = send(url, headers)

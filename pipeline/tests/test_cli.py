@@ -239,6 +239,43 @@ def test_week_sets_a_failing_day_aside_and_fails_last(
     assert "2026-09-10" in capsys.readouterr().err
 
 
+def test_week_survives_an_unexpected_failure_on_one_day(
+    sample_gtfs_zip: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A day that fails in an unforeseen way costs one day, never the whole run.
+
+    Days are built independently on purpose. An exception the code did not expect used to
+    escape the loop, which discarded the index and the report of every day that had already
+    built, and left the workflow to guess what had happened from a file that was never written.
+    """
+    import stibviz.cli as cli
+
+    real_build = cli.build_day
+
+    def flaky(feed, date, **kwargs):  # type: ignore[no-untyped-def]
+        if date.isoformat() == "2026-09-10":
+            raise MemoryError("simulated out of memory")
+        return real_build(feed, date, **kwargs)
+
+    monkeypatch.setattr(cli, "build_day", flaky)
+    out = tmp_path / "data"
+    report = tmp_path / "report.txt"
+    args = [*WEEK, str(sample_gtfs_zip), "--out", str(out), "--today", "2026-09-09"]
+    assert main([*args, "--days-after", "2", "--report", str(report)]) == 1
+    index = json.loads((out / "index.json").read_text(encoding="utf-8"))
+    assert [d["date"] for d in index["days"]] == ["2026-09-08", "2026-09-09", "2026-09-11"]
+    assert not (out / "2026-09-10").exists()
+    lines = report.read_text(encoding="utf-8").splitlines()
+    assert any(line.startswith("2026-09-10: FAILED") for line in lines)
+    # The wording keeps the exception, so the report says what actually went wrong.
+    assert "MemoryError" in "\n".join(lines)
+    assert lines[-1] == "built: 3, failed: 1, skipped: 0"
+    assert "2026-09-10" in capsys.readouterr().err
+
+
 def test_week_skips_days_outside_the_feed(
     sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
