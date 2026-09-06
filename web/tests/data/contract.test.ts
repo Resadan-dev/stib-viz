@@ -85,6 +85,28 @@ describe("parseNetwork", () => {
     expect(() => parseNetwork(patched(NETWORK, { features: [feature] }))).toThrow(/class/);
   });
 
+  it("reads the scheduled speed of a segment, unknown when the day could not measure one", () => {
+    const [tram, metro] = NETWORK.features;
+    if (tram === undefined || metro === undefined) {
+      throw new Error("fixture features missing");
+    }
+    expect(parseNetwork(NETWORK).features.map((f) => f.properties.speed)).toEqual([17.4, 31.5]);
+    const unknown = { ...tram, properties: { ...tram.properties, speed: null } };
+    expect(
+      parseNetwork(patched(NETWORK, { features: [unknown] })).features[0]?.properties.speed,
+    ).toBeNull();
+    // A network file written before the speed existed is still a network file: read as unknown.
+    const without = Object.fromEntries(
+      Object.entries(tram.properties).filter(([key]) => key !== "speed"),
+    );
+    const older = { ...tram, properties: without };
+    expect(
+      parseNetwork(patched(NETWORK, { features: [older] })).features[0]?.properties.speed,
+    ).toBeNull();
+    const broken = { ...tram, properties: { ...tram.properties, speed: "fast" } };
+    expect(() => parseNetwork(patched(NETWORK, { features: [broken] }))).toThrow(/speed/);
+  });
+
   it("rejects a stop that is not [lon, lat, name]", () => {
     expect(() => parseNetwork(patched(NETWORK, { stops: { "1000": [4.35, 50.85] } }))).toThrow(
       /stop/,

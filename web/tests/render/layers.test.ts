@@ -105,4 +105,27 @@ describe("createNetworkLayer", () => {
     expect(getLineColor(tram, context)).toEqual(networkColor(tram.properties));
     expect(getLineColor(metro, context)).toEqual(networkColor(metro.properties));
   });
+
+  it("paints speeds instead when asked, wider, and tells deck.gl the accessors changed", () => {
+    const layer = createNetworkLayer(NETWORK, "speed");
+    expect(layer.id).toBe("network");
+    const { getLineColor, getLineWidth, updateTriggers } = layer.props;
+    if (typeof getLineColor !== "function" || typeof getLineWidth !== "function") {
+      throw new Error("accessors should be functions");
+    }
+    const [tram, metro] = NETWORK.features;
+    if (tram === undefined || metro === undefined) {
+      throw new Error("fixture features missing");
+    }
+    const context = { index: 0, data: NETWORK.features, target: [] };
+    expect(getLineColor(tram, context)).toEqual(networkColor(tram.properties, "speed"));
+    expect(getLineColor(metro, context)).toEqual(networkColor(metro.properties, "speed"));
+    const runs = createNetworkLayer(NETWORK, "runs").props.getLineWidth;
+    if (typeof runs !== "function") {
+      throw new Error("accessor should be a function");
+    }
+    expect(getLineWidth(tram, context)).toBeGreaterThan(runs(tram, context));
+    // Same id in both views: without the trigger deck.gl would keep the colours it has.
+    expect(updateTriggers).toMatchObject({ getLineColor: "speed", getLineWidth: "speed" });
+  });
 });

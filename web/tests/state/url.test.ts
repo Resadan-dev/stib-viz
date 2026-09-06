@@ -43,6 +43,12 @@ describe("readUrlState", () => {
     });
   });
 
+  it("reads the network view, and ignores one it does not know", () => {
+    expect(readUrlState("?network=speed")).toEqual({ network: "speed" });
+    expect(readUrlState("?network=runs")).toEqual({ network: "runs" });
+    expect(readUrlState("?network=delays")).toEqual({});
+  });
+
   it("ignores unknown speeds, modes and colour schemes, and odd line ids", () => {
     expect(readUrlState("?s=450&m=boat,metro&l=%3Cscript%3E&colours=neon")).toEqual({
       modes: ["metro"],
@@ -75,6 +81,13 @@ describe("writeUrlState", () => {
     );
   });
 
+  it("names the network view only when it is not the runs of the day", () => {
+    expect(writeUrlState({ ...base, network: "speed" })).toBe(
+      "?d=2026-09-09&t=17:03&s=300&network=speed&p=1",
+    );
+    expect(writeUrlState({ ...base, network: "runs" })).toBe("?d=2026-09-09&t=17:03&s=300&p=1");
+  });
+
   it("round-trips through readUrlState and applyUrlState", () => {
     const state = {
       ...base,
@@ -83,6 +96,7 @@ describe("writeUrlState", () => {
       modes: { metro: true, tram: false, bus: true, noctis: false },
       line: "N06",
       colours: "official" as const,
+      network: "speed" as const,
       camera: { latitude: 50.8, longitude: 4.4, zoom: 14 },
     };
     const back = applyUrlState(initialState("2026-01-01"), readUrlState(writeUrlState(state)));

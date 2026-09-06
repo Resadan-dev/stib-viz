@@ -6,7 +6,7 @@
  */
 
 import type { Mode, NetworkProperties, RouteInfo } from "../data/contract";
-import type { ColourScheme } from "../state/app-state";
+import type { ColourScheme, NetworkView } from "../state/app-state";
 
 export type Rgb = readonly [number, number, number];
 export type Rgba = [number, number, number, number];
@@ -24,6 +24,37 @@ export const NETWORK_ALPHA_BY_CLASS: readonly number[] = [0, 28, 50, 78, 110, 15
 export const UNDERGROUND_ALPHA_FACTOR = 0.55;
 
 export const BRUSSELS_VIEW = { longitude: 4.3517, latitude: 50.8467, zoom: 12 } as const;
+
+/** The scale of the speed view, km/h: anything slower or faster holds the colour of its end. */
+export const SPEED_SCALE_KMH: readonly [number, number] = [8, 40];
+/** Where the legend puts its numbers. */
+export const SPEED_TICKS_KMH: readonly number[] = [10, 20, 30, 40];
+/**
+ * Slow to fast: a deep magenta, an orange, a pale straw. Its luminance climbs the whole way, so
+ * the ramp reads by brightness alone for eyes that do not tell its hues apart, and the fast
+ * lines glow where the slow ones smoulder, which is what a night map should do with speed.
+ */
+export const SPEED_RAMP: readonly [Rgb, Rgb, Rgb] = [
+  [190, 30, 90],
+  [255, 150, 60],
+  [255, 245, 200],
+];
+/** A segment no run of the day could time: a neutral, dimmer than any speed. */
+export const UNKNOWN_SPEED_COLOR: Rgba = [110, 118, 140, 90];
+/** In the speed view the network is the picture rather than the background. */
+export const SPEED_ALPHA = 210;
+
+/** The colour of a speed on the ramp, held at the ends of the scale. */
+export function speedColor(kmh: number): Rgb {
+  const [slow, fast] = SPEED_SCALE_KMH;
+  const t = Math.min(1, Math.max(0, (kmh - slow) / (fast - slow)));
+  const [slowColour, midColour, fastColour] = SPEED_RAMP;
+  const [from, to, part] =
+    t < 0.5 ? [slowColour, midColour, t * 2] : [midColour, fastColour, (t - 0.5) * 2];
+  const mix = (channel: 0 | 1 | 2): number =>
+    Math.round(from[channel] + (to[channel] - from[channel]) * part);
+  return [mix(0), mix(1), mix(2)];
+}
 
 export function parseHexColor(hex: string): Rgb | undefined {
   const match = /^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
@@ -73,7 +104,22 @@ export function routeColor(
   return parseHexColor(route.color) ?? MODE_COLORS[route.mode];
 }
 
-export function networkColor(properties: Pick<NetworkProperties, "class" | "underground">): Rgba {
+export type NetworkPaint = Pick<NetworkProperties, "class" | "underground" | "speed">;
+
+/**
+ * The colour of a network segment. In the runs view, the blue-grey of the network at an alpha
+ * that rises with the daily runs, dimmer underground so the metro stays a backdrop. In the
+ * speed view, the speed on its ramp at nearly full opacity, the metro undimmed since speed is
+ * what it has to show, and a neutral for a segment the day could not time.
+ */
+export function networkColor(properties: NetworkPaint, view: NetworkView = "runs"): Rgba {
+  if (view === "speed") {
+    if (properties.speed === null) {
+      return [...UNKNOWN_SPEED_COLOR];
+    }
+    const [r, g, b] = speedColor(properties.speed);
+    return [r, g, b, SPEED_ALPHA];
+  }
   const intensity = Math.min(5, Math.max(1, Math.round(properties.class)));
   const alpha = NETWORK_ALPHA_BY_CLASS[intensity] ?? 0;
   const [r, g, b] = NETWORK_COLOR;

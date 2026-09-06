@@ -14,6 +14,8 @@ export const DEFAULT_START_TIME_S = 14400;
 export const DAY_START_TIME_S = 0;
 
 export type ColourScheme = "palette" | "official";
+/** What the network layer shows: the runs of the day, or the scheduled speed over each segment. */
+export type NetworkView = "runs" | "speed";
 export type ModeVisibility = Readonly<Record<Mode, boolean>>;
 
 export interface Camera {
@@ -28,6 +30,7 @@ export interface AppState extends PlayerState {
   /** Name of the selected line ("7", "N06"), or null when every line is shown alike. */
   readonly line: string | null;
   readonly colours: ColourScheme;
+  readonly network: NetworkView;
   readonly camera: Camera | null;
   /** Index of the selected vehicle in vehicles.json, or null. */
   readonly vehicle: number | null;
@@ -49,6 +52,7 @@ export function initialState(day: string, overrides: Partial<AppState> = {}): Ap
     modes: allModes(true),
     line: null,
     colours: "palette",
+    network: "runs",
     camera: null,
     vehicle: null,
     follow: false,

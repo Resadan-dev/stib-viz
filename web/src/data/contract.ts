@@ -79,6 +79,11 @@ export interface NetworkProperties {
   runs: number;
   class: number;
   underground: boolean;
+  /**
+   * Scheduled speed over the segment across the day, in km/h; null when no run of the day could
+   * time it. Absent from network files written before format v2, which read as unknown.
+   */
+  speed: number | null;
 }
 
 export interface NetworkFeature {
@@ -147,6 +152,18 @@ function number(fields: Fields, key: string, where: string): number {
   const value = fields[key];
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new DataError(`${where}: missing or invalid ${key}`);
+  }
+  return value;
+}
+
+/** A finite number, or null when the field is null or absent: for a value a file may not carry. */
+function nullableNumber(fields: Fields, key: string, where: string): number | null {
+  const value = fields[key];
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new DataError(`${where}: invalid ${key}`);
   }
   return value;
 }
@@ -314,6 +331,7 @@ function parseFeature(item: unknown, where: string): NetworkFeature {
       runs: number(properties, "runs", propertiesWhere),
       class: number(properties, "class", propertiesWhere),
       underground: boolean(properties, "underground", propertiesWhere),
+      speed: nullableNumber(properties, "speed", propertiesWhere),
     },
   };
 }

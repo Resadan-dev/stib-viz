@@ -93,6 +93,7 @@ export const NETWORK: Network = {
         runs: 116,
         class: 3,
         underground: false,
+        speed: 17.4,
       },
     },
     {
@@ -111,6 +112,7 @@ export const NETWORK: Network = {
         runs: 300,
         class: 5,
         underground: true,
+        speed: 31.5,
       },
     },
   ],

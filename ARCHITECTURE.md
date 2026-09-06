@@ -318,8 +318,15 @@ positions to 16 bits relative to the bounding box (see SCOPE.md section 6).
 ### 5.5 Network layer `network/<version>.json`
 
 GeoJSON of simplified stop-to-stop segments, with `mode`, `runs` (runs on a typical weekday),
-`class` (1 to 5) and `underground` (true for metro), plus a `stops` dictionary giving each
-`stop_id` its position and French name. One file per feed version, around 1 MB, long cache.
+`class` (1 to 5), `underground` (true for metro) and `speed` (the scheduled speed over the
+segment across the day in km/h, distance covered over time spent across every run of the day,
+stop time included; `null` when no run of the day separates the two stops in time), plus a
+`stops` dictionary giving each `stop_id` its position and French name. Around 1 MB, long cache.
+
+One file per feed version *and* network format, `network/<version>-v2.json`: the file is cached
+as immutable for a year, so a field added to it can only reach browsers under a name they have
+never seen. The site reads a file without `speed` as a network whose speeds are all unknown, so
+the hour during which a cached manifest may still name the older file costs nothing.
 
 ### 5.6 Stops of one hour `stops/HH.json`
 
@@ -391,7 +398,13 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
   needed.
 - A vehicle is never drawn twice: exactly one slice mounted per mode (section 6.1); a vitest check
   verifies this on the fixture day.
-- The network layer is a dark `GeoJsonLayer` beneath the vehicles; metro is dimmer still.
+- The network layer is a dark `GeoJsonLayer` beneath the vehicles; metro is dimmer still. It
+  has a second view, the speed map: each segment painted with its scheduled speed on a fixed
+  ramp from 8 to 40 km/h, magenta through orange to pale straw, at nearly full opacity and
+  wider, the metro undimmed since speed is what it has to show, and a neutral grey for a
+  segment the timetable cannot time. The ramp climbs in luminance the whole way, so it reads by
+  brightness alone. The layer keeps one id in both views and declares the view as an update
+  trigger of its accessors; the legend samples the same ramp function, so the two never drift.
 - Follow mode: while it is on and the selected vehicle has a head, every frame recentres the map
   on it with `jumpTo`; at ×300 the vehicle moves under a pixel per frame at zoom 14, so the camera
   glides. A `dragstart` from the person turns it off; stepping to a vehicle turns it on and eases
@@ -427,12 +440,13 @@ view, selected vehicle). Every change notifies the components. The URL updates o
 debounce:
 
 ```
-/?d=2026-09-09&t=17:03&s=300&m=metro,tram,noctis&l=7&colours=official&c=50.846,4.352,12.4&p=1
+/?d=2026-09-09&t=17:03&s=300&m=metro,tram,noctis&l=7&colours=official&network=speed&c=50.846,4.352,12.4&p=1
 ```
 
 The link recreates the scene exactly. Invalid values are ignored one by one. Defaults are left
 out: `m` only when a mode is hidden, `l` only with a selected line, `colours` only when official,
-`c` (latitude, longitude, zoom; bearing and pitch are accepted and ignored) once the map has moved.
+`network` only in the speed view, `c` (latitude, longitude, zoom; bearing and pitch are accepted
+and ignored) once the map has moved.
 The URL is rewritten on a 300 ms debounce and only when the query changed, so playback at ×600
 rewrites it a few times a second at most, well under the browser throttling of `replaceState`.
 
@@ -611,6 +625,8 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Vertex times at least 0.05 s apart, Float32 pushed to the next representable value when equal | 1 ms nudge | Float32 resolution near 86,400 s is 0.008 s; a 1 ms nudge collapsed and the check on written files caught it |
 | GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
 | Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
+| Speed of a segment as distance over time summed across the day | Mean or median of the per-run speeds | Scheduled times are whole minutes: one run over a 700 m segment reads as 21 or 42 km/h and nothing between, and only the ratio of sums lets that rounding average out. A run whose stops share a second is left out rather than counted as infinite or as zero |
+| Network file named by feed version and format | The same name with an optional field | The file is cached as immutable for a year; under the same name a returning visitor would have seen no speeds until the feed changed |
 | Vegetation drawn from the `landcover` layer, woods a shade above grass | Painting the `park` layer alone (M2 to M5) | In the OpenMapTiles schema `park` is nature reserves and protected areas; the green of Brussels is `landcover`. The Forêt de Soignes, the largest feature of the region, was missing, and the map read as a void wherever the city is not built |
 | Own MapLibre style over OpenFreeMap tiles | The OpenFreeMap dark or fiord styles | Full control of what is drawn: no point of interest, rare labels; the style is a tested object rather than a fetched file |
 | Layover held from the slice first, from `vehicles.json` second | Zero-length paths in the slices | Degenerate paths break rendering; the trip list is small and only read after the first frame |
@@ -669,3 +685,6 @@ To settle during implementation, each with a test behind it:
 - 6 September 2026, v1.6: the open question of section 8 answered on the developer portal. STIB
   publishes no GTFS-RT feed, so the recorder is the route; the identifier correspondence it needs
   can be built from the portal's own static datasets rather than from recordings.
+- 6 September 2026, v1.7: version 2 begins with the speed map of the network. The pipeline
+  measures the scheduled speed of every segment across the day, the network file carries it under
+  a versioned name, and the site paints it on a fixed ramp with a legend (sections 5.5, 6.3, 6.4).

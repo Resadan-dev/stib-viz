@@ -513,6 +513,51 @@ main.map {
   color: var(--accent);
 }
 
+/* --- Version 2: the speed view of the network --- */
+
+/* The slot is transparent to the layout: the legend is the grid item, and its hidden attribute
+   takes it out of the panel entirely, gap included, rather than leaving an empty row behind. */
+.panel__legend {
+  display: contents;
+}
+
+.legend {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.legend__title {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.legend__bar {
+  height: 0.5rem;
+  border-radius: 999px;
+  background-image: var(--speed-ramp);
+}
+
+.legend__ticks {
+  position: relative;
+  height: 1rem;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+.legend__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.legend__tick:last-child {
+  transform: translateX(-100%);
+}
+
 /* --- Milestone M3: selected vehicle --- */
 
 .vehicle-slot {
@@ -1109,6 +1154,12 @@ main.map {
     margin-top: 0;
   }
 
+  /* The slot is `display: contents`, so the legend itself is the grid item to place. */
+  .panel__legend > .legend {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
   .clock__time {
     font-size: 2.6rem;
   }
@@ -1123,7 +1174,8 @@ main.map {
 
   /* Folded, the bar and nothing else. Hidden with display, not with opacity, so what is out of
      sight is also out of the tab order and out of what a screen reader walks through. */
-  .panel[data-sheet="collapsed"] > *:not(.panel__clock, .panel__controls, .panel__activity),
+  .panel[data-sheet="collapsed"]
+    > *:not(.panel__clock, .panel__controls, .panel__activity, .panel__legend),
   .panel[data-sheet="collapsed"] .panel__speed,
   .panel[data-sheet="collapsed"] .reset {
     display: none;

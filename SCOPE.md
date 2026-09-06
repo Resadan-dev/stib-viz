@@ -175,6 +175,7 @@ largest slice being 1.29 MB.
 
 | Direction | Note |
 |---|---|
+| Speed map of the network | Delivered on 6 September 2026, the first piece of version 2: see section 7.2 |
 | Real-time recorder and replay of observed days | The v1 data contract is designed for it; see ARCHITECTURE.md section 8 |
 | Scheduled versus observed comparison, delay heat map | Depends on the recorder |
 | Video export of a day | The player runs on a deterministic clock; an off-screen render at a fixed frame rate is the missing piece |
@@ -311,6 +312,29 @@ could deploy a half-written week. On the site, one exception inside an animation
 loop for good and froze the map with no word of why. The document check found eighteen
 statements the code no longer backed, from a manifest example missing two mandatory keys to a
 command that fails as written; all corrected here and in ARCHITECTURE.md.
+
+### 7.2 Version 2 tasks
+
+Version 2 has no frozen scope: it is the list of section 6, taken in the order of effect for the
+work, one delivery at a time, each one documented here when it lands.
+
+**V2-1 Speed map of the network** (6 September 2026)
+
+- [x] Pipeline: scheduled speed per stop-to-stop segment across the day, distance over time
+      summed across every run, a run whose stops share a second left out; `null` when nothing
+      remains
+- [x] Data contract: `speed` on every network segment, the file renamed by format so a year of
+      immutable caching cannot keep the old one in front of a returning visitor
+- [x] Site: a second view of the network layer on a fixed ramp from 8 to 40 km/h, a legend that
+      samples the same ramp, a toggle beside the colour scheme, the view in the URL, a note in
+      the about dialog
+- [x] Tests: the formula and the synthetic day in pytest; the contract, the ramp, the layer, the
+      URL, the toggle and the legend in vitest; the toggle and an axe audit of the legend in
+      Playwright
+
+What the speed map shows is not where vehicles pass, which the runs view already draws, but how
+fast the timetable expects them to: the metro glowing at the top of the scale, the tram corridors
+that hold their speed, and the streets where the bus crawls.
 
 ## 8. Quality and method
 

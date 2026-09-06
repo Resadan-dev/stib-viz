@@ -53,12 +53,13 @@ import { createPlayer } from "./time/player";
 import { createAbout } from "./ui/about";
 import { createActivity } from "./ui/activity";
 import { createClockView } from "./ui/clock";
-import { createColourToggle } from "./ui/colours";
+import { createColourToggle, createNetworkToggle } from "./ui/colours";
 import { createPlayButton } from "./ui/controls";
 import { createCounters } from "./ui/counters";
 import { createDaySelector } from "./ui/days";
 import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
+import { createSpeedLegend } from "./ui/legend";
 import { createLinePicker } from "./ui/lines";
 import { createResetButton } from "./ui/reset";
 import { closeTopmost, createSheet } from "./ui/sheet";
@@ -151,6 +152,8 @@ interface Shell {
   counters: HTMLElement;
   filters: HTMLElement;
   appearance: HTMLElement;
+  /** The scale of the speed view, shown only while that view is on. */
+  legend: HTMLElement;
   status: HTMLElement;
   attribution: HTMLElement;
   about: HTMLElement;
@@ -184,6 +187,7 @@ function buildShell(root: HTMLElement): Shell {
   const counters = element("div", "panel__counters", panel);
   const filters = element("div", "panel__filters", panel);
   const appearance = element("div", "panel__appearance", panel);
+  const legend = element("div", "panel__legend", panel);
   const status = element("div", "panel__status", panel);
   const activity = element("div", "panel__activity", panel);
   const about = element("div", "panel__about", panel);
@@ -207,6 +211,7 @@ function buildShell(root: HTMLElement): Shell {
     counters,
     filters,
     appearance,
+    legend,
     status,
     attribution,
   };
@@ -295,6 +300,10 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const colourToggle = createColourToggle(shell.appearance, (colours) => {
     store.set({ colours });
   });
+  const networkToggle = createNetworkToggle(shell.appearance, (network) => {
+    store.set({ network });
+  });
+  const legend = createSpeedLegend(shell.legend);
   const activity = createActivity(shell.activity, day.manifest, (time) => {
     player.seek(time);
   });
@@ -339,7 +348,8 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       camera: { latitude: center.lat, longitude: center.lng, zoom: view.map.getZoom() },
     });
   });
-  const networkLayer = createNetworkLayer(network);
+  // Rebuilt when the view changes: the layer keeps its id, its accessors do not.
+  let networkLayer = createNetworkLayer(network, store.get().network);
   const stopsStore = createStopsStore(day.manifest.stops_files, (entry) =>
     source.json(day.directory + entry.path).then(parseStops),
   );
@@ -570,7 +580,13 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     filters.update(state.modes);
     linePicker.update(state.line);
     colourToggle.update(state.colours);
+    networkToggle.update(state.network);
+    legend.update(state.network);
     activity.update(state.time, state.modes);
+    if (state.network !== previous.network) {
+      networkLayer = createNetworkLayer(network, state.network);
+      renderedKey = "";
+    }
     if (state.colours !== previous.colours || state.line !== previous.line) {
       const options = colourOptions(state);
       mounted = mounted.map((item) => recolour(item, routes, options));

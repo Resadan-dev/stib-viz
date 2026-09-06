@@ -16,6 +16,7 @@ import {
   type AppState,
   type Camera,
   type ColourScheme,
+  type NetworkView,
 } from "./app-state";
 import type { Store } from "./store";
 
@@ -28,6 +29,7 @@ export interface UrlState {
   modes?: Mode[];
   line?: string;
   colours?: ColourScheme;
+  network?: NetworkView;
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -88,6 +90,10 @@ export function readUrlState(search: string): UrlState {
   if (colours === "official" || colours === "palette") {
     state.colours = colours;
   }
+  const network = params.get("network");
+  if (network === "speed" || network === "runs") {
+    state.network = network;
+  }
   const camera = params.get("c");
   if (camera !== null) {
     const parsed = parseCamera(camera);
@@ -121,6 +127,9 @@ export function writeUrlState(state: AppState): string {
   if (state.colours !== "palette") {
     pairs.push(["colours", state.colours]);
   }
+  if (state.network !== "runs") {
+    pairs.push(["network", state.network]);
+  }
   if (state.camera !== null) {
     const { latitude, longitude, zoom } = state.camera;
     pairs.push(["c", `${latitude.toFixed(4)},${longitude.toFixed(4)},${zoom.toFixed(1)}`]);
@@ -152,6 +161,7 @@ export function applyUrlState(state: AppState, url: UrlState): AppState {
     modes,
     line: url.line ?? state.line,
     colours: url.colours ?? state.colours,
+    network: url.network ?? state.network,
     camera: url.camera ?? state.camera,
   };
 }

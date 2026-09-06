@@ -106,7 +106,10 @@ def test_write_day_produces_the_documented_files(
     assert json.loads((day_dir / "manifest.json").read_text(encoding="utf-8")) == manifest
     slice_files = sorted(p.name for p in (day_dir / "slices").iterdir())
     assert slice_files == sorted(f"{s.hour:02d}-{s.mode}.bin" for s in bundle.slices)
-    assert (tmp_path / "network" / "test_2026.json").is_file()
+    # The network file carries its format in its name: it is cached as immutable for a year, so a
+    # new field can only reach browsers under a new name.
+    assert (tmp_path / "network" / "test_2026-v2.json").is_file()
+    assert not (tmp_path / "network" / "test_2026.json").exists()
     assert (tmp_path / "lookup" / "test_2026.json").is_file()
     stop_files = sorted(p.name for p in (day_dir / "stops").iterdir())
     assert stop_files == sorted({f"{s.hour:02d}.json" for s in bundle.slices})
@@ -119,7 +122,7 @@ def test_manifest_content(wednesday_state: PipelineState, tmp_path: Path) -> Non
     assert manifest["source"] == "schedule"
     assert manifest["feed_version"] == "test_2026"
     assert manifest["attribution"] == "Source: STIB-MIVB – Open Data – 2026-09-09"
-    assert manifest["network"] == "network/test_2026.json"
+    assert manifest["network"] == "network/test_2026-v2.json"
     assert manifest["totals"] == {"trips": 9, "vehicles": 6, "km": pytest.approx(20.85, abs=0.1)}
     assert manifest["peak"] == {"vehicles": 2, "minute": 185}
     for series in ("vehicles", "departures", "km"):
@@ -172,12 +175,23 @@ def test_network_file_is_geojson_with_stop_dictionary(
 ) -> None:
     bundle = _bundle(wednesday_state)
     write_day(bundle, tmp_path)
-    network = json.loads((tmp_path / "network" / "test_2026.json").read_text(encoding="utf-8"))
+    network = json.loads((tmp_path / "network" / "test_2026-v2.json").read_text(encoding="utf-8"))
     assert network["type"] == "FeatureCollection"
     assert len(network["features"]) == 7
     feature = network["features"][0]
     assert feature["geometry"]["type"] == "LineString"
-    assert set(feature["properties"]) == {"mode", "from", "to", "runs", "class", "underground"}
+    assert set(feature["properties"]) == {
+        "mode",
+        "from",
+        "to",
+        "runs",
+        "class",
+        "underground",
+        "speed",
+    }
+    # Kilometres per hour to one decimal, the scheduled speed of the day over the segment.
+    speeds = [f["properties"]["speed"] for f in network["features"]]
+    assert all(isinstance(v, float) and v == round(v, 1) and v > 0 for v in speeds)
     lon, lat = feature["geometry"]["coordinates"][0]
     assert lon == round(lon, 5) and lat == round(lat, 5)
     assert network["stops"]["S1"] == [4.35, 50.85, "Gare"]

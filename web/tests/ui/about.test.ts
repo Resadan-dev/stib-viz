@@ -37,6 +37,7 @@ describe("createAbout", () => {
     expect(text).toContain(INFO.attribution);
     expect(text).toContain("OpenFreeMap");
     expect(text).toContain(fr.sharedColoursNote);
+    expect(text).toContain(fr.speedsNote);
     expect(text).toContain(fr.shortcutsTitle);
     const links = [...(dialog?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"));
     expect(links).toContain(INFO.repositoryUrl);

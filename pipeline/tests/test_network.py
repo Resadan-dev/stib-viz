@@ -8,6 +8,7 @@ from tests.conftest import PipelineState
 from stibviz.network import (
     INTENSITY_BREAKS,
     NetworkSegment,
+    aggregate_speed_kmh,
     build_network,
     intensity_class,
     lookup_table,
@@ -55,6 +56,36 @@ def test_segments_are_one_per_stop_pair_and_mode_with_run_counts(
     assert all(s.intensity == intensity_class(s.runs) for s in segments)
     ordering = [(s.mode, s.from_stop, s.to_stop) for s in segments]
     assert ordering == sorted(ordering)
+
+
+def test_aggregate_speed_is_distance_over_time_across_every_run() -> None:
+    # A ratio of sums, not a mean of speeds: scheduled times are whole minutes, so one run over
+    # 703 m reads as 21 or 42 km/h and nothing in between; over the day the rounding averages out.
+    assert aggregate_speed_kmh([703.0, 703.0], [120.0, 120.0]) == pytest.approx(21.09, abs=0.01)
+    assert aggregate_speed_kmh([1000.0, 1000.0], [120.0, 240.0]) == pytest.approx(20.0)
+
+
+def test_aggregate_speed_leaves_out_runs_whose_stops_share_a_second() -> None:
+    # Two stops on the same scheduled second say nothing about speed; the run is left out of
+    # both sums, so it neither inflates the speed nor drags it to zero.
+    assert aggregate_speed_kmh([500.0, 500.0], [0.0, 100.0]) == pytest.approx(18.0)
+    assert aggregate_speed_kmh([500.0, 500.0], [-30.0, 100.0]) == pytest.approx(18.0)
+
+
+def test_aggregate_speed_is_unknown_when_no_run_measures_anything() -> None:
+    assert aggregate_speed_kmh([500.0], [0.0]) is None
+    assert aggregate_speed_kmh([], []) is None
+
+
+def test_segments_carry_the_scheduled_speed_of_the_day(wednesday_state: PipelineState) -> None:
+    by_key = {(s.mode, s.from_stop, s.to_stop): s for s in _segments(wednesday_state)}
+    # Six runs of 703 m in two minutes each.
+    assert by_key[("metro", "S1", "S2")].speed_kmh == pytest.approx(21.1, abs=0.3)
+    # T3 reaches S2 and S3 in the same minute and drops out of the sums; T1 dwells 30 s at S2.
+    assert by_key[("metro", "S2", "S3")].speed_kmh == pytest.approx(22.2, abs=0.3)
+    # 1112 m in three minutes for five runs, in five minutes for T3.
+    assert by_key[("metro", "S3", "S4")].speed_kmh == pytest.approx(20.0, abs=0.3)
+    assert all(s.speed_kmh is not None and s.speed_kmh > 0 for s in by_key.values())
 
 
 def test_segment_geometry_follows_the_shape_between_the_two_stops(

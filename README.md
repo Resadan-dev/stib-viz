@@ -10,7 +10,8 @@ Inspired by [france-rail-traffic](https://github.com/magrinj/france-rail-traffic
 
 **Status: version 1 complete, milestone M5 closed on 6 September 2026.** The pipeline builds a
 rolling week of service days and the site replays any of them: night map, network layer, animated vehicles, clock, day
-selector, speeds, per-mode counters and filters, line selection, official colours, vehicle panel
+selector, speeds, per-mode counters and filters, line selection, official colours, a speed map
+of the network, vehicle panel
 with stepping and follow mode, activity curve doubling as the scrubber, about panel, keyboard
 shortcuts and a shareable URL. A nightly workflow rebuilds the week and deploys it to Cloudflare
 Pages once the project and its secrets exist (see Deployment). On a phone the control panel is a
@@ -106,8 +107,8 @@ The week takes about two minutes and 260 MB. `stibviz week --today 2026-09-09` b
 around another date, `stibviz build --date 2026-09-09` a single day. Then open
 `http://localhost:5173`: the day selector lists what `web/public/data` holds. The URL carries the
 whole scene and is rewritten as you play: `d` (day), `t` (civil time `HH:MM`), `s` (speed, 60 to
-1200), `m` (visible modes), `l` (selected line), `colours` (`official`), `c` (`lat,lon,zoom`) and
-`p` (`1` playing, `0` paused). Space plays and pauses, the arrows step one minute (ten with
+1200), `m` (visible modes), `l` (selected line), `colours` (`official`), `network` (`speed`, the
+speed map of the network), `c` (`lat,lon,zoom`) and `p` (`1` playing, `0` paused). Space plays and pauses, the arrows step one minute (ten with
 Shift), the digits 1 to 5 pick a speed (×60 to ×1200) and Escape closes one thing at a time: the line
 picker, then the phone sheet, then the selected vehicle.
 

@@ -86,6 +86,8 @@ export function createAbout(parent: HTMLElement, info: AboutInfo): About {
     paragraph(fr.aboutBasemap),
     heading(fr.aboutColours),
     paragraph(fr.sharedColoursNote),
+    heading(fr.aboutSpeeds),
+    paragraph(fr.speedsNote),
     heading(fr.shortcutsTitle),
     shortcuts,
     sourceLine,

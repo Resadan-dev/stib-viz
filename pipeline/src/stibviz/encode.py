@@ -36,7 +36,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from stibviz.gtfs import FeedInfo
-from stibviz.network import INTENSITY_BREAKS, NetworkSegment
+from stibviz.network import INTENSITY_BREAKS, NETWORK_FORMAT, NetworkSegment
 from stibviz.service_day import SERVICE_DAY_START_S
 from stibviz.slicing import FIRST_HOUR, Slice, window
 from stibviz.stats import DayStats, RouteInfo
@@ -209,6 +209,7 @@ def _network_payload(bundle: DayBundle) -> dict[str, Any]:
                     "runs": segment.runs,
                     "class": segment.intensity,
                     "underground": segment.underground,
+                    "speed": None if segment.speed_kmh is None else round(segment.speed_kmh, 1),
                 },
             }
             for segment in bundle.network
@@ -274,7 +275,10 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
         stop_entries.append({"hour": hour, "path": f"stops/{name}", "bytes": size})
 
     version = bundle.feed_info.version
-    _write_json(safe_path(data_dir, "network", f"{version}.json"), _network_payload(bundle))
+    # Named by feed version and format: the file is cached as immutable for a year, so a field
+    # added to it reaches browsers only under a name they have never seen.
+    network_name = f"{version}-{NETWORK_FORMAT}.json"
+    _write_json(safe_path(data_dir, "network", network_name), _network_payload(bundle))
     _write_json(safe_path(data_dir, "lookup", f"{version}.json"), bundle.lookup)
 
     route_index = {route.route_id: i for i, route in enumerate(bundle.routes)}
@@ -301,7 +305,7 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
         "source": SOURCE_SCHEDULE,
         "feed_version": version,
         "attribution": f"Source: STIB-MIVB – Open Data – {bundle.generated_at.date().isoformat()}",
-        "network": f"network/{version}.json",
+        "network": f"network/{network_name}",
         "service_day_start_s": SERVICE_DAY_START_S,
         "totals": {
             "trips": stats.total_trips,

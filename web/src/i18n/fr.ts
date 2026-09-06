@@ -40,6 +40,8 @@ export const fr = {
   kindSunday: "dimanche",
   daysLabel: "Journées disponibles",
   officialColours: "Couleurs officielles des lignes",
+  networkSpeeds: "Vitesses du réseau",
+  legendSpeed: "Vitesse horaire d’arrêt à arrêt, en km/h",
   lineLabel: "Ligne",
   allLines: "Toutes les lignes",
   showAllLines: "Réafficher toutes les lignes",
@@ -79,6 +81,9 @@ export const fr = {
   aboutColours: "Couleurs",
   sharedColoursNote:
     "Par défaut, un blanc chaud pour le métro, un bleu pour les bus, un violet pour les Noctis et la couleur officielle pour les trams. Les couleurs officielles de la STIB sont partagées entre plusieurs lignes : deux lignes sans rapport peuvent se ressembler.",
+  aboutSpeeds: "Vitesses",
+  speedsNote:
+    "La carte des vitesses colore chaque tronçon d’arrêt à arrêt selon la vitesse moyenne de l’horaire théorique sur la journée, temps d’arrêt compris : la distance parcourue divisée par le temps prévu, toutes courses confondues. Un tronçon dont l’horaire ne sépare pas les deux arrêts reste gris.",
   shortcutsTitle: "Raccourcis clavier",
   keySpace: "Espace",
   keySpaceMeaning: "lecture ou pause",

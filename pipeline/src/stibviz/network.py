@@ -11,7 +11,7 @@ point without replaying the GTFS feed.
 from __future__ import annotations
 
 import bisect
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -27,11 +27,17 @@ from stibviz.stats import RouteInfo
 # Daily runs above each break move a segment up one intensity class (1 to 5).
 INTENSITY_BREAKS = (20, 60, 120, 240)
 NETWORK_TOLERANCE_M = 5.0
+# Part of the network file name. The file is named by feed version and cached as immutable for a
+# year, so a field added to it can only reach browsers under a new name: bump this with the format.
+NETWORK_FORMAT = "v2"
 
 
 def intensity_class(runs: int) -> int:
     """Intensity class 1 to 5 of a segment from its daily run count."""
     return 1 + bisect.bisect_left(INTENSITY_BREAKS, runs)
+
+
+SegmentKey = tuple[str, str, str]
 
 
 @dataclass(frozen=True)
@@ -44,6 +50,26 @@ class NetworkSegment:
     underground: bool
     lon: FloatArray
     lat: FloatArray
+    # Scheduled speed over the segment across the day, in km/h; None when no run measures one.
+    speed_kmh: float | None
+
+
+def aggregate_speed_kmh(lengths_m: Sequence[float], durations_s: Sequence[float]) -> float | None:
+    """Distance covered over time spent, across every run of a segment, in km/h.
+
+    A ratio of sums rather than a mean of speeds: scheduled times are whole minutes, so a single
+    run over a 700 m segment reads as 21 or 42 km/h and nothing in between, and only the sums let
+    that rounding average out over the day. A run whose two stops share the same scheduled
+    second says nothing about speed and is left out of both sums; a segment with no run left has
+    no speed at all, which the site draws as unknown rather than as zero.
+    """
+    length = 0.0
+    duration = 0.0
+    for metres, seconds in zip(lengths_m, durations_s, strict=True):
+        if seconds > 0:
+            length += metres
+            duration += seconds
+    return 3.6 * length / duration if duration > 0 else None
 
 
 def _portion(
@@ -66,20 +92,30 @@ def build_network(
     routes: Sequence[RouteInfo],
     tolerance_m: float = NETWORK_TOLERANCE_M,
 ) -> list[NetworkSegment]:
-    """One segment per (mode, from stop, to stop) served on the day, with its run count."""
+    """One segment per (mode, from stop, to stop) served on the day, with its run count and
+    the scheduled speed of the day over it."""
     mode_of_route = {route.route_id: route.mode for route in routes}
     route_of_trip = dict(zip(day.trips.trip_id, day.trips.route_id, strict=True))
-    runs: Counter[tuple[str, str, str]] = Counter()
-    geometry: dict[tuple[str, str, str], tuple[str, float, float]] = {}
-    for trip_id, (shape_id, stop_ids) in patterns.items():
+    runs: Counter[SegmentKey] = Counter()
+    geometry: dict[SegmentKey, tuple[str, float, float]] = {}
+    # Per segment, the length and scheduled duration of every run: distance over time across
+    # the day is the speed the site colours it with.
+    lengths: defaultdict[SegmentKey, list[float]] = defaultdict(list)
+    durations: defaultdict[SegmentKey, list[float]] = defaultdict(list)
+    for trip_id, rows in day.stop_times.groupby("trip_id", sort=False):
+        shape_id, stop_ids = patterns[trip_id]
         mode = mode_of_route[route_of_trip[trip_id]]
         along = projections[(shape_id, stop_ids)].along
+        arr = rows.arr.to_numpy(dtype=np.float64)
+        dep = rows.dep.to_numpy(dtype=np.float64)
         for i in range(len(stop_ids) - 1):
             if along[i + 1] <= along[i]:
                 continue  # a pinned stop: nothing to draw between the two
             key = (mode, stop_ids[i], stop_ids[i + 1])
             runs[key] += 1
             geometry.setdefault(key, (shape_id, float(along[i]), float(along[i + 1])))
+            lengths[key].append(float(along[i + 1] - along[i]))
+            durations[key].append(float(arr[i + 1] - dep[i]))
 
     segments = []
     for key in sorted(runs):
@@ -96,6 +132,7 @@ def build_network(
                 underground=mode == "metro",
                 lon=lon,
                 lat=lat,
+                speed_kmh=aggregate_speed_kmh(lengths[key], durations[key]),
             )
         )
     return segments

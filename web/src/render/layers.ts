@@ -11,6 +11,7 @@ import { TripsLayer } from "@deck.gl/geo-layers";
 import { GeoJsonLayer, ScatterplotLayer } from "@deck.gl/layers";
 
 import type { Network, NetworkFeature } from "../data/contract";
+import type { NetworkView } from "../state/app-state";
 import { networkColor, type Rgb } from "../theme/colors";
 import type { HeadBuffers, MountedSlice } from "./heads";
 
@@ -156,8 +157,19 @@ export function createSelectionLayer(
   });
 }
 
-/** The dark network beneath the vehicles; created once per day, never per frame. */
-export function createNetworkLayer(network: Network): GeoJsonLayer<NetworkFeature["properties"]> {
+/** Wider in the speed view, where the network is the picture and its colours must be read. */
+function networkWidth(underground: boolean, view: NetworkView): number {
+  if (view === "speed") {
+    return underground ? 3 : 2;
+  }
+  return underground ? 2.5 : 1.5;
+}
+
+/** The network beneath the vehicles; created once per day and once per view, never per frame. */
+export function createNetworkLayer(
+  network: Network,
+  view: NetworkView = "runs",
+): GeoJsonLayer<NetworkFeature["properties"]> {
   return new GeoJsonLayer<NetworkFeature["properties"]>({
     id: "network",
     data: network,
@@ -165,8 +177,10 @@ export function createNetworkLayer(network: Network): GeoJsonLayer<NetworkFeatur
     stroked: true,
     lineWidthUnits: "pixels",
     lineWidthMinPixels: 1,
-    getLineWidth: (feature) => (feature.properties.underground ? 2.5 : 1.5),
-    getLineColor: (feature) => networkColor(feature.properties),
+    getLineWidth: (feature) => networkWidth(feature.properties.underground, view),
+    getLineColor: (feature) => networkColor(feature.properties, view),
+    // One id for both views, so deck.gl has to be told that the accessors changed with it.
+    updateTriggers: { getLineColor: view, getLineWidth: view },
     lineCapRounded: true,
     lineJointRounded: true,
     parameters: FLAT,

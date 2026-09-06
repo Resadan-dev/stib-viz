@@ -54,7 +54,8 @@ describe("the phone sheet", () => {
     const folded = /\.panel\[data-sheet="collapsed"\][^{]*\{[^}]*display: none;/.exec(phone);
     expect(folded, "no rule hiding the rest of a folded sheet").not.toBeNull();
     const rule = folded?.[0] ?? "";
-    for (const part of ["panel__clock", "panel__controls", "panel__activity"]) {
+    // The speed legend stays too: a map read by colour needs its scale in view.
+    for (const part of ["panel__clock", "panel__controls", "panel__activity", "panel__legend"]) {
       expect(rule, `${part} must stay in the folded bar`).toContain(part);
     }
   });
