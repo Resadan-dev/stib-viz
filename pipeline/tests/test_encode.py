@@ -245,6 +245,10 @@ def test_safe_path_refuses_a_name_that_would_leave_the_data_directory(tmp_path: 
     assert safe_path(tmp_path, "network", "v1.json") == (tmp_path / "network" / "v1.json").resolve()
     # A single ".." only climbs back into the data directory, so these are the real escapes:
     # one that walks out of it, and an absolute path, which joinpath would otherwise honour.
-    for escape in ["../../escape.json", "../../../../etc/passwd", "C:/escape.json"]:
+    # The absolute one is spelled from the anchor of the temporary directory: "C:/escape.json"
+    # is a drive only on Windows, and elsewhere it is an ordinary directory named "C:" that
+    # stays inside the data directory, which is why CI on Linux saw no refusal.
+    absolute = str(Path(tmp_path.anchor, "escape.json"))
+    for escape in ["../../escape.json", "../../../../etc/passwd", absolute]:
         with pytest.raises(ValueError, match="refusing to write outside"):
             safe_path(tmp_path, "network", escape)
