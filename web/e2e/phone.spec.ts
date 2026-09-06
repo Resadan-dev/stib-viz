@@ -117,6 +117,38 @@ test("never stacks two drawers: the line picker folds the sheet", async ({ page 
   expect(box?.width).toBeCloseTo(WIDTH, 0);
 });
 
+test.describe("on the narrowest screen the scope promises", () => {
+  // SCOPE.md section 4.5 promises no horizontal scrolling from 360 px wide. The panel is the
+  // widest thing on the page, so this is where that promise is most likely to break.
+  const NARROW = 360;
+  test.use({ viewport: { width: NARROW, height: 740 } });
+
+  test("nothing overflows sideways at 360 px, folded or unfolded", async ({ page }) => {
+    await open(page);
+    const overflow = async (): Promise<string[]> =>
+      page.evaluate(
+        (width) =>
+          [...document.querySelectorAll<HTMLElement>("body, .app, .panel, .picker, .vehicle")]
+            .filter((element) => element.scrollWidth > element.clientWidth + 1)
+            .map(
+              (element) =>
+                `${element.className}: ${String(element.scrollWidth)} > ${String(width)}`,
+            ),
+        NARROW,
+      );
+    expect(await overflow()).toEqual([]);
+    await page.locator(".sheet__toggle").click();
+    await expect(page.locator(".panel")).toHaveAttribute("data-sheet", "expanded");
+    expect(await overflow()).toEqual([]);
+    await page.getByRole("button", { name: "Choisir une ligne" }).click();
+    await expect(page.locator("section.picker")).toBeVisible();
+    expect(await overflow()).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      NARROW,
+    );
+  });
+});
+
 test("passes an axe audit folded and unfolded, pointer targets included", async ({ page }) => {
   await open(page);
   await audit(page);

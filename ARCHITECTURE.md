@@ -88,7 +88,7 @@ stib-viz/
 │   │   ├── theme/                night basemap style, mode colours, reduced motion
 │   │   └── i18n/                 fr.ts, centralised UI copy
 │   ├── tests/                    vitest (jsdom for the UI), including the contract test
-│   └── e2e/                      Playwright: smoke, interface, headers, axe audit; tiles blocked
+│   └── e2e/                      Playwright: smoke, interface, phone, headers, axe; tiles blocked
 ├── .github/
 │   ├── dependabot.yml            monthly updates: actions, npm, uv
 │   └── workflows/
@@ -145,22 +145,28 @@ Blocking checks:
 2. Every trip of the day has a shape present in `shapes.txt`.
 3. Trip and vehicle counts equal a direct count of the trips whose departure falls in the span.
 4. Peak simultaneous vehicles equals a direct per-minute count.
-5. Size: at most 2.5 MB per slice, 35 MB per day including overlap; daily vertex count bounded.
+5. Size: at most 2.5 MB per slice, 35 MB per day including overlap.
 6. Every route has a colour and a label.
-7. The manifest validates against its JSON schema; every listed slice exists and no unlisted slice
-   exists.
+7. The manifest carries every key the site needs and per-minute series of 1,440 values; every
+   listed slice exists and no unlisted slice exists.
 8. Read-back of the written binaries: decoding and verification of a sample of trajectories.
 9. Recomputed cumulative distance consistent with `shape_dist_traveled` from `shapes.txt`
    (relative error under 1% per shape).
 
 Per-object anomalies:
 
-1. Stop-to-shape offset above 80 m (the global median must stay under 15 m).
-2. Stop distances not increasing along the shape.
-3. Times not increasing along a trajectory.
-4. Trip departing before 04:00, or arriving after 28:00 (truncated).
-5. Time overlap inside a `block_id`.
-6. Deadhead move detected (informational only, never counted as an anomaly).
+Seven counters are tolerated under the threshold and block the day above it:
+
+1. Stop-to-shape offset above 80 m, `stop_offset` (the global median must stay under 15 m).
+2. Stop distances not increasing along the shape, `stop_order`.
+3. Trip departing before 04:00, `dropped_before_start`; trip arriving after 28:00, truncated by
+   interpolation, `truncated_after_28h`; trip whose whole span falls outside the day,
+   `dropped_after_span`.
+4. Trip without usable stop times, `without_stop_times`.
+5. Time overlap inside a `block_id`, `block_overlap`.
+
+Two more are counted and reported but never block the day: `time_repaired`, times nudged apart
+along a trajectory so Float32 keeps them distinct, and the deadhead moves the pipeline cuts.
 
 The values measured for Wednesday 9 September 2026 (18,784 trips, 1,299 vehicles, peak of 752
 vehicles at 17:03 counted at the top of the minute, see SCOPE.md section 3) are a **manual
@@ -251,7 +257,9 @@ Budget: 300 KB at most. It carries neither geometry nor stops.
   "feed_version": "2_20_20260831_010702",
   "attribution": "Source: STIB-MIVB – Open Data – 2026-09-05",
   "network": "network/2_20_20260831_010702.json",
-  "totals": { "trips": 18784, "vehicles": 1299, "km": 164365 },
+  "service_day_start_s": 14400,
+  "totals": { "trips": 18784, "vehicles": 1299, "km": 162834 },
+  "peak": { "vehicles": 752, "minute": 783 },
   "per_minute": {
     "vehicles":   { "metro": [0, 0, "…"], "tram": ["…"], "bus": ["…"], "noctis": ["…"] },
     "departures": { "metro": [0, 0, "…"], "tram": ["…"], "bus": ["…"], "noctis": ["…"] },
@@ -267,7 +275,9 @@ Budget: 300 KB at most. It carries neither geometry nor stops.
     { "hour": 4, "mode": "metro", "path": "slices/04-metro.bin", "bytes": 81240, "vertices": 6770, "paths": 41 }
   ],
   "stops_files": [ { "hour": 4, "path": "stops/04.json", "bytes": 210400 } ],
-  "anomalies": { "stop_offset": 3, "truncated_after_28h": 0, "block_overlap": 0 }
+  "anomalies": { "stop_offset": 3, "stop_order": 0, "truncated_after_28h": 0,
+                 "dropped_before_start": 0, "dropped_after_span": 0,
+                 "without_stop_times": 0, "block_overlap": 0, "time_repaired": 0 }
 }
 ```
 
@@ -277,8 +287,9 @@ and the activity curve read straight from these series. The Wednesday manifest m
 
 `vehicles.json` lists the vehicles in the order of their index in the slices, each with its
 `block` and its `trips` (`route_idx`, `headsign`, `start`, `end` in seconds since 04:00,
-`from_layover`). About 1.7 MB for a Wednesday; the site reads it the first time a vehicle panel
-opens, not for the first frame. Trip times are enough to place the head of a vehicle during its
+`from_layover`). About 1.7 MB for a Wednesday, read once the first frame is on screen and
+not before it: the head of a vehicle between two trips is placed from it, so every session needs
+it, not only the ones that open a panel. Trip times are enough to place the head of a vehicle during its
 layover.
 
 ### 5.4 Binary slice `HH-mode.bin`
@@ -340,7 +351,7 @@ It is the only artefact the recorder will need beyond the pipeline modules.
 5. **Exactly one slice per mode is mounted at any instant.** Overlap serves prefetching and
    switching, never a double display. If the next slice is not ready when the switch is due,
    playback waits visibly rather than showing an incomplete hour.
-6. On a day change, restart from step 2.
+6. A day change reloads the page with the new URL, which already carries the whole scene.
 
 First-frame budget: manifest at most 300 KB, network layer at most 1 MB (long cache), one hour of
 slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
@@ -349,13 +360,13 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
 
 | Module | Role | Tested by |
 |---|---|---|
-| `data/` | Loading and decoding the contract files, cache and prefetch, stops on demand | vitest: decoding the fixture day produced by the pipeline (contract test), cache, prefetch order, absent slices never requested |
+| `data/` | Loading and decoding the contract files, cache and prefetch, stops on demand | vitest: decoding slices written by a second, independent encoder in the tests (contract test), cache, prefetch order, absent slices never requested; Playwright decodes the day the pipeline itself produced |
 | `time/` | Service-day clock (seconds since 04:00), variable-speed player driven by `requestAnimationFrame`, civil-time conversion, slice waiting | vitest: 90,000 s renders as 05:00 next day, speeds, pause, bounds, waiting |
 | `render/` | MapLibre map, night style, network layer, deck.gl layers, current vehicle positions, click selection | vitest for position computation, layover and single-mount uniqueness; Playwright smoke test for rendering |
 | `state/` | Single state object, subscriptions, URL read and write | vitest: URL round trip, invalid values ignored |
 | `ui/` | Framework-free DOM components: clock, selector, counters, activity curve and scrubber, filters, vehicle panel, phone sheet, about | vitest with a simulated DOM for the logic; smoke test for the assembly |
 | `theme/` | Mode colours, basemap style, visual constants | visual review |
-| `i18n/` | French UI copy | a test that checks for missing keys |
+| `i18n/` | French UI copy | a test that no value is empty and that apostrophes are typographic |
 
 ### 6.3 Rendering
 
@@ -375,7 +386,7 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
 - One `ScatterplotLayer` for vehicle heads: each frame, the current position of every active path
   comes from a binary search in its time array followed by interpolation. A vehicle in layover
   between two trips (`end` of one, `start` of the next in the manifest, same terminus) keeps the
-  end position of its last trip: the dot stays, the trail fades. Fewer than 800 points at peak,
+  end position of its last trip: the dot stays, the trail fades. About 930 points at the 17:03 peak, layovers included,
   negligible cost. This layer carries click selection; the panel then loads `stops/HH.json` if
   needed.
 - A vehicle is never drawn twice: exactly one slice mounted per mode (section 6.1); a vitest check
@@ -480,9 +491,12 @@ reaches 4.5:1 on the route colour, and take black or white otherwise. Mode filte
    80% threshold, including the contract test that decodes the fixture day.
 4. Playwright, on `pnpm build` with the fixture day: the page loads, the canvas exists, the
    clock advances during playback, the vehicles move along their routes, the URL carries the
-   scene and reads it back, the vehicle panel opens and closes, the `_headers` policy applied to
-   the preview raises no violation, and an axe audit passes on the page, the vehicle panel and
-   the about dialog, with a walk of the focus ring over every control.
+   scene and reads it back, the vehicle panel opens and closes, the phone sheet opens folded and
+   leaves the map most of a 412 px screen, the `_headers` policy applied to the preview raises no
+   violation, and an axe audit passes on the page, the vehicle panel, the about dialog, the line
+   picker and both positions of the phone sheet, with a walk of the focus ring over every
+   control. Chromium is the only engine the suite drives: the other three browsers named in
+   SCOPE.md section 4.5 are a support target, not a tested one.
 
 The workflow declares `permissions: contents: read` and checks out without persisting credentials:
 least privilege, so a compromised dependency cannot write to the repository. Every action is
@@ -612,9 +626,11 @@ To settle during implementation, each with a test behind it:
 
 - Artificial dwell time at stops: the STIB feed almost always reports zero dwell. v1 honours that;
   a `dwell_seconds` parameter stays available if the render looks too smooth.
-- Slice compression: measured at milestone M1, decision based on the gain (section 7.3).
+- Slice compression: measured at M1 and left alone. A day comes to 30.5 MB of slices against a
+  35 MB budget, the largest slice to 1.29 MB against 2.5 MB, so compressing them would buy
+  nothing v1 needs; the quantised format on the v2 list is the real answer.
 - Daylight saving: the late-March and late-October days keep 24 GTFS hours; the one-hour civil
-  offset is shown as is and documented in the about panel.
+  offset is shown as is and is called out nowhere in the interface.
 - Identifier correspondence with the real-time API: to be established in v2 against recorded data
   (section 8).
 
@@ -631,10 +647,12 @@ To settle during implementation, each with a test behind it:
   caution on identifiers.
 - 5 September 2026, v1.2: repository documentation translated to English ahead of publication;
   workflow hardened with least-privilege permissions.
-- 6 September 2026, v1.5: milestone M5 closed. Vegetation added to the night style, read from
-  the layer that actually holds it (section 6.5).
-- 6 September 2026, v1.4: the phone layout, folded into a sheet, and the Escape chain that goes
-  with it (section 6.6).
 - 6 September 2026, v1.3: the document follows the delivered code of M0 to M4 and the M5 polish:
   `stibviz week` and the whole-window rule, lines keyed by number, vehicle stepping and follow
   mode, speed ×1200, device pixel cap, reduced motion, accessibility audit, operations runbook.
+- 6 September 2026, v1.4: the phone layout, folded into a sheet, and the Escape chain that goes
+  with it (section 6.6).
+- 6 September 2026, v1.5: milestone M5 closed. Vegetation added to the night style, read from the
+  layer that actually holds it (section 6.5); the final review corrected what this document
+  claimed about the checks, the manifest, the vitest coverage and the daylight-saving note, and
+  closed three failures that nobody would have seen (sections 4.3, 5.3, 6.2, 7.1, 10).

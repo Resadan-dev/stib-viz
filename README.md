@@ -8,13 +8,13 @@ the open data published on the Belgian Mobility portal.
 
 Inspired by [france-rail-traffic](https://github.com/magrinj/france-rail-traffic).
 
-**Status: milestone M5 (polish) in progress.** The pipeline builds a rolling week of service
-days and the site replays any of them: night map, network layer, animated vehicles, clock, day
+**Status: version 1 complete, milestone M5 closed on 6 September 2026.** The pipeline builds a
+rolling week of service days and the site replays any of them: night map, network layer, animated vehicles, clock, day
 selector, speeds, per-mode counters and filters, line selection, official colours, vehicle panel
 with stepping and follow mode, activity curve doubling as the scrubber, about panel, keyboard
 shortcuts and a shareable URL. A nightly workflow rebuilds the week and deploys it to Cloudflare
-Pages once the project and its secrets exist (see Deployment). Accessibility and performance are
-done; the night style still has to be tuned on the real render before the final review.
+Pages once the project and its secrets exist (see Deployment). On a phone the control panel is a
+sheet folded at the bottom of the screen, so the map keeps most of it.
 
 ## Documents
 
@@ -65,8 +65,8 @@ npx --yes pnpm@10 build
 
 With pnpm available (`corepack enable`, or a direct install), `pnpm install`, `pnpm lint`,
 `pnpm typecheck`, `pnpm test` and `pnpm build` are enough. `pnpm dev` starts the development
-server. `pnpm e2e` runs the Playwright suites against the built site: smoke, interface, response
-headers and an axe accessibility audit (see Running the site for the data they expect).
+server. `pnpm e2e` runs the Playwright suites against the built site: smoke, interface, the
+phone layout, response headers and an axe accessibility audit (see Running the site for the data they expect).
 
 ## Building one day
 
@@ -108,7 +108,8 @@ around another date, `stibviz build --date 2026-09-09` a single day. Then open
 whole scene and is rewritten as you play: `d` (day), `t` (civil time `HH:MM`), `s` (speed, 60 to
 1200), `m` (visible modes), `l` (selected line), `colours` (`official`), `c` (`lat,lon,zoom`) and
 `p` (`1` playing, `0` paused). Space plays and pauses, the arrows step one minute (ten with
-Shift), the digits 1 to 5 pick a speed (×60 to ×1200) and Escape closes the vehicle panel.
+Shift), the digits 1 to 5 pick a speed (×60 to ×1200) and Escape closes one thing at a time: the line
+picker, then the phone sheet, then the selected vehicle.
 
 The Playwright suites run on the **fixture day** in `web/public/data`: the three-route extract
 of 11 September 2026, the only data continuous integration ever has. With the real week in place,
@@ -125,8 +126,9 @@ Once, `pnpm e2e:install` downloads the browser; then `pnpm build` and `pnpm e2e`
 ## Deployment
 
 The `Nightly` workflow (`.github/workflows/nightly.yml`) runs twice a day: it downloads the feed,
-plans which days of the rolling week are missing from the published site, builds them, builds the
-site and deploys it with wrangler. Without Cloudflare credentials it builds and tests but skips the
+compares the rolling week with what the site publishes and rebuilds the whole window when
+anything is missing, since a deployment replaces the site, then builds and deploys it with
+wrangler. Without Cloudflare credentials it builds and tests but skips the
 deployment, so a fork works out of the box. To publish, once:
 
 1. Create a Cloudflare Pages project with direct upload, for example named `stib-viz`, with `main`

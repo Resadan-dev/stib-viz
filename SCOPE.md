@@ -3,7 +3,8 @@
 Status: scope frozen on 5 September 2026, after an exploration phase
 ([docs/01-exploration.md](docs/01-exploration.md)) and ten framing questions; adjusted the same
 day after an architecture review (playback speeds, budgets, anomaly policy); widened on
-6 September to a phone layout, which the milestone list had left for version 2.
+6 September to a phone layout, which the milestone list had left for version 2. Version 1 is
+complete: the last milestone, M5, closed on 6 September 2026 (section 7.1).
 The companion technical document is [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 1. Vision
@@ -149,7 +150,8 @@ largest slice being 1.29 MB.
 - Budgets: first frame under 4 MB of site-owned data excluding tiles, meaning a manifest of at
   most 300 KB, a network layer of at most 1 MB and one hour of slices of at most 2.5 MB; at most
   35 MB per day including overlap; 60 frames per second at peak on a 2020 laptop. The vehicle
-  list (about 1.7 MB) is read after the first frame, when the panel first opens.
+  list (about 1.7 MB) is read once the first frame is on screen, by every session: the head of a
+  vehicle between two trips is placed from it.
 - Accessibility: keyboard controls, visible focus states, colour never the sole carrier of meaning
   (filters carry their names), playback starting paused when `prefers-reduced-motion` is set.
 
@@ -293,7 +295,22 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
       the line picker as a full-width sheet, 44 px targets, safe areas (asked for on
       6 September)
 - [x] Documentation: README, about panel, `docs/` runbook, v2 list up to date
-- [ ] Final review
+- [x] Final review
+
+Closed on 6 September 2026. The review ran on three fronts, none of which a person could have
+done by reading the diff of the day: a security sweep of the whole tree and its history before
+the repository is made public, which found nothing to fix; a hunt for failures that would go
+unseen, since nobody watches either the nightly run or a browser tab; and a check of every
+concrete claim in this document, ARCHITECTURE.md, the README and the runbook against the code
+that is supposed to back it.
+
+The hunt found three, all closed. A day failing in a way the code had not foreseen took the whole
+run with it, discarding the days that had already built. The workflow then counted built days by
+grepping a report that a crashed run never wrote, and an empty count read as a yes, so a crash
+could deploy a half-written week. On the site, one exception inside an animation frame ended the
+loop for good and froze the map with no word of why. The document check found eighteen
+statements the code no longer backed, from a manifest example missing two mandatory keys to a
+command that fails as written; all corrected here and in ARCHITECTURE.md.
 
 ## 8. Quality and method
 
@@ -310,7 +327,8 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
 
 - Code: MIT licence, same as the reference. See [LICENSE](LICENSE).
 - Data: CC BY 4.0. Mandatory credit, in the about panel and the footer:
-  "Source: STIB-MIVB – Open Data – [GTFS date]", with a link to Belgian Mobility Company.
+  "Source: STIB-MIVB – Open Data – [date the day was built]", with a link to Belgian Mobility
+  Company. The version of the feed itself is named in the about panel.
 - Basemap: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap".
 - Libraries: MapLibre GL JS (BSD), deck.gl (MIT).
 
@@ -324,7 +342,7 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
 | Service day crossing midnight | 04:00 → 04:00 span by construction |
 | Feed format change | Strict input validation, explicit failure, day excluded |
 | OpenFreeMap unavailable | The network layer keeps the map readable on its own; self-hosting in v2 |
-| Continuous integration minutes | One run per night, under ten minutes, early exit when the feed has not changed |
+| Continuous integration minutes | Two scheduled runs a day, under ten minutes each, early exit when the feed has not changed |
 
 ## 11. Glossary
 

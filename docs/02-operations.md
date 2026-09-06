@@ -49,7 +49,8 @@ peak, slices, bytes and seconds. A run that had nothing to do prints
 **The fetch failed.** The Belgian Mobility portal is unreachable or answered an error. The site
 keeps the days it has. The 10:45 run retries; dispatch the workflow by hand once the portal is
 back. Nothing to fix in the repository unless the feed URL moved, in which case
-`DEFAULT_GTFS_URL` in `pipeline/src/stibviz/cli.py` follows it, with its test.
+`DEFAULT_GTFS_URL` in `pipeline/src/stibviz/cli.py` follows it. No test pins the value: the
+fetch tests each pass their own URL, so there is nothing else to update.
 
 **One day failed.** The report line names the blocking check. Reproduce it locally, from
 `pipeline/`, with the same feed:
