@@ -151,10 +151,11 @@ planned rotation only.
 |---|---|---|
 | Seven days of data | 20,000 files and 25 MB per file on Cloudflare Pages | 651 files, none above 3 MB, 260 MB on disk (6 September 2026) |
 | One day in the pipeline | under 60 s | 15 to 25 s on a laptop, a weekday being the heaviest |
-| The week in Actions | under 8 minutes for the seven days | 2 minutes 06 for the seven days, 2 minutes 30 for the whole run (6 September 2026) |
+| The week in Actions | under 8 minutes for the seven days | 1 minute 23 for the seven days, 2 minutes 34 for the whole run including the deployment (first live run, 6 September 2026) |
+| The deployment itself | no target | 37 seconds for the site and its data |
 | A run with nothing to do | stop within a minute | not observed yet: it needs the published index, hence a live `SITE_URL` |
 | Actions minutes | two runs a day | about 5 minutes a day while every run rebuilds, less once the index is published; a public repository is not charged for standard runners |
 | Deployed site | one hashed bundle per engine | maplibre and deck in their own chunks, about 460 KB gzipped, application chunk under 10 KB |
 
-The M4 checklist keeps "budgets verified on a real week" open until a week of nightly runs has
-confirmed these figures on the live project; record them here when it has.
+These come from the first live run, which built the whole window and deployed it. Update them
+here when a figure moves; the M4 checklist counts them as verified.

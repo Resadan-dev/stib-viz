@@ -4,6 +4,8 @@ A night-time map of Brussels where you watch, minute by minute, every STIB metro
 according to the scheduled timetable of one service day. A static site, rebuilt every night from
 the open data published on the Belgian Mobility portal.
 
+**Live at [stib-viz.pages.dev](https://stib-viz.pages.dev/).**
+
 Inspired by [france-rail-traffic](https://github.com/magrinj/france-rail-traffic).
 
 **Status: milestone M5 (polish) in progress.** The pipeline builds a rolling week of service

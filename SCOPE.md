@@ -271,8 +271,8 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
       deployment, deferred exit code, report kept fourteen days
 - [x] Cloudflare Pages `_headers`: cache rules and security headers, the Content-Security-Policy
       exercised by a Playwright test
-- [ ] Cloudflare Pages project, GitHub secrets and variables created (by hand, see README)
-- [ ] Budgets verified on a real week: size, pipeline duration, CI minutes
+- [x] Cloudflare Pages project, GitHub secrets and variables created (by hand, see README)
+- [x] Budgets verified on a real week: size, pipeline duration, CI minutes
 
 **M5 Polish**
 
