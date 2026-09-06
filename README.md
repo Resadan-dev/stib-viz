@@ -84,26 +84,36 @@ a blocking check. `cache/` and `dist/` are ignored by git.
 
 ## Running the site
 
-The site reads its data from `web/public/data`, which git ignores. Build a day into it, then start
-the development server:
+The site reads its data from `web/public/data`, which git ignores. From `pipeline/`, build the
+rolling week (yesterday to five days ahead) into it with one command, then start the development
+server:
 
 ```bash
-uv run stibviz build --gtfs ../cache/gtfs.zip --date 2026-09-09 --out ../web/public/data
+uv run stibviz week --gtfs ../cache/gtfs.zip --out ../web/public/data
 ```
 
 ```bash
 cd ../web && npx --yes pnpm@10 dev
 ```
 
-Then open `http://localhost:5173/?d=2026-09-09&t=17:03`. The URL carries the whole scene and is
+The week takes about two minutes and 200 MB. `stibviz week --today 2026-09-09` builds the week
+around another date, `stibviz build --date 2026-09-09` a single day. Then open
+`http://localhost:5173`: the day selector lists what `web/public/data` holds. The URL carries the whole scene and is
 rewritten as you play: `d` (day), `t` (civil time `HH:MM`), `s` (speed, 60 to 600), `m` (visible
 modes), `l` (selected line), `colours` (`official`), `c` (`lat,lon,zoom`) and `p` (`1` playing,
 `0` paused). Space plays and pauses, the arrows step one minute (ten with Shift), the digits 1 to
 4 pick a speed and Escape closes the vehicle panel.
 
-The Playwright smoke tests run against the built site with the fixture day in `web/public/data`
-(build it from `pipeline/tests/fixtures/gtfs-extract/gtfs.zip` for 2026-09-11). Once,
-`pnpm e2e:install` downloads the browser; then `pnpm build` and `pnpm e2e`.
+The Playwright smoke tests expect the **fixture day** in `web/public/data`: the three-route
+extract of 11 September 2026, the only data continuous integration ever has. If the real week is
+there, the tests for that date fail. Swap the fixture in from `pipeline/`, run the tests, and build
+the week again afterwards:
+
+```bash
+uv run stibviz build --gtfs tests/fixtures/gtfs-extract/gtfs.zip --date 2026-09-11 --out ../web/public/data
+```
+
+Once, `pnpm e2e:install` downloads the browser; then `pnpm build` and `pnpm e2e` from `web/`.
 
 ## Deployment
 

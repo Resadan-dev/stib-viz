@@ -229,6 +229,9 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
     Shared files (network layer, lookup table) are named by feed version.
     """
     day_dir = data_dir / bundle.date.isoformat()
+    # An older build of the same day may hold slices the new one does not list; start clean.
+    if day_dir.exists():
+        shutil.rmtree(day_dir)
     if day_dir.exists():
         shutil.rmtree(day_dir)
     (day_dir / "slices").mkdir(parents=True)

@@ -226,3 +226,15 @@ def test_times_too_close_for_float32_stay_strictly_increasing() -> None:
     )
     decoded = decode_slice(encode_slice(Slice(hour=19, mode="bus", paths=(path,))))
     assert np.all(np.diff(decoded.times) > 0)
+
+
+def test_write_day_replaces_an_older_build_of_the_same_day(
+    wednesday_state: PipelineState, tmp_path: Path
+) -> None:
+    bundle = _bundle(wednesday_state)
+    write_day(bundle, tmp_path)
+    stale = tmp_path / bundle.date.isoformat() / "slices" / "99-bus.bin"
+    stale.write_bytes(b"stale")
+    write_day(bundle, tmp_path)
+    assert not stale.exists()
+    assert (tmp_path / bundle.date.isoformat() / "manifest.json").is_file()

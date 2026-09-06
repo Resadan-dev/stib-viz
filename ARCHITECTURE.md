@@ -453,13 +453,14 @@ window, the second catches a feed published late. A run that has nothing to do s
 
 1. `stibviz fetch` with the ETag cache kept between runs by `actions/cache`; then the published
    `index.json` is read from the live site.
-2. `stibviz plan` lists the days of the window (yesterday to five days ahead) that the feed
-   covers, unless the site already publishes every one of them for this feed version, in which
-   case the plan is empty and the run ends. The whole window is rebuilt as soon as one day is
-   missing, because a deployment replaces the site and a partial build would lose the others.
-3. `.github/scripts/build-days.sh` runs `stibviz build` (which checks what it wrote) for each day,
-   independently: a failing day is set aside and reported, the others are still written; then
-   `stibviz index` over the valid days only.
+2. `stibviz week` plans the window (yesterday to five days ahead, within the feed validity):
+   nothing when the site already publishes every covered day for this feed version, the whole
+   window otherwise, because a deployment replaces the site and a partial build would lose the
+   other days.
+3. The same command then builds each day independently, checking what it wrote: a failing day is
+   set aside and reported, the others are still written; stale days outside the window are
+   removed and `index.json` lists the valid days only. Its exit code says whether a day failed.
+   `stibviz plan` still exists to see the window without building it.
 4. `pnpm build` with the data in `web/public/data`, so `dist/` holds the site and its data.
 5. `wrangler pages deploy` to the Cloudflare Pages project, production branch `main`, only when
    the Cloudflare secrets exist and at least one day was built: a fork builds without deploying,

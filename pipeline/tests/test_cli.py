@@ -155,3 +155,79 @@ def test_plan_with_an_unreadable_published_index_builds_everything(
     captured = capsys.readouterr()
     assert len(captured.out.split()) == 7
     assert "unreadable" in captured.err
+
+
+# The synthetic feed carries deliberate anomalies; one of them is far above 0.1% of ten trips.
+WEEK = ["week", "--anomaly-tolerance", "1", "--gtfs"]
+
+
+def test_week_builds_the_window_and_indexes_only_the_window(
+    sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "data"
+    stale = out / "2026-09-01"
+    stale.mkdir(parents=True)
+    (stale / "manifest.json").write_text("{}", encoding="utf-8")
+    report = tmp_path / "report.txt"
+    args = [*WEEK, str(sample_gtfs_zip), "--out", str(out), "--today", "2026-09-09"]
+    assert main([*args, "--report", str(report)]) == 0
+    index = json.loads((out / "index.json").read_text(encoding="utf-8"))
+    assert [d["date"] for d in index["days"]] == [f"2026-09-{day:02d}" for day in range(8, 15)]
+    assert not stale.exists()
+    lines = report.read_text(encoding="utf-8").splitlines()
+    assert lines.count("2026-09-09: built") == 1
+    assert lines[-1] == "built: 7, failed: 0, skipped: 0"
+    assert "built: 7" in capsys.readouterr().out
+
+
+def test_week_is_a_no_op_when_the_site_is_up_to_date(
+    sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    published = tmp_path / "index.json"
+    days = [{"date": f"2026-09-{day:02d}"} for day in range(8, 15)]
+    published.write_text(json.dumps({"feed_version": "test_2026", "days": days}), encoding="utf-8")
+    out = tmp_path / "data"
+    args = [*WEEK, str(sample_gtfs_zip), "--out", str(out), "--today", "2026-09-09"]
+    assert main([*args, "--published", str(published)]) == 0
+    assert not out.exists()
+    assert "up to date" in capsys.readouterr().err
+
+
+def test_week_sets_a_failing_day_aside_and_fails_last(
+    sample_gtfs_zip: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import stibviz.cli as cli
+
+    real_build = cli.build_day
+
+    def flaky(feed, date, **kwargs):  # type: ignore[no-untyped-def]
+        if date.isoformat() == "2026-09-10":
+            raise cli.ShapeError("simulated shape failure")
+        return real_build(feed, date, **kwargs)
+
+    monkeypatch.setattr(cli, "build_day", flaky)
+    out = tmp_path / "data"
+    report = tmp_path / "report.txt"
+    args = [*WEEK, str(sample_gtfs_zip), "--out", str(out), "--today", "2026-09-09"]
+    assert main([*args, "--days-after", "2", "--report", str(report)]) == 1
+    index = json.loads((out / "index.json").read_text(encoding="utf-8"))
+    assert [d["date"] for d in index["days"]] == ["2026-09-08", "2026-09-09", "2026-09-11"]
+    assert not (out / "2026-09-10").exists()
+    lines = report.read_text(encoding="utf-8").splitlines()
+    assert "2026-09-10: FAILED simulated shape failure" in lines
+    assert lines[-1] == "built: 3, failed: 1, skipped: 0"
+    assert "2026-09-10" in capsys.readouterr().err
+
+
+def test_week_skips_days_outside_the_feed(
+    sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "data"
+    args = [*WEEK, str(sample_gtfs_zip), "--out", str(out), "--today", "2026-09-26"]
+    assert main(args) == 0
+    index = json.loads((out / "index.json").read_text(encoding="utf-8"))
+    assert [d["date"] for d in index["days"]] == ["2026-09-25", "2026-09-26", "2026-09-27"]
+    assert "skipped: 4" in capsys.readouterr().out

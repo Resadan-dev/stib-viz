@@ -56,36 +56,30 @@ jobs:
             curl -fsS --max-time 30 "$SITE_URL/data/index.json" -o published.json || echo "no published index yet"
           fi
         working-directory: pipeline
-      - name: Plan the days to build
-        id: plan
-        run: |
-          uv run stibviz plan --gtfs cache/gtfs.zip --published published.json > days.txt
-          echo "count=$(grep -c . days.txt || true)" >> "$GITHUB_OUTPUT"
-          cat days.txt
-        working-directory: pipeline
-      - name: Build each day and the index
-        id: build
-        if: steps.plan.outputs.count != '0'
-        # Days build independently; the exit code is kept for the last step so that the valid
-        # days still reach the site when one of them fails.
+      - name: Build the week
+        id: week
+        # Nothing is built when the feed is unchanged and every day is published. Days build
+        # independently; the exit code is kept for the last step so that the valid days still
+        # reach the site when one of them fails.
         run: |
           set +e
-          bash ../.github/scripts/build-days.sh cache/gtfs.zip "$DATA_DIR" "$REPORT" < days.txt
+          uv run stibviz week --gtfs cache/gtfs.zip --out "$DATA_DIR" --published published.json --report "$REPORT"
           echo "status=$?" >> "$GITHUB_OUTPUT"
           echo "built=$(grep -c ': built$' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
+          echo "failed=$(grep -c ': FAILED' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
         working-directory: pipeline
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
-        if: steps.plan.outputs.count != '0'
+        if: steps.week.outputs.built != '0'
         with:
           package_json_file: web/package.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        if: steps.plan.outputs.count != '0'
+        if: steps.week.outputs.built != '0'
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - name: Build the site with the data
-        if: steps.plan.outputs.count != '0'
+        if: steps.week.outputs.built != '0'
         run: |
           pnpm install --frozen-lockfile
           pnpm build
@@ -93,21 +87,21 @@ jobs:
         working-directory: web
       - name: Deploy to Cloudflare Pages
         # Never replace the live site with an empty one: at least one day must have been built.
-        if: steps.plan.outputs.count != '0' && steps.build.outputs.built != '0' && env.HAS_CLOUDFLARE == 'true'
+        if: steps.week.outputs.built != '0' && env.HAS_CLOUDFLARE == 'true'
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy web/dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=main --commit-dirty=true
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always() && steps.plan.outputs.count != '0'
+        if: always()
         with:
           name: nightly-report
           path: nightly-report.txt
           retention-days: 14
           if-no-files-found: ignore
       - name: Fail if a day failed
-        if: steps.plan.outputs.count != '0' && steps.build.outputs.status != '0'
+        if: steps.week.outputs.failed != '0'
         run: |
           cat "$REPORT"
           exit 1
