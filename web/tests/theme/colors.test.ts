@@ -90,11 +90,28 @@ function luminance([r, g, b]: readonly [number, number, number]): number {
 }
 
 describe("speedColor", () => {
-  it("grows brighter with speed, so the ramp reads without its hues", () => {
+  it("grows brighter at every step of the scale, so the ramp reads without its hues", () => {
     const [slow, fast] = SPEED_SCALE_KMH;
-    const steps = [slow, (slow + fast) / 2, fast].map((kmh) => luminance(speedColor(kmh)));
-    expect(steps[0]).toBeLessThan(steps[1] ?? 0);
-    expect(steps[1]).toBeLessThan(steps[2] ?? 0);
+    const steps = Array.from({ length: 33 }, (_, i) =>
+      luminance(speedColor(slow + ((fast - slow) * i) / 32)),
+    );
+    steps.forEach((step, i) => {
+      if (i > 0) {
+        expect(step, `luminance falls at step ${String(i)}`).toBeGreaterThan(steps[i - 1] ?? 0);
+      }
+    });
+    // Wide enough that the slow end sinks into the night ground and the fast end glows on it.
+    expect(steps[0]).toBeLessThan(60);
+    expect(steps[steps.length - 1]).toBeGreaterThan(200);
+  });
+
+  it("spends its ramp on the network it describes, not on the tail of the metro", () => {
+    // Measured on the feed of 31 August 2026: half the segments of a weekday sit between these.
+    const [slow, fast] = SPEED_SCALE_KMH;
+    const at = (kmh: number): number => (kmh - slow) / (fast - slow);
+    expect(at(14)).toBeGreaterThan(0.1);
+    expect(at(20)).toBeLessThan(0.7);
+    expect(at(20) - at(14)).toBeGreaterThan(0.25);
   });
 
   it("holds its ends beyond the scale rather than inventing colours", () => {

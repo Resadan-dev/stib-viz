@@ -13,7 +13,7 @@ export interface SpeedLegend {
  */
 function gradient(): string {
   const [slow, fast] = SPEED_SCALE_KMH;
-  const stops = [0, 0.25, 0.5, 0.75, 1].map((t) => {
+  const stops = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1].map((t) => {
     const [r, g, b] = speedColor(slow + t * (fast - slow));
     return `rgb(${String(r)}, ${String(g)}, ${String(b)}) ${String(t * 100)}%`;
   });

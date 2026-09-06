@@ -25,19 +25,32 @@ export const UNDERGROUND_ALPHA_FACTOR = 0.55;
 
 export const BRUSSELS_VIEW = { longitude: 4.3517, latitude: 50.8467, zoom: 12 } as const;
 
-/** The scale of the speed view, km/h: anything slower or faster holds the colour of its end. */
-export const SPEED_SCALE_KMH: readonly [number, number] = [8, 40];
-/** Where the legend puts its numbers. */
-export const SPEED_TICKS_KMH: readonly number[] = [10, 20, 30, 40];
 /**
- * Slow to fast: a deep magenta, an orange, a pale straw. Its luminance climbs the whole way, so
- * the ramp reads by brightness alone for eyes that do not tell its hues apart, and the fast
- * lines glow where the slow ones smoulder, which is what a night map should do with speed.
+ * The scale of the speed view, km/h: anything slower or faster holds the colour of its end.
+ *
+ * Cut to the network it describes rather than to round numbers. Measured on the feed of
+ * 31 August 2026, the 2,989 segments of a weekday run from 2 to 79 km/h, but half of them sit
+ * between 14 and 20, and nine in ten below 25: a scale of 8 to 40 spent two thirds of its ramp
+ * on a tenth of the network and painted the rest one shade of rose. From 10 to 28 the middle
+ * half spreads across a third of the ramp and the metro clips at the bright end, which is the
+ * true reading: it is not on the same scale as the rest. Worth re-measuring if the timetable
+ * ever shifts by more than a few km/h.
  */
-export const SPEED_RAMP: readonly [Rgb, Rgb, Rgb] = [
-  [190, 30, 90],
-  [255, 150, 60],
-  [255, 245, 200],
+export const SPEED_SCALE_KMH: readonly [number, number] = [10, 28];
+/** Where the legend puts its numbers. */
+export const SPEED_TICKS_KMH: readonly number[] = [10, 16, 22, 28];
+/**
+ * Slow to fast, on a night ground: a deep indigo, violet, red, orange, a pale straw. Luminance
+ * climbs the whole way and starts low, so the slow parts of the city sink back into the night
+ * while the fast ones glow, and the ramp still reads by brightness alone for eyes that do not
+ * tell its hues apart.
+ */
+export const SPEED_RAMP: readonly Rgb[] = [
+  [58, 24, 96],
+  [124, 30, 110],
+  [200, 55, 80],
+  [246, 140, 55],
+  [255, 246, 205],
 ];
 /** A segment no run of the day could time: a neutral, dimmer than any speed. */
 export const UNKNOWN_SPEED_COLOR: Rgba = [110, 118, 140, 90];
@@ -48,9 +61,11 @@ export const SPEED_ALPHA = 210;
 export function speedColor(kmh: number): Rgb {
   const [slow, fast] = SPEED_SCALE_KMH;
   const t = Math.min(1, Math.max(0, (kmh - slow) / (fast - slow)));
-  const [slowColour, midColour, fastColour] = SPEED_RAMP;
-  const [from, to, part] =
-    t < 0.5 ? [slowColour, midColour, t * 2] : [midColour, fastColour, (t - 0.5) * 2];
+  const last = SPEED_RAMP.length - 1;
+  const step = Math.min(last - 1, Math.floor(t * last));
+  const from = SPEED_RAMP[step] ?? [0, 0, 0];
+  const to = SPEED_RAMP[step + 1] ?? from;
+  const part = t * last - step;
   const mix = (channel: 0 | 1 | 2): number =>
     Math.round(from[channel] + (to[channel] - from[channel]) * part);
   return [mix(0), mix(1), mix(2)];

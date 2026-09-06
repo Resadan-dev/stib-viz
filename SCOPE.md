@@ -325,16 +325,17 @@ work, one delivery at a time, each one documented here when it lands.
       remains
 - [x] Data contract: `speed` on every network segment, the file renamed by format so a year of
       immutable caching cannot keep the old one in front of a returning visitor
-- [x] Site: a second view of the network layer on a fixed ramp from 8 to 40 km/h, a legend that
-      samples the same ramp, a toggle beside the colour scheme, the view in the URL, a note in
-      the about dialog
+- [x] Site: a second view of the network layer on a fixed ramp from 10 to 28 km/h, cut to the
+      measured spread of the network rather than to round numbers, a legend that samples the same
+      ramp, a toggle beside the colour scheme, the view in the URL, a note in the about dialog
 - [x] Tests: the formula and the synthetic day in pytest; the contract, the ramp, the layer, the
       URL, the toggle and the legend in vitest; the toggle and an axe audit of the legend in
       Playwright
 
 What the speed map shows is not where vehicles pass, which the runs view already draws, but how
-fast the timetable expects them to: the metro glowing at the top of the scale, the tram corridors
-that hold their speed, and the streets where the bus crawls.
+fast the timetable expects them to: the centre in deep violet where everything crawls, the outer
+radials warming through red and orange, and the metro tunnels glowing straight across the city on
+a scale of their own.
 
 ## 8. Quality and method
 

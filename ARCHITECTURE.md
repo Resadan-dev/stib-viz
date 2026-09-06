@@ -400,11 +400,15 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
   verifies this on the fixture day.
 - The network layer is a dark `GeoJsonLayer` beneath the vehicles; metro is dimmer still. It
   has a second view, the speed map: each segment painted with its scheduled speed on a fixed
-  ramp from 8 to 40 km/h, magenta through orange to pale straw, at nearly full opacity and
-  wider, the metro undimmed since speed is what it has to show, and a neutral grey for a
-  segment the timetable cannot time. The ramp climbs in luminance the whole way, so it reads by
-  brightness alone. The layer keeps one id in both views and declares the view as an update
-  trigger of its accessors; the legend samples the same ramp function, so the two never drift.
+  ramp from 10 to 28 km/h, indigo through violet and red to a pale straw, at nearly full opacity
+  and wider, the metro undimmed since speed is what it has to show, and a neutral grey for a
+  segment the timetable cannot time. The ramp climbs in luminance the whole way and starts low,
+  so it reads by brightness alone and the slow parts of the city sink back into the night. The
+  scale is cut to the network rather than to round numbers: on the feed of 31 August 2026 half
+  the segments of a weekday sit between 14 and 20 km/h and nine in ten below 25, so a wider
+  scale spends most of its ramp on the tail of the metro and paints the rest one flat shade. The
+  layer keeps one id in both views and declares the view as an update trigger of its accessors;
+  the legend samples the same ramp function, so the two never drift.
 - Follow mode: while it is on and the selected vehicle has a head, every frame recentres the map
   on it with `jumpTo`; at ×300 the vehicle moves under a pixel per frame at zoom 14, so the camera
   glides. A `dragstart` from the person turns it off; stepping to a vehicle turns it on and eases
@@ -625,6 +629,7 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Vertex times at least 0.05 s apart, Float32 pushed to the next representable value when equal | 1 ms nudge | Float32 resolution near 86,400 s is 0.008 s; a 1 ms nudge collapsed and the check on written files caught it |
 | GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
 | Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
+| Speed scale cut to the measured spread of the network, 10 to 28 km/h | A round 8 to 40, covering every segment | Half the segments of a weekday sit between 14 and 20 km/h: the wider scale spent two thirds of its ramp on the tenth of the network that is metro and painted the whole surface network one shade of rose. Clipping the metro at the bright end is the true reading, since it is not on the same scale as the rest |
 | Speed of a segment as distance over time summed across the day | Mean or median of the per-run speeds | Scheduled times are whole minutes: one run over a 700 m segment reads as 21 or 42 km/h and nothing between, and only the ratio of sums lets that rounding average out. A run whose stops share a second is left out rather than counted as infinite or as zero |
 | Network file named by feed version and format | The same name with an optional field | The file is cached as immutable for a year; under the same name a returning visitor would have seen no speeds until the feed changed |
 | Vegetation drawn from the `landcover` layer, woods a shade above grass | Painting the `park` layer alone (M2 to M5) | In the OpenMapTiles schema `park` is nature reserves and protected areas; the green of Brussels is `landcover`. The Forêt de Soignes, the largest feature of the region, was missing, and the map read as a void wherever the city is not built |
