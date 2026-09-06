@@ -163,6 +163,19 @@ def _day_kind(date: dt.date) -> str:
     return "weekday"
 
 
+def safe_path(root: Path, *parts: str) -> Path:
+    """A path under ``root``. Raises :class:`ValueError` for any part that would escape it.
+
+    The feed version reaches file names from `feed_info.txt`, which the pipeline does not write.
+    `gtfs.py` already refuses a version that is not one safe segment; this is the second lock,
+    so a future caller cannot reintroduce the hole by taking another value from the feed.
+    """
+    candidate = root.joinpath(*parts).resolve()
+    if not candidate.is_relative_to(root.resolve()):
+        raise ValueError(f"refusing to write outside {root}: {'/'.join(parts)!r}")
+    return candidate
+
+
 def _write_json(path: Path, payload: Any) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
@@ -261,8 +274,8 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
         stop_entries.append({"hour": hour, "path": f"stops/{name}", "bytes": size})
 
     version = bundle.feed_info.version
-    _write_json(data_dir / "network" / f"{version}.json", _network_payload(bundle))
-    _write_json(data_dir / "lookup" / f"{version}.json", bundle.lookup)
+    _write_json(safe_path(data_dir, "network", f"{version}.json"), _network_payload(bundle))
+    _write_json(safe_path(data_dir, "lookup", f"{version}.json"), bundle.lookup)
 
     route_index = {route.route_id: i for i, route in enumerate(bundle.routes)}
     vehicles = [

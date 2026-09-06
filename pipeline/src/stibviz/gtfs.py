@@ -196,6 +196,22 @@ def _to_date(text: str, what: str) -> dt.date:
         raise GtfsError(f"{what}: malformed date {text!r}, expected YYYYMMDD") from exc
 
 
+# The feed version names the files the pipeline writes, so it has to be one safe path segment.
+# Anything else is refused rather than rewritten: the version travels into the manifest and into
+# the URLs the site fetches, so quietly changing it would be worse than failing the build.
+FEED_VERSION_RE = re.compile(r"[A-Za-z0-9._-]{1,64}")
+
+
+def _feed_version(text: str) -> str:
+    version = text.strip() or "unknown"
+    if version in {".", ".."} or FEED_VERSION_RE.fullmatch(version) is None:
+        raise GtfsError(
+            f"feed_info.txt: feed_version {version!r} cannot name a file; "
+            "expected letters, digits, dot, dash or underscore"
+        )
+    return version
+
+
 def _feed_info(
     feed_info: pd.DataFrame, calendar: pd.DataFrame, calendar_dates: pd.DataFrame
 ) -> FeedInfo:
@@ -203,7 +219,7 @@ def _feed_info(
     start = end = ""
     if not feed_info.empty:
         row = feed_info.iloc[0]
-        version = row["feed_version"].strip() or "unknown"
+        version = _feed_version(row["feed_version"])
         start, end = row["feed_start_date"], row["feed_end_date"]
     if start and end:
         return FeedInfo(version, _to_date(start, "feed_info.txt"), _to_date(end, "feed_info.txt"))

@@ -17,6 +17,7 @@ from stibviz.encode import (
     DayBundle,
     decode_slice,
     encode_slice,
+    safe_path,
     write_day,
     write_index,
 )
@@ -238,3 +239,12 @@ def test_write_day_replaces_an_older_build_of_the_same_day(
     write_day(bundle, tmp_path)
     assert not stale.exists()
     assert (tmp_path / bundle.date.isoformat() / "manifest.json").is_file()
+
+
+def test_safe_path_refuses_a_name_that_would_leave_the_data_directory(tmp_path: Path) -> None:
+    assert safe_path(tmp_path, "network", "v1.json") == (tmp_path / "network" / "v1.json").resolve()
+    # A single ".." only climbs back into the data directory, so these are the real escapes:
+    # one that walks out of it, and an absolute path, which joinpath would otherwise honour.
+    for escape in ["../../escape.json", "../../../../etc/passwd", "C:/escape.json"]:
+        with pytest.raises(ValueError, match="refusing to write outside"):
+            safe_path(tmp_path, "network", escape)

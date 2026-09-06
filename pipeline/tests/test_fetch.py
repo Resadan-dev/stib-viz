@@ -11,7 +11,14 @@ from pathlib import Path
 import pytest
 from tests.conftest import SAMPLE_TABLES, gtfs_zip_bytes
 
-from stibviz.fetch import FetchError, FetchResult, fetch_gtfs
+from stibviz import fetch as fetch_module
+from stibviz.fetch import (
+    FetchError,
+    FetchResult,
+    fetch_gtfs,
+    uncompressed_size,
+    validate_archive,
+)
 
 URL = "https://example.invalid/gtfs.zip"
 
@@ -109,3 +116,19 @@ def test_a_rejected_download_does_not_clobber_the_previous_file(
     with pytest.raises(FetchError):
         fetch_gtfs(URL, tmp_path, transport=FakeServer(b"broken", etag='"v2"'))
     assert (tmp_path / "gtfs.zip").read_bytes() == body
+
+
+def test_the_expanded_size_is_measured_rather_than_taken_from_the_archive(body: bytes) -> None:
+    # The per-member sizes are the archive's own word; a crafted feed can under-report them.
+    archive = zipfile.ZipFile(io.BytesIO(body))
+    with pytest.raises(FetchError, match="expands"):
+        uncompressed_size(archive, 10)
+    assert uncompressed_size(archive, 10_000_000) > 10
+
+
+def test_a_download_beyond_the_size_cap_is_refused(
+    monkeypatch: pytest.MonkeyPatch, body: bytes
+) -> None:
+    monkeypatch.setattr(fetch_module, "MAX_DOWNLOAD_BYTES", 10)
+    with pytest.raises(FetchError, match="larger than"):
+        validate_archive(body)

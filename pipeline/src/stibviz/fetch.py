@@ -28,6 +28,9 @@ USER_AGENT = "stib-viz pipeline (+https://github.com/Resadan-dev/stib-viz)"
 TIMEOUT_S = 120
 # A GTFS archive for one city is tens of megabytes uncompressed; anything near this is not one.
 MAX_UNCOMPRESSED_BYTES = 2_000_000_000
+# The compressed download itself; the STIB feed is about fifteen megabytes.
+MAX_DOWNLOAD_BYTES = 200_000_000
+READ_CHUNK_BYTES = 1 << 20
 
 Transport = Callable[[str, dict[str, str]], tuple[int, dict[str, str], bytes]]
 
@@ -45,8 +48,29 @@ class FetchResult:
     changed: bool
 
 
+def uncompressed_size(archive: zipfile.ZipFile, limit: int) -> int:
+    """Bytes the archive really produces, stopping as soon as it goes past ``limit``.
+
+    The per-member sizes recorded in a zip are the archive's own word. A crafted feed can
+    under-report them and still balloon once the tables are read, so the bytes are counted while
+    decompressing, a chunk at a time, and nothing is kept.
+    """
+    total = 0
+    for member in archive.infolist():
+        if member.is_dir():
+            continue
+        with archive.open(member) as handle:
+            while chunk := handle.read(READ_CHUNK_BYTES):
+                total += len(chunk)
+                if total > limit:
+                    raise FetchError(f"archive expands past {limit} bytes, more than allowed")
+    return total
+
+
 def validate_archive(body: bytes) -> None:
     """Raise :class:`FetchError` unless ``body`` is a safe, complete GTFS zip."""
+    if len(body) > MAX_DOWNLOAD_BYTES:
+        raise FetchError(f"the download is larger than {MAX_DOWNLOAD_BYTES} bytes")
     try:
         archive = zipfile.ZipFile(io.BytesIO(body))
     except zipfile.BadZipFile as exc:
@@ -61,16 +85,18 @@ def validate_archive(body: bytes) -> None:
         missing = sorted(set(REQUIRED_FILES) - names)
         if missing:
             raise FetchError(f"archive is missing {', '.join(missing)}")
-        total = sum(m.file_size for m in members)
-        if total > MAX_UNCOMPRESSED_BYTES:
-            raise FetchError(f"archive expands to {total} bytes, more than allowed")
+        uncompressed_size(archive, MAX_UNCOMPRESSED_BYTES)
 
 
 def _urllib_transport(url: str, headers: dict[str, str]) -> tuple[int, dict[str, str], bytes]:
     request = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT_S) as response:
-            return response.status, dict(response.headers), response.read()
+            # Bounded read: a body without a length, or with a lying one, cannot fill memory.
+            body = response.read(MAX_DOWNLOAD_BYTES + 1)
+            if len(body) > MAX_DOWNLOAD_BYTES:
+                raise FetchError(f"the download is larger than {MAX_DOWNLOAD_BYTES} bytes")
+            return response.status, dict(response.headers), body
     except urllib.error.HTTPError as exc:
         # 304 Not Modified arrives here as an "error"; so do real failures.
         return exc.code, dict(exc.headers), b""

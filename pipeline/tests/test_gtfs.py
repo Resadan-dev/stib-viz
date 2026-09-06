@@ -129,3 +129,41 @@ def test_malformed_calendar_date_is_reported(tmp_path: Path) -> None:
 def test_missing_source_path_is_reported(tmp_path: Path) -> None:
     with pytest.raises(GtfsError, match="not found"):
         load_feed(tmp_path / "nowhere.zip")
+
+
+@pytest.mark.parametrize(
+    "version",
+    [
+        "../../../../etc/passwd",
+        r"..\..\windows",
+        "network/../../escape",
+        "..",
+        ".",
+        "with space",
+        "quote'd",
+    ],
+)
+def test_feed_version_that_could_escape_a_directory_is_rejected(
+    tmp_path: Path, version: str
+) -> None:
+    # The version names files the pipeline writes, so it must be usable as one path segment.
+    tables = dict(SAMPLE_TABLES)
+    tables["feed_info.txt"] = (
+        "feed_publisher_name,feed_publisher_url,feed_lang,feed_version,"
+        "feed_start_date,feed_end_date\n"
+        f"Test,https://example.org,fr,{version},20260831,20260927\n"
+    )
+    path = write_gtfs_zip(tmp_path / "bad.zip", tables)
+    with pytest.raises(GtfsError, match="feed_version"):
+        load_feed(path)
+
+
+def test_feed_version_keeps_the_characters_a_real_feed_uses(tmp_path: Path) -> None:
+    tables = dict(SAMPLE_TABLES)
+    tables["feed_info.txt"] = (
+        "feed_publisher_name,feed_publisher_url,feed_lang,feed_version,"
+        "feed_start_date,feed_end_date\n"
+        "Test,https://example.org,fr,2_20_20260831_010702-extract,20260831,20260927\n"
+    )
+    path = write_gtfs_zip(tmp_path / "good.zip", tables)
+    assert load_feed(path).info.version == "2_20_20260831_010702-extract"
