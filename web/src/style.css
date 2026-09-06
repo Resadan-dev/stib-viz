@@ -57,7 +57,7 @@ main.map {
   z-index: 10;
   display: grid;
   gap: 0.9rem;
-  width: min(20rem, calc(100vw - 2.5rem));
+  width: min(22rem, calc(100vw - 2.5rem));
   padding: 1.1rem 1.25rem 0.9rem;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
@@ -87,6 +87,7 @@ main.map {
 
 .clock {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.7rem;
 }
@@ -184,6 +185,13 @@ main.map {
   .clock__time {
     font-size: 2.4rem;
   }
+
+  /* A phone panel is narrower than the desktop one, so the speed buttons give back some padding
+     rather than push a horizontal scrollbar. */
+  .speeds__button {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.75rem;
+  }
 }
 
 /* --- Milestone M3: controls, counters, filters --- */
@@ -209,8 +217,11 @@ main.map {
   gap: 0.6rem;
 }
 
+/* The clock and this row are the only ones that cannot reflow on their own. Both may wrap, so a
+   panel narrower than its content grows taller instead of scrolling sideways. */
 .speeds {
   display: inline-flex;
+  flex-wrap: wrap;
   border: 1px solid var(--panel-border);
   border-radius: 999px;
   overflow: hidden;
@@ -563,8 +574,10 @@ main.map {
 
 /* --- Milestone M3: activity curve and scrubber, about dialog, small screens --- */
 
+/* Only as much reserve as the panel's own offsets: any more and it scrolls with empty space
+   below it. Wide enough, too, that the row of five speed buttons never wraps or overflows. */
 .panel {
-  max-height: calc(100vh - 8.5rem);
+  max-height: calc(100vh - 2.5rem);
   overflow-y: auto;
 }
 
