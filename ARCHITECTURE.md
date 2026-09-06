@@ -82,7 +82,7 @@ stib-viz/
 │   │   ├── render/               MapLibre map, deck.gl layers, current positions, selection,
 │   │   │                         device pixel cap
 │   │   ├── ui/                   clock, day selector, counters, activity curve and scrubber,
-│   │   │                         filters, line field, stepper, colours, vehicle panel, about,
+│   │   │                         filters, line picker, stepper, colours, vehicle panel, about,
 │   │   │                         keyboard shortcuts
 │   │   ├── state/                single state object and URL synchronisation
 │   │   ├── theme/                night basemap style, mode colours, reduced motion
@@ -438,13 +438,15 @@ rewrites it a few times a second at most, well under the browser throttling of `
 ### 6.6 Accessibility and keyboard
 
 Space: play and pause. Arrow keys: one minute; with Shift: ten minutes. One digit per speed, 1 to
-5: ×60, ×120, ×300, ×600, ×1200. Every button has a label and a visible focus state. When the
-visitor prefers reduced motion the page starts paused and the camera jumps instead of gliding.
+5: ×60, ×120, ×300, ×600, ×1200. Escape closes the line picker when it is open, the selected
+vehicle otherwise. Every button has a label and a visible focus state. When the visitor prefers
+reduced motion the page starts paused and the camera jumps instead of gliding.
 
 The palette is held to WCAG 2.2 AA by a unit test that reads the tokens out of `style.css` and
 measures each against the panel background; the smoke suite runs an axe audit of the page, of the
-vehicle panel and of the about dialog, and walks every control to check it takes focus with a
-visible ring. Mode filters are pills rather than bare checkboxes so their pointer targets keep the
+vehicle panel, of the about dialog and of the line picker, and walks every control to check it
+takes focus with a visible ring. Route badges keep the text colour of the feed only when it
+reaches 4.5:1 on the route colour, and take black or white otherwise. Mode filters are pills rather than bare checkboxes so their pointer targets keep the
 24 pixels of clearance success criterion 2.5.8 asks for.
 
 ## 7. Integration and deployment
@@ -573,7 +575,8 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Scrubber as a native range input over the SVG curve | Pointer handling on the SVG | Click, drag, keyboard and screen readers for free; the curve is decoration |
 | About panel as a `<dialog>` element | A hand-made overlay | Focus trap, Escape and backdrop come from the browser |
 | Stops fetched on the first selection within the hour | Loaded with the slices | About 700 KB per hour that most sessions never need |
-| Line chosen in a text field with a native datalist | A select with 73 options | Typing the number people know is faster than scrolling; suggestions and validation come from the browser; no white native list over the night map |
+| Line chosen from a grid of official badges in a non-modal picker, one tab per mode, bottom right | A text field with a native datalist (M3 to M5), a select with 73 options | The badges are what the STIB site shows and what people recognise; the picker stays open to compare lines and keeps the choice when closed; no white native list over the night map |
+| Badge ink kept from the feed only when it reaches 4.5:1, else black or white | The feed's text colour as is | STIB writes white on its orange, red and green; a third of the lines would fail the audit and be hard to read at badge size |
 | Vehicles of a line stepped through with two buttons, follow mode on the camera | Clicking heads only | Heads are a few pixels wide among hundreds; stepping never misses, and the follow mode is what the stepping is for. A manual drag ends it |
 | Picking radius of 6 px around heads | deck.gl default of 0 | Clicking a three-pixel dot in a dense area is otherwise a matter of luck |
 | Day change reloads the page with the new URL | Swapping the day in place | The URL already carries the whole scene; a reload is a two-line restart with no state to invalidate, for a one-second blink |

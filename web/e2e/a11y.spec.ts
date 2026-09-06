@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
  * Automated accessibility audit of the whole page with axe-core, plus the keyboard and
@@ -48,11 +48,9 @@ test("the vehicle panel and the about dialog pass an axe audit", async ({ page }
   await audit(page);
 });
 
-test("every control is reachable by keyboard with a visible focus ring", async ({ page }) => {
-  await open(page);
-  const controls = page.locator(".panel button, .panel input, .panel select, .vehicle-slot button");
+async function expectFocusRings(controls: Locator, atLeast: number): Promise<void> {
   const count = await controls.count();
-  expect(count).toBeGreaterThan(15);
+  expect(count).toBeGreaterThan(atLeast);
   for (let i = 0; i < count; i += 1) {
     const control = controls.nth(i);
     await control.focus();
@@ -63,6 +61,24 @@ test("every control is reachable by keyboard with a visible focus ring", async (
       "0px",
     );
   }
+}
+
+test("every control is reachable by keyboard with a visible focus ring", async ({ page }) => {
+  await open(page);
+  await expectFocusRings(
+    page.locator(".panel button, .panel input, .panel select, .vehicle-slot button"),
+    15,
+  );
+});
+
+test("the line picker passes an axe audit and every badge has a focus ring", async ({ page }) => {
+  await open(page);
+  await page.getByRole("button", { name: "Choisir une ligne" }).click();
+  const picker = page.locator("section.picker");
+  await expect(picker).toBeVisible();
+  // The badges wear the official colours, with the ink chosen to keep 4.5:1 on each of them.
+  await audit(page);
+  await expectFocusRings(picker.locator("button"), 3);
 });
 
 test("playback starts paused when the visitor prefers reduced motion", async ({ browser }) => {

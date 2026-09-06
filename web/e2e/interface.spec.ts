@@ -30,14 +30,17 @@ test("writes speed, filters, colours, line and instant back to the URL", async (
   await page.getByRole("button", { name: "Couleurs officielles des lignes" }).click();
   await expect.poll(() => param(page, "colours")).toBe("official");
 
-  await page.getByLabel("Ligne", { exact: true }).fill("7");
-  await page.getByLabel("Ligne", { exact: true }).press("Enter");
+  await page.getByRole("button", { name: "Choisir une ligne" }).click();
+  const picker = page.locator("section.picker");
+  await expect(picker).toBeVisible();
+  await picker.getByRole("button", { name: "7", exact: true }).click();
   await expect.poll(() => param(page, "l")).toBe("7");
-  // Selecting a tram line shows trams again.
+  // Selecting a tram line shows trams again; the picker stays open until it is closed.
   await expect(page.getByLabel("Tram")).toBeChecked();
+  await expect(picker).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(picker).toBeHidden();
 
-  // Focus is in the line field, which owns the arrow keys: leave it first.
-  await page.getByLabel("Ligne", { exact: true }).blur();
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => param(page, "t")).toBe("08:01");
   await expect(page.locator("time.clock__time")).toHaveText("08:01");
@@ -49,10 +52,13 @@ test("reads the same state back from the URL", async ({ page }) => {
   await page.goto(`/?d=${DAY}&t=08:30&s=120&m=metro&l=1&colours=official&p=0`);
   await page.waitForFunction(() => window.stibviz?.ready() === true);
   await expect(page.locator("time.clock__time")).toHaveText("08:30");
-  await expect(page.getByRole("button", { name: "×120" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "×120", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   await expect(page.getByLabel("Tram")).not.toBeChecked();
   await expect(page.getByLabel("Métro")).toBeChecked();
-  await expect(page.getByLabel("Ligne", { exact: true })).toHaveValue("1");
+  await expect(page.locator(".lines__trigger .badge")).toHaveText("1");
   await expect(
     page.getByRole("button", { name: "Couleurs officielles des lignes" }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -82,8 +88,8 @@ test("steps through the vehicles of the selected line and follows the chosen one
   page,
 }) => {
   await openPaused(page);
-  await page.getByLabel("Ligne", { exact: true }).fill("7");
-  await page.getByLabel("Ligne", { exact: true }).press("Enter");
+  await page.getByRole("button", { name: "Choisir une ligne" }).click();
+  await page.locator("section.picker").getByRole("button", { name: "7", exact: true }).click();
   const next = page.getByRole("button", { name: "Véhicule suivant" });
   await expect(next).toBeEnabled();
   await expect(page.locator(".stepper__count")).toHaveText(/– \/ [1-9]\d*/);
@@ -95,9 +101,11 @@ test("steps through the vehicles of the selected line and follows the chosen one
   await expect(page.locator(".stepper__count")).toHaveText(/1 \/ [1-9]\d*/);
   await next.click();
   await expect(page.locator(".stepper__count")).toHaveText(/2 \/ [1-9]\d*/);
-  await page.getByLabel("Ligne", { exact: true }).fill("999");
-  await page.getByLabel("Ligne", { exact: true }).press("Enter");
-  await expect(page.getByLabel("Ligne", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  // Every line back, from the panel button: the stepper has nothing left to walk through.
+  await page.locator(".panel").getByRole("button", { name: "Toutes les lignes" }).click();
+  await expect.poll(() => param(page, "l")).toBeNull();
+  await expect(next).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Choisir une ligne" })).toBeVisible();
 });
 
 test("scrubs the day from the activity range and explains itself in the about dialog", async ({

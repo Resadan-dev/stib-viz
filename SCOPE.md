@@ -114,9 +114,12 @@ largest slice being 1.29 MB.
 - Clock, date and day type (weekday, Saturday, Sunday), selector for the seven days.
 - Per-mode counters: vehicles running, trips departed since 04:00, kilometres.
 - Per-mode filters (show or hide metro, tram, bus, Noctis).
-- Single-line selection: a line number typed and confirmed, with every line offered as a
-  suggestion while typing. Every other vehicle dims, the chosen line stays at full opacity; nothing
-  is hidden, so context is kept, and clearing the selection restores normal colours.
+- Single-line selection: a picker in the bottom right corner of the map, translucent and not
+  modal, lists every line of the day as a badge in its official colours with one tab per mode,
+  the way the STIB site presents its network; a badge in the control panel shows the choice. The
+  picker stays open while lines are compared, keeps the choice when closed, and one button brings
+  every line back. Every other vehicle dims, the chosen line stays at full opacity; nothing is
+  hidden, so context is kept, and clearing the selection restores normal colours.
 - With a line selected, previous and next buttons step through its vehicles on the map, for
   people who find the dots too small to click; stepping centres the map on the vehicle and turns
   on a follow mode that keeps the camera on it during playback, until the map is dragged by hand.
@@ -163,7 +166,7 @@ largest slice being 1.29 MB.
 | Real-time recorder and replay of observed days | The v1 data contract is designed for it; see ARCHITECTURE.md section 8 |
 | Scheduled versus observed comparison, delay heat map | Depends on the recorder |
 | Video export of a day | The player runs on a deterministic clock; an off-screen render at a fixed frame rate is the missing piece |
-| Several lines selected at once | The single-line field keeps the dimming rule simple; a list of lines needs a legend |
+| Several lines selected at once | The single-line picker keeps the dimming rule simple; a list of lines needs a legend |
 | Dutch and English UI | Copy is already centralised in v1 |
 | Self-hosted basemap (Protomaps / PMTiles) | Removes the last external dependency |
 | Mobile as a first-class target | 5 to 10 m tolerance, shorter slices, testing on phones |
@@ -273,6 +276,8 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
 - [ ] Night style: mode colours tuned on the real render, basemap adjusted
 - [x] Performance: device pixels capped at 1.5, measured at the peak on desktop and on a phone
 - [x] Accessibility: focus, keyboard, `prefers-reduced-motion`, axe audit in the smoke suite
+- [x] Line picker: badges in official colours, one tab per mode, translucent non-modal dialog
+      in the bottom right corner, replacing the text field (asked for on 6 September)
 - [x] Documentation: README, about panel, `docs/` runbook, v2 list up to date
 - [ ] Final review
 

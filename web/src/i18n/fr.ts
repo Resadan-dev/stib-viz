@@ -40,9 +40,11 @@ export const fr = {
   officialColours: "Couleurs officielles des lignes",
   lineLabel: "Ligne",
   allLines: "Toutes les lignes",
-  linePlaceholder: "ex. 7",
-  lineApply: "Afficher",
-  unknownLine: "Ligne inconnue",
+  chooseLine: "Choisir une ligne",
+  changeLine: "changer de ligne",
+  pickerModes: "Filtrer par mode",
+  pickerAll: "Tous",
+  pickerLines: "Lignes",
   stepperLabel: "Véhicules de la ligne",
   previousVehicle: "Véhicule précédent",
   nextVehicle: "Véhicule suivant",
@@ -74,7 +76,7 @@ export const fr = {
   keyDigits: "1 à 5",
   keyDigitsMeaning: "vitesse ×60, ×120, ×300, ×600, ×1200",
   keyEscape: "Échap",
-  keyEscapeMeaning: "fermer la sélection",
+  keyEscapeMeaning: "fermer le sélecteur de ligne, puis la sélection",
   aboutSource: "Code source sur GitHub",
 } as const;
 

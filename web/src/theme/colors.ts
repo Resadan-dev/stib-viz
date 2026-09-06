@@ -79,3 +79,23 @@ export function networkColor(properties: Pick<NetworkProperties, "class" | "unde
   const [r, g, b] = NETWORK_COLOR;
   return [r, g, b, properties.underground ? Math.round(alpha * UNDERGROUND_ALPHA_FACTOR) : alpha];
 }
+
+/** The contrast a badge's number must keep on its route colour: WCAG AA for normal text. */
+export const MIN_BADGE_CONTRAST = 4.5;
+
+/**
+ * Ink of a route badge: the text colour the feed gives when it reads on the route colour, else
+ * black or white, whichever reads better. STIB writes white on its orange, red and green lines,
+ * which the badges of the site would not pass an audit with.
+ */
+export function badgeInk(route: Pick<RouteInfo, "color" | "text_color">): string {
+  if (parseHexColor(route.color) === undefined || parseHexColor(route.text_color) === undefined) {
+    return route.text_color;
+  }
+  if (contrastRatio(route.text_color, route.color) >= MIN_BADGE_CONTRAST) {
+    return route.text_color;
+  }
+  return contrastRatio("000000", route.color) >= contrastRatio("FFFFFF", route.color)
+    ? "000000"
+    : "FFFFFF";
+}

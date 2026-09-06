@@ -1,5 +1,6 @@
 import { fr, modeLabel } from "../i18n/fr";
 import type { VehicleDescription } from "../render/selection";
+import { badgeInk } from "../theme/colors";
 import { formatClock } from "../time/clock";
 
 export interface VehiclePanel {
@@ -66,7 +67,7 @@ export function createVehiclePanel(
       if (route !== null) {
         badge.textContent = route.name;
         badge.style.backgroundColor = `#${route.color}`;
-        badge.style.color = `#${route.text_color}`;
+        badge.style.color = `#${badgeInk(route)}`;
         mode.textContent = modeLabel(route.mode);
       } else {
         mode.textContent = "";

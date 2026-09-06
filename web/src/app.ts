@@ -54,7 +54,7 @@ import { createCounters } from "./ui/counters";
 import { createDaySelector } from "./ui/days";
 import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
-import { createLineField } from "./ui/lines";
+import { createLinePicker } from "./ui/lines";
 import { createSpeedControl } from "./ui/speed";
 import { createStatusView } from "./ui/status";
 import { createVehicleStepper } from "./ui/stepper";
@@ -145,6 +145,7 @@ interface Shell {
   attribution: HTMLElement;
   about: HTMLElement;
   vehicle: HTMLElement;
+  picker: HTMLElement;
   activity: HTMLElement;
 }
 
@@ -172,9 +173,11 @@ function buildShell(root: HTMLElement): Shell {
   const about = element("div", "panel__about", panel);
   const attribution = element("footer", "panel__attribution", panel);
   const vehicle = element("div", "vehicle-slot", root);
+  const picker = element("div", "picker-slot", root);
   return {
     about,
     vehicle,
+    picker,
     activity,
     map,
     date,
@@ -235,7 +238,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const filters = createFilters(shell.filters, (mode, visible) => {
     store.set({ modes: { ...store.get().modes, [mode]: visible } });
   });
-  const lineSelect = createLineField(shell.appearance, routes, (line) => {
+  const linePicker = createLinePicker(shell.appearance, shell.picker, routes, (line) => {
     // Selecting a line shows its mode again: a hidden selection would be a puzzle.
     const route = routes.find((candidate) => candidate.name === line);
     const modes =
@@ -279,6 +282,11 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       player.setSpeed(speed);
     },
     escape: () => {
+      // The picker goes first; the selected vehicle only on a second press.
+      if (linePicker.isOpen()) {
+        linePicker.close();
+        return;
+      }
       store.set({ vehicle: null, follow: false });
     },
   });
@@ -511,7 +519,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     speedControl.update(state.speed);
     counters.update(state.time, state.modes);
     filters.update(state.modes);
-    lineSelect.update(state.line);
+    linePicker.update(state.line);
     colourToggle.update(state.colours);
     activity.update(state.time, state.modes);
     if (state.colours !== previous.colours || state.line !== previous.line) {
