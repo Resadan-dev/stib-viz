@@ -553,15 +553,15 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 - **Contract unchanged.** A recorded day is a `2026-09-09-live/` directory with `source:
   "recorded"` in `index.json` and in its manifest. The site offers a "scheduled / observed" choice
   when both exist for a date.
-- **To check first: a GTFS-RT feed may exist for STIB.** The Belgian Mobility portal catalogue
-  announces, for STIB-MIVB, a GTFS-RT feed with two components (trip updates, service alerts)
-  every 30 s; the knowledge base on the same portal states the opposite ("STIB-MIVB does not
-  produce GTFS-RT feeds") and publishes URLs only for De Lijn, TEC and SNCB. Probed without an
-  account on 5 September 2026, the real-time feed host does not even resolve in DNS: the question
-  is open. Settle it as soon as the developer account exists, before writing the converter: a
-  GTFS-RT feed would give delays per stop and per trip directly, with the trip identity, removing
-  the need to reconstruct vehicle identity as VehiclePositions requires below. If it exists, it
-  replaces the recorder described next; otherwise the VehiclePositions route remains the fallback.
+- **Settled on 6 September 2026: STIB publishes no GTFS-RT feed.** The catalogue of the Belgian
+  Mobility portal announced one for STIB-MIVB, with two components (trip updates, service alerts)
+  every 30 s, while the knowledge base on the same portal stated the opposite and published URLs
+  only for De Lijn, TEC and SNCB; probed without an account on 5 September 2026, the real-time
+  host did not even resolve in DNS. The developer portal answers it: STIB-MIVB offers
+  `/api/gtfs/feed/stibmivb/static` and no realtime sibling. What it does publish live is its own
+  three datasets, `VehiclePositions`, `WaitingTimes` and `TravellersInformation`. So the recorder
+  below is the route rather than a fallback, and vehicle identity has to be reconstructed: there
+  is no feed carrying the trip identity for free.
 - **Separate recorder.** A minimal service polls the VehiclePositions API every fifteen to twenty
   seconds with a "standard" key (12,000 requests per day allowed, 5,760 used) and archives the raw
   timestamped responses. Candidates: a Cloudflare Worker scheduled every minute issuing four spaced
@@ -577,7 +577,16 @@ None of this is built in v1; all of it is prepared so nothing breaks.
   suffixes and variants must be verified against recorded data. API `lineid` values match
   `route_short_name` for the routes seen on 5 September 2026; a possible tram prefix ("T81") and
   the reported absence of Noctis on the API side are known cases to handle: a recorded day may
-  lack a mode entirely and must say so.
+  lack a mode entirely and must say so. The portal publishes two static datasets that carry the
+  API's own identifiers, `stopDetails` and `stopsByLine`: the correspondence can therefore be
+  built and tested cold, before a single snapshot is recorded, rather than inferred from whatever
+  the recorder happens to return. That was the largest unknown of this section and it is now a
+  comparison of two tables.
+
+- **A cheaper first step than trajectories.** `WaitingTimes` answers per stop with the passages it
+  expects there, which is scheduled against observed without reconstructing any vehicle. It cannot
+  cover the network: 12,000 requests a day against 2,784 stops. A chosen corridor fits easily, and
+  proves the comparison is worth building before the recorder exists.
 
 ## 9. Decision log
 
@@ -631,8 +640,9 @@ To settle during implementation, each with a test behind it:
   nothing v1 needs; the quantised format on the v2 list is the real answer.
 - Daylight saving: the late-March and late-October days keep 24 GTFS hours; the one-hour civil
   offset is shown as is and is called out nowhere in the interface.
-- Identifier correspondence with the real-time API: to be established in v2 against recorded data
-  (section 8).
+- Identifier correspondence with the real-time API: still to establish in v2, but from the
+  portal's `stopDetails` and `stopsByLine` datasets rather than from recorded data, which
+  takes the guesswork out of it (section 8).
 
 ## 11. History
 
@@ -656,3 +666,6 @@ To settle during implementation, each with a test behind it:
   layer that actually holds it (section 6.5); the final review corrected what this document
   claimed about the checks, the manifest, the vitest coverage and the daylight-saving note, and
   closed three failures that nobody would have seen (sections 4.3, 5.3, 6.2, 7.1, 10).
+- 6 September 2026, v1.6: the open question of section 8 answered on the developer portal. STIB
+  publishes no GTFS-RT feed, so the recorder is the route; the identifier correspondence it needs
+  can be built from the portal's own static datasets rather than from recordings.
