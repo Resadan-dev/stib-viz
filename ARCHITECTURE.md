@@ -46,11 +46,11 @@ Two executables, one contract between them:
 ```
 stib-viz/
 ├── SCOPE.md  ARCHITECTURE.md  README.md  SECURITY.md  LICENSE
-├── docs/                         exploration, decisions, screenshots
+├── docs/                         exploration record, operations runbook
 ├── pipeline/                     Python 3.12, uv, ruff, pytest
 │   ├── pyproject.toml
 │   ├── src/stibviz/
-│   │   ├── cli.py                stibviz fetch | build | check | index
+│   │   ├── cli.py                stibviz fetch | plan | build | week | check | index
 │   │   ├── fetch.py              GTFS download with ETag and digest
 │   │   ├── gtfs.py               table reading and validation
 │   │   ├── service_day.py        date → active services → trips of the 04:00-04:00 day
@@ -59,6 +59,7 @@ stib-viz/
 │   │   ├── vehicles.py           trip chaining by block_id, layovers, deadhead cuts
 │   │   ├── trajectories.py       (lon, lat, t) sampling along shapes
 │   │   ├── slicing.py            hour slicing with asymmetric overlap
+│   │   ├── window.py             rolling window and the plan against the published index
 │   │   ├── network.py            network layer, stop dictionary, v2 lookup table
 │   │   ├── stats.py              per-minute series, kilometres, routes
 │   │   ├── encode.py             binary slices, stop files, vehicles and manifest writing
@@ -78,18 +79,20 @@ stib-viz/
 │   │   ├── data/                 contract types and parsers, loader, STV1 decoding, slice store,
 │   │   │                         stops of the hour on demand
 │   │   ├── time/                 service-day clock, player (speed, pause, waiting)
-│   │   ├── render/               MapLibre map, deck.gl layers, current positions, selection
+│   │   ├── render/               MapLibre map, deck.gl layers, current positions, selection,
+│   │   │                         device pixel cap
 │   │   ├── ui/                   clock, day selector, counters, activity curve and scrubber,
-│   │   │                         filters, vehicle panel, about
+│   │   │                         filters, line field, stepper, colours, vehicle panel, about,
+│   │   │                         keyboard shortcuts
 │   │   ├── state/                single state object and URL synchronisation
-│   │   ├── theme/                night basemap style, mode colours
+│   │   ├── theme/                night basemap style, mode colours, reduced motion
 │   │   └── i18n/                 fr.ts, centralised UI copy
 │   ├── tests/                    vitest (jsdom for the UI), including the contract test
-│   └── e2e/                      Playwright smoke tests on the fixture day, tiles blocked
+│   └── e2e/                      Playwright: smoke, interface, headers, axe audit; tiles blocked
 ├── .github/
 │   ├── dependabot.yml            monthly updates: actions, npm, uv
 │   └── workflows/
-│       ├── ci.yml                lint, types, unit tests, contract, smoke, on push and PR
+│       ├── ci.yml                lint, types, unit tests, contract, Playwright, on push and PR
 │       └── nightly.yml           seven-day pipeline + build + Cloudflare Pages deployment
 └── dist/                         generated, git-ignored
 ```
@@ -170,10 +173,17 @@ extract and its own expected values.
 
 ```
 stibviz fetch  --url <URL> --out cache/          download when the feed has changed
+stibviz plan   --gtfs cache/gtfs.zip --published published.json   days the window needs
 stibviz build  --gtfs cache/gtfs.zip --date 2026-09-09 --out dist/data/
+stibviz week   --gtfs cache/gtfs.zip --out dist/data/ --published published.json --report r.txt
 stibviz check  --day dist/data/2026-09-09/
 stibviz index  --data dist/data/                 writes dist/data/index.json
 ```
+
+`week` is what the nightly run calls: plan, one build and check per day, removal of the days
+that left the window, index. `--today` moves the window, `--days-before` and `--days-after`
+resize it; `--tolerance` sets the simplification tolerance in metres and `--anomaly-tolerance`
+the share of aberrant trips a day may carry, for that run only.
 
 Every command returns a non-zero exit code on failure and writes a readable log.
 
@@ -447,9 +457,11 @@ visible ring. Mode filters are pills rather than bare checkboxes so their pointe
    artifact that the web job downloads into `web/public/data`.
 3. Site: `pnpm install`, `tsc --noEmit`, `eslint`, `prettier --check`, `vitest --coverage` with an
    80% threshold, including the contract test that decodes the fixture day.
-4. Smoke: `pnpm build` with the fixture day, then Playwright: the page loads, the canvas exists,
-   the clock advances during playback, the URL updates, the vehicle panel opens from an injected
-   state.
+4. Playwright, on `pnpm build` with the fixture day: the page loads, the canvas exists, the
+   clock advances during playback, the vehicles move along their routes, the URL carries the
+   scene and reads it back, the vehicle panel opens and closes, the `_headers` policy applied to
+   the preview raises no violation, and an axe audit passes on the page, the vehicle panel and
+   the about dialog, with a walk of the focus ring over every control.
 
 The workflow declares `permissions: contents: read` and checks out without persisting credentials:
 least privilege, so a compromised dependency cannot write to the repository. Every action is
@@ -544,7 +556,7 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Per-object anomalies tolerated under 0.1% | All-or-nothing | One aberrant trip must not deprive the site of a whole day |
 | Float32 lon/lat | Relative integer coordinates | Simplicity in v1; quantisation documented for v2 |
 | 04:00 → 04:00 span keyed on first departure | Midnight to midnight with the previous day loaded | No seam, Noctis included naturally, testable rule |
-| Vehicles by `block_id` | Independent trips | Visible layovers, exact counters, foundation for following in v2 |
+| Vehicles by `block_id` | Independent trips | Visible layovers, exact counters, and the follow mode comes for free |
 | Deadhead moves cut | Straight line between termini | No fictional line across the city |
 | TripsLayer + ScatterplotLayer | A hand-written WebGL layer | Proven, trails for free, simple click selection |
 | No UI framework | React, Svelte | About a dozen simple components; minimal bundle |
@@ -593,3 +605,6 @@ To settle during implementation, each with a test behind it:
   caution on identifiers.
 - 5 September 2026, v1.2: repository documentation translated to English ahead of publication;
   workflow hardened with least-privilege permissions.
+- 6 September 2026, v1.3: the document follows the delivered code of M0 to M4 and the M5 polish:
+  `stibviz week` and the whole-window rule, lines keyed by number, vehicle stepping and follow
+  mode, speed ×1200, device pixel cap, reduced motion, accessibility audit, operations runbook.

@@ -24,13 +24,13 @@ chain their trips, and a service day that crosses midnight.
 | Published window | Seven rolling days: yesterday, today, the next five. The first milestone handles a single day to validate the pipeline | Same as the reference; the single day is the test bench |
 | Time axis | Service day from 04:00 to 04:00 the next morning, one continuous span that includes Noctis night lines | No seam at midnight; STIB service runs from 04:22 to 03:58 at the widest |
 | Trajectories | Pre-computed by the pipeline, simplified shapes, cut into hour slices | Simple, proven by the reference; the browser stays light |
-| Animated unit | The vehicle, obtained by chaining trips through `block_id` | Visible layover at termini, exact vehicle count, foundation for "follow a vehicle" in v2 |
+| Animated unit | The vehicle, obtained by chaining trips through `block_id` | Visible layover at termini, exact vehicle count, and the follow mode comes for free |
 | Basemap | OpenFreeMap, custom dark style, no key | Free, no quota; a self-hosted alternative is documented for v2 |
 | Hosting | Cloudflare Pages, deployed by GitHub Actions | Static, free, same as the reference |
 | Web stack | Vite and strict TypeScript, no UI framework | Small, typed, testable |
 | Pipeline stack | Python 3.12 and uv | Already used for the feasibility analysis |
 | Quality | Mandatory unit tests, test-driven development, 80% minimum coverage | Single developer: the tests are the only review |
-| v1 interactions | Play, pause, speed, scrubber on the activity curve, per-mode filters, click a vehicle, shareable URL state | Everything else is documented for v2 |
+| v1 interactions | Play, pause, speed, scrubber on the activity curve, per-mode filters, one line selected with its vehicles stepped through and followed, official colours, click a vehicle, shareable URL state | Everything else is documented for v2 |
 | UI language | French UI copy, centralised so Dutch and English can follow later | Brussels is bilingual, but v1 stays small |
 | Repository language | Documentation, code comments and commit messages in English | The repository will be made public; English is the language contributors expect |
 | Targets | Desktop first; mobile works but no smoothness promise | Rendering 800 vehicles with trails is demanding |
@@ -151,7 +151,7 @@ largest slice being 1.29 MB.
 
 - No real-time data, no delays, no diversions, no disruptions.
 - No position recording; only the extension points are prepared.
-- No per-route filter, no vehicle following, no video export.
+- No selection of several lines at once, no video export.
 - No Dutch or English user interface.
 - No mobile-optimised build, no 3D, no self-hosted basemap.
 - No other operators (SNCB, De Lijn, TEC), no accounts, no analytics.
@@ -162,7 +162,8 @@ largest slice being 1.29 MB.
 |---|---|
 | Real-time recorder and replay of observed days | The v1 data contract is designed for it; see ARCHITECTURE.md section 8 |
 | Scheduled versus observed comparison, delay heat map | Depends on the recorder |
-| Per-route filter, vehicle following, video export | v1 vehicle chaining makes following trivial |
+| Video export of a day | The player runs on a deterministic clock; an off-screen render at a fixed frame rate is the missing piece |
+| Several lines selected at once | The single-line field keeps the dimming rule simple; a list of lines needs a legend |
 | Dutch and English UI | Copy is already centralised in v1 |
 | Self-hosted basemap (Protomaps / PMTiles) | Removes the last external dependency |
 | Mobile as a first-class target | 5 to 10 m tolerance, shorter slices, testing on phones |
@@ -238,7 +239,7 @@ on the fixture day; the Playwright suite checks the movement of both routes minu
 **M3 Interface**
 
 - [x] `ui/`: activity curve doubling as the scrubber
-- [x] `ui/`: speeds ×60 to ×600, keyboard shortcuts
+- [x] `ui/`: speeds ×60 to ×600, keyboard shortcuts (×1200 added in M5)
 - [x] `ui/`: per-mode counters read from the manifest series
 - [x] `ui/`: per-mode filters, layers and prefetching
 - [x] `ui/` `render/`: single-line selection within a mode, dims every other vehicle
@@ -272,7 +273,7 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
 - [ ] Night style: mode colours tuned on the real render, basemap adjusted
 - [x] Performance: device pixels capped at 1.5, measured at the peak on desktop and on a phone
 - [x] Accessibility: focus, keyboard, `prefers-reduced-motion`, axe audit in the smoke suite
-- [ ] Documentation: README, about panel, `docs/`, v2 list up to date
+- [x] Documentation: README, about panel, `docs/` runbook, v2 list up to date
 - [ ] Final review
 
 ## 8. Quality and method
