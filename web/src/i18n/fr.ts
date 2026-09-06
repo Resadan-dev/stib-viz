@@ -14,6 +14,8 @@ export const fr = {
   mapLabel: "Carte de Bruxelles",
   play: "Lecture",
   pause: "Pause",
+  reset: "Réinitialiser",
+  resetHint: "Réinitialiser : revenir à 4 h du matin, au début de la journée de service",
   nextDay: "lendemain",
   loading: "Chargement de la journée…",
   waitingNextHour: "Chargement de l’heure suivante…",

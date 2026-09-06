@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { initialState } from "../../src/state/app-state";
 import { createStore } from "../../src/state/store";
-import { applyUrlState, readUrlState, syncUrl, writeUrlState } from "../../src/state/url";
+import { applyUrlState, dayUrl, readUrlState, syncUrl, writeUrlState } from "../../src/state/url";
 
 describe("readUrlState", () => {
   it("reads the day, the instant and the playing flag", () => {
@@ -87,6 +87,18 @@ describe("writeUrlState", () => {
     };
     const back = applyUrlState(initialState("2026-01-01"), readUrlState(writeUrlState(state)));
     expect(back).toEqual({ ...state, time: 46980 });
+  });
+});
+
+describe("dayUrl", () => {
+  const base = initialState("2026-09-09", { time: 46980, playing: true, line: "7" });
+
+  it("keeps the scene but winds the clock back to the first instant of the day", () => {
+    expect(dayUrl(base, "2026-09-11")).toBe("?d=2026-09-11&t=04:00&s=300&l=7&p=1");
+  });
+
+  it("winds back even when the day does not change", () => {
+    expect(dayUrl(base, "2026-09-09")).toBe("?d=2026-09-09&t=04:00&s=300&l=7&p=1");
   });
 });
 

@@ -111,6 +111,49 @@ main.map {
   color: var(--ink-muted);
 }
 
+/* The clock owns its row: the time on the left, the way back to the start of the day on the
+   right, both sitting on the same baseline. */
+.panel__clock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.9rem;
+}
+
+.reset {
+  /* Right-aligned by a margin rather than by the row, so it stays on the right when the
+     next-day tag widens the clock and pushes it onto a line of its own. */
+  margin-left: auto;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.reset:hover {
+  background: rgb(255 232 196 / 0.12);
+  border-color: rgb(255 232 196 / 0.45);
+  color: var(--ink);
+}
+
+.reset:active {
+  background: rgb(255 232 196 / 0.2);
+}
+
+.reset:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .play {
   min-width: 7rem;
   padding: 0.55rem 1.1rem;

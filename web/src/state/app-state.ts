@@ -10,6 +10,9 @@ import { DEFAULT_SPEED, type PlayerState } from "../time/player";
 /** 08:00, a lively instant to open on until the URL says otherwise. */
 export const DEFAULT_START_TIME_S = 14400;
 
+/** 04:00, the first instant of the service day: where a day change and the reset land. */
+export const DAY_START_TIME_S = 0;
+
 export type ColourScheme = "palette" | "official";
 export type ModeVisibility = Readonly<Record<Mode, boolean>>;
 

@@ -55,6 +55,13 @@ describe("the control panel", () => {
     expect(blur === null ? 0 : Number(blur[1])).toBeLessThanOrEqual(4);
   });
 
+  it("keeps the way back to 04:00 on the right, wrapped or not", () => {
+    // Past midnight the "lendemain" tag makes the clock row too wide for one line. Without the
+    // auto margin the button drops to the next line and jumps from the panel's right edge to
+    // its left one, so the control moves as the clock crosses midnight.
+    expect(rule(".reset")).toContain("margin-left: auto");
+  });
+
   it("leaves the speed buttons room to sit on one line", () => {
     const width = rem(declarations, /width: min\(([0-9.]+)rem,/);
     const sides = rem(declarations, /padding: [0-9.]+rem ([0-9.]+)rem/);

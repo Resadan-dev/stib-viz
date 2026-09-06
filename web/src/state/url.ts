@@ -10,7 +10,13 @@
 import { MODES, type Mode } from "../data/contract";
 import { formatClock, parseClock } from "../time/clock";
 import { SPEEDS } from "../time/player";
-import { allModes, type AppState, type Camera, type ColourScheme } from "./app-state";
+import {
+  DAY_START_TIME_S,
+  allModes,
+  type AppState,
+  type Camera,
+  type ColourScheme,
+} from "./app-state";
 import type { Store } from "./store";
 
 export interface UrlState {
@@ -121,6 +127,14 @@ export function writeUrlState(state: AppState): string {
   }
   pairs.push(["p", state.playing ? "1" : "0"]);
   return `?${pairs.map(([key, value]) => `${key}=${value}`).join("&")}`;
+}
+
+/**
+ * The query for another day: the same scene, wound back to 04:00. A day is watched from its
+ * beginning, and the instant of the day one is leaving means nothing in the one being opened.
+ */
+export function dayUrl(state: AppState, date: string): string {
+  return writeUrlState({ ...state, day: date, time: DAY_START_TIME_S });
 }
 
 /** A state with the values the URL provides; anything the URL leaves out keeps its value. */

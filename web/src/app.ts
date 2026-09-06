@@ -37,9 +37,14 @@ import {
 } from "./render/layers";
 import { createMapView } from "./render/map";
 import { describeVehicle, headAt, stepVehicle, vehiclesOnLine } from "./render/selection";
-import { initialState, type AppState, type ModeVisibility } from "./state/app-state";
+import {
+  DAY_START_TIME_S,
+  initialState,
+  type AppState,
+  type ModeVisibility,
+} from "./state/app-state";
 import { createStore } from "./state/store";
-import { applyUrlState, readUrlState, syncUrl, writeUrlState } from "./state/url";
+import { applyUrlState, dayUrl, readUrlState, syncUrl } from "./state/url";
 import { nightStyle } from "./theme/basemap";
 import { prefersReducedMotion } from "./theme/motion";
 import { MODE_COLORS, routeColor } from "./theme/colors";
@@ -55,6 +60,7 @@ import { createDaySelector } from "./ui/days";
 import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
 import { createLinePicker } from "./ui/lines";
+import { createResetButton } from "./ui/reset";
 import { createSpeedControl } from "./ui/speed";
 import { createStatusView } from "./ui/status";
 import { createVehicleStepper } from "./ui/stepper";
@@ -225,9 +231,12 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   });
   // A day change restarts the page with the URL, which already carries the whole scene.
   const daySelector = createDaySelector(shell.days, index.days, (date) => {
-    window.location.assign(writeUrlState({ ...store.get(), day: date }));
+    window.location.assign(dayUrl(store.get(), date));
   });
   const clock = createClockView(shell.clock);
+  createResetButton(shell.clock, () => {
+    player.seek(DAY_START_TIME_S);
+  });
   const playButton = createPlayButton(shell.controls, () => {
     player.toggle();
   });
