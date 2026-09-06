@@ -3,6 +3,8 @@ import { fr, modeLabel } from "../i18n/fr";
 import { badgeInk } from "../theme/colors";
 
 export interface LinePicker {
+  /** Where the vehicle stepper mounts: under the badges, above the footer. */
+  vehicles: HTMLElement;
   /** Reflects the selected line, or null when every line is shown alike; reports nothing. */
   update(line: string | null): void;
   open(): void;
@@ -139,6 +141,10 @@ export function createLinePicker(
     lineButtons.set(route.name, element);
   }
 
+  // The stepper for the chosen line mounts here: the picker holds everything about one line.
+  const vehicles = document.createElement("div");
+  vehicles.className = "picker__vehicles";
+
   const footer = document.createElement("div");
   footer.className = "picker__footer";
   const all = button("picker__all", fr.allLines);
@@ -146,7 +152,7 @@ export function createLinePicker(
     onSelect(null);
   });
   footer.append(all);
-  section.append(header, tabs, grid, footer);
+  section.append(header, tabs, grid, vehicles, footer);
   host.append(section);
 
   let selected: string | null = null;
@@ -223,6 +229,7 @@ export function createLinePicker(
   reflect(null);
 
   return {
+    vehicles,
     update: reflect,
     open,
     close: shut,

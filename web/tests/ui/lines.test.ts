@@ -87,6 +87,16 @@ describe("createLinePicker", () => {
     expect(tabs()[0]?.getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("holds the vehicle stepper between the badges and the footer", () => {
+    const { picker, section } = mount();
+    const slot = section.querySelector<HTMLElement>(".picker__vehicles");
+    expect(slot).not.toBeNull();
+    expect(picker.vehicles).toBe(slot);
+    const children = [...section.children].map((child) => child.className);
+    expect(children.indexOf("picker__vehicles")).toBeGreaterThan(children.indexOf("picker__grid"));
+    expect(children.indexOf("picker__vehicles")).toBeLessThan(children.indexOf("picker__footer"));
+  });
+
   it("opens from the trigger with focus inside, closes with its button or Escape, focus back", () => {
     const { picker, trigger, section } = mount();
     expect(trigger.textContent).toBe(fr.chooseLine);

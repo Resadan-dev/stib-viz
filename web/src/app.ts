@@ -245,7 +245,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       route === undefined ? store.get().modes : { ...store.get().modes, [route.mode]: true };
     store.set({ line, modes });
   });
-  const stepper = createVehicleStepper(shell.appearance, (direction) => {
+  const stepper = createVehicleStepper(linePicker.vehicles, (direction) => {
     const next = stepVehicle(lineVehicles, store.get().vehicle, direction);
     if (next === null) {
       return;
@@ -428,7 +428,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     lineVehicles = line === null ? [] : vehiclesOnLine(mounted, buffers, count, routes, line);
     const at = vehicle === null ? -1 : lineVehicles.indexOf(vehicle);
     stepper.update({
-      enabled: line !== null,
+      line,
       position: at < 0 ? null : at + 1,
       total: lineVehicles.length,
     });

@@ -121,9 +121,11 @@ largest slice being 1.29 MB.
   picker stays open while lines are compared, keeps the choice when closed, and one button brings
   every line back. Every other vehicle dims, the chosen line stays at full opacity; nothing is
   hidden, so context is kept, and clearing the selection restores normal colours.
-- With a line selected, previous and next buttons step through its vehicles on the map, for
-  people who find the dots too small to click; stepping centres the map on the vehicle and turns
-  on a follow mode that keeps the camera on it during playback, until the map is dragged by hand.
+- With a line selected, the picker gains a second half: previous and next buttons that step
+  through the vehicles of that line, for people who find the dots too small to click. It names
+  the line, says how many of its vehicles are running and which one is selected, in words rather
+  than as a fraction. Stepping centres the map on the vehicle and turns on a follow mode that
+  keeps the camera on it during playback, until the map is dragged by hand.
 - A colour toggle: the mode palette (default, one flat colour per mode) or every route's official
   STIB colour. The official colour is not unique per line — STIB reuses a palette of about a
   dozen colours across its routes — so the toggle trades a uniform mode colour for a genuine but

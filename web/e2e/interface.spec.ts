@@ -88,23 +88,32 @@ test("steps through the vehicles of the selected line and follows the chosen one
   page,
 }) => {
   await openPaused(page);
+  const picker = page.locator("section.picker");
+  const stepper = picker.locator(".stepper");
   await page.getByRole("button", { name: "Choisir une ligne" }).click();
-  await page.locator("section.picker").getByRole("button", { name: "7", exact: true }).click();
+  // Nothing to walk through until a line is chosen.
+  await expect(stepper).toBeHidden();
+
+  await picker.getByRole("button", { name: "7", exact: true }).click();
+  await expect(stepper).toBeVisible();
+  await expect(stepper.locator(".stepper__label")).toHaveText("Véhicules de la ligne 7");
+  await expect(stepper.locator(".stepper__count")).toHaveText(/\d+ véhicules? en service/);
+
   const next = page.getByRole("button", { name: "Véhicule suivant" });
   await expect(next).toBeEnabled();
-  await expect(page.locator(".stepper__count")).toHaveText(/– \/ [1-9]\d*/);
   await next.click();
-  const panel = page.locator("section.vehicle");
-  await expect(panel).toBeVisible();
-  await expect(panel.locator(".badge")).toHaveText("7");
-  await expect(panel.locator(".vehicle__follow")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".stepper__count")).toHaveText(/1 \/ [1-9]\d*/);
+  const vehicle = page.locator("section.vehicle");
+  await expect(vehicle).toBeVisible();
+  await expect(vehicle.locator(".badge")).toHaveText("7");
+  await expect(vehicle.locator(".vehicle__follow")).toHaveAttribute("aria-pressed", "true");
+  await expect(stepper.locator(".stepper__count")).toHaveText(/Véhicule 1 sur \d+/);
   await next.click();
-  await expect(page.locator(".stepper__count")).toHaveText(/2 \/ [1-9]\d*/);
-  // Every line back, from the panel button: the stepper has nothing left to walk through.
-  await page.locator(".panel").getByRole("button", { name: "Toutes les lignes" }).click();
+  await expect(stepper.locator(".stepper__count")).toHaveText(/Véhicule 2 sur \d+/);
+
+  // Every line back, from the picker: the stepper has nothing left to walk through.
+  await picker.getByRole("button", { name: "Toutes les lignes" }).click();
   await expect.poll(() => param(page, "l")).toBeNull();
-  await expect(next).toBeDisabled();
+  await expect(stepper).toBeHidden();
   await expect(page.getByRole("button", { name: "Choisir une ligne" })).toBeVisible();
 });
 

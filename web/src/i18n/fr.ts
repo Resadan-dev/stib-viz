@@ -45,9 +45,15 @@ export const fr = {
   pickerModes: "Filtrer par mode",
   pickerAll: "Tous",
   pickerLines: "Lignes",
-  stepperLabel: "Véhicules de la ligne",
+  stepperLabel: "Véhicules de la ligne {line}",
   previousVehicle: "Véhicule précédent",
   nextVehicle: "Véhicule suivant",
+  previous: "Précédent",
+  next: "Suivant",
+  noVehicleRunning: "Aucun véhicule en service",
+  oneVehicleRunning: "1 véhicule en service",
+  vehiclesRunning: "{total} véhicules en service",
+  vehicleRank: "Véhicule {position} sur {total}",
   follow: "Suivre",
   close: "Fermer",
   towards: "Direction",
@@ -93,6 +99,24 @@ export function modeLabel(mode: Mode): string {
     case "noctis":
       return fr.modeNoctis;
   }
+}
+
+/** Title of the vehicle stepper, naming the line it walks through. */
+export function stepperLabel(line: string): string {
+  return fr.stepperLabel.replace("{line}", line);
+}
+
+/** How many vehicles of the line are running, worded for none, one and many. */
+export function vehicleTally(total: number): string {
+  if (total <= 0) {
+    return fr.noVehicleRunning;
+  }
+  return total === 1 ? fr.oneVehicleRunning : fr.vehiclesRunning.replace("{total}", String(total));
+}
+
+/** Which of them is selected, said in full rather than as a fraction. */
+export function vehicleRank(position: number, total: number): string {
+  return fr.vehicleRank.replace("{position}", String(position)).replace("{total}", String(total));
 }
 
 /** The day kind written by the pipeline: weekday, saturday or sunday. */

@@ -78,6 +78,11 @@ test("the line picker passes an axe audit and every badge has a focus ring", asy
   await expect(picker).toBeVisible();
   // The badges wear the official colours, with the ink chosen to keep 4.5:1 on each of them.
   await audit(page);
+
+  // Choosing a line brings the vehicle stepper into the picker; audit that state too.
+  await picker.getByRole("button", { name: "7", exact: true }).click();
+  await expect(picker.locator(".stepper")).toBeVisible();
+  await audit(page);
   await expectFocusRings(picker.locator("button"), 3);
 });
 
