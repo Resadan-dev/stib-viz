@@ -64,6 +64,11 @@ def build_parser() -> argparse.ArgumentParser:
     week.add_argument("--out", type=Path, required=True, help="data directory to write into")
     week.add_argument("--today", type=dt.date.fromisoformat, default=dt.date.today())
     week.add_argument("--published", type=Path, help="index.json of the live site, if any")
+    week.add_argument(
+        "--force",
+        action="store_true",
+        help="build every covered day even when the site already publishes them",
+    )
     week.add_argument("--days-before", type=int, default=DAYS_BEFORE)
     week.add_argument("--days-after", type=int, default=DAYS_AFTER)
     week.add_argument("--report", type=Path, help="write one line per day and a summary here")
@@ -187,7 +192,10 @@ def _week(args: argparse.Namespace) -> int:
         print(f"week failed: {exc}", file=sys.stderr)
         return 1
     window = rolling_window(args.today, args.days_before, args.days_after)
-    plan = plan_days(window, feed.info, _read_published(args.published))
+    # --force ignores what the site publishes, so a run has work to do and therefore deploys.
+    # It is how a fix reaches the site on a day when the data itself has not changed.
+    published = None if args.force else _read_published(args.published)
+    plan = plan_days(window, feed.info, published)
     lines = [f"{day.isoformat()}: skipped, outside the feed validity" for day in plan.uncovered]
     if plan.up_to_date:
         print(

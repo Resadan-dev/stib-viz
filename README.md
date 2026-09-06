@@ -143,6 +143,11 @@ deployment, so a fork works out of the box. To publish, once:
    address, `https://stib-viz.pages.dev` for the example above).
 4. Run the `Nightly` workflow by hand once from the Actions tab; the following runs are scheduled.
 
+A scheduled run only deploys when it built a day, which it does every morning as the window
+slides. To push a fix out on a day when the data has not changed, run the workflow by hand and
+tick "Rebuild and deploy even if the site already publishes the whole week"; see
+[docs/02-operations.md](docs/02-operations.md), section 5.
+
 The headers Cloudflare Pages serves, cache rules and security headers including the
 Content-Security-Policy, live in `web/public/_headers`.
 

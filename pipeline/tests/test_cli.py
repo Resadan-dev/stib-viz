@@ -193,6 +193,23 @@ def test_week_is_a_no_op_when_the_site_is_up_to_date(
     assert "up to date" in capsys.readouterr().err
 
 
+def test_week_forced_builds_the_window_even_when_the_site_is_up_to_date(
+    sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The escape hatch for a bug that has to leave the site now: the published index says there
+    # is nothing to do, and --force builds and republishes the window anyway.
+    published = tmp_path / "index.json"
+    days = [{"date": f"2026-09-{day:02d}"} for day in range(8, 15)]
+    published.write_text(json.dumps({"feed_version": "test_2026", "days": days}), encoding="utf-8")
+    out = tmp_path / "data"
+    args = [*WEEK, str(sample_gtfs_zip), "--out", str(out), "--today", "2026-09-09"]
+    assert main([*args, "--published", str(published), "--force"]) == 0
+    captured = capsys.readouterr()
+    assert "up to date" not in captured.err
+    assert "built: 7" in captured.out
+    assert (out / "index.json").is_file()
+
+
 def test_week_sets_a_failing_day_aside_and_fails_last(
     sample_gtfs_zip: Path,
     tmp_path: Path,

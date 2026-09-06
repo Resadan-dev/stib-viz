@@ -97,7 +97,7 @@ a route type): `uv run pytest` and a local `build` show it. Fix with a test, the
 
 **The deployment failed.** `wrangler` could not publish: the token expired or was revoked, the
 account id is wrong, or the project name in `CLOUDFLARE_PAGES_PROJECT` does not exist. The step
-log says which. Follow section 5 to replace the token, then dispatch the workflow: the week is
+log says which. Follow section 6 to replace the token, then dispatch the workflow: the week is
 rebuilt, in under three minutes, because the published index still lists the old feed version
 or the old days.
 
@@ -133,7 +133,24 @@ it, if anything.
 
 The workflow can also be run from the Actions tab, "Run workflow": same steps, same report.
 
-## 5. Rotating the Cloudflare token
+## 5. Getting a fix onto the site today
+
+A run only deploys when it built at least one day, and it only builds when the window is not
+already published. So on a day when the data has not changed, a code fix pushed to `main` does
+not reach the site by itself: the next scheduled run picks it up the following morning, when the
+window slides and a new day is missing from the published index.
+
+To publish immediately, run the workflow by hand from the Actions tab and tick **Rebuild and
+deploy even if the site already publishes the whole week**. The window is rebuilt from the same
+feed and deployed, about three minutes. The same switch exists on the command line:
+
+```bash
+uv run stibviz week --gtfs ../cache/gtfs.zip --out ../web/public/data --force
+```
+
+Use it for that purpose only. Left on, it would rebuild seven days every night for nothing.
+
+## 6. Rotating the Cloudflare token
 
 1. In Cloudflare, My Profile, API Tokens: create a new token with the single permission
    Account, Cloudflare Pages, Edit, on this account only.
@@ -145,7 +162,7 @@ The account id (`CLOUDFLARE_ACCOUNT_ID`) and the project name (`CLOUDFLARE_PAGES
 not rotate. A token that leaked must be revoked first, then replaced: the order above holds for a
 planned rotation only.
 
-## 6. Budgets
+## 7. Budgets
 
 | Item | Target | Measured |
 |---|---|---|

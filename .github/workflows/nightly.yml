@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "45 4,10 * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild and deploy even if the site already publishes the whole week
+        type: boolean
+        default: false
 
 # Least privilege: the workflow only reads the repository; deployment uses Cloudflare secrets.
 permissions:
@@ -65,11 +70,17 @@ jobs:
         # independently; the exit code is kept for the last step so that the valid days still
         # reach the site when one of them fails.
         run: |
+          args=(--gtfs cache/gtfs.zip --out "$DATA_DIR" --published published.json --report "$REPORT")
+          # Ticked by hand when a fix has to reach the site on a day the data has not changed:
+          # without it the plan finds nothing to do, and a run that builds nothing never deploys.
+          if [ "$FORCE" = "true" ]; then args+=(--force); fi
           set +e
-          uv run stibviz week --gtfs cache/gtfs.zip --out "$DATA_DIR" --published published.json --report "$REPORT"
+          uv run stibviz week "${args[@]}"
           echo "status=$?" >> "$GITHUB_OUTPUT"
           echo "built=$(grep -c ': built$' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
           echo "failed=$(grep -c ': FAILED' "$REPORT" || true)" >> "$GITHUB_OUTPUT"
+        env:
+          FORCE: ${{ inputs.force }}
         working-directory: pipeline
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         if: steps.week.outputs.built != '0'

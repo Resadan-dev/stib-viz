@@ -183,7 +183,9 @@ stibviz index  --data dist/data/                 writes dist/data/index.json
 `week` is what the nightly run calls: plan, one build and check per day, removal of the days
 that left the window, index. `--today` moves the window, `--days-before` and `--days-after`
 resize it; `--tolerance` sets the simplification tolerance in metres and `--anomaly-tolerance`
-the share of aberrant trips a day may carry, for that run only.
+the share of aberrant trips a day may carry, for that run only. `--force` ignores what the site
+already publishes and rebuilds the window regardless, which is how a fix reaches the site on a
+day when the data itself has not changed.
 
 Every command returns a non-zero exit code on failure and writes a readable log.
 
@@ -480,7 +482,9 @@ window, the second catches a feed published late. A run that has nothing to do s
 2. `stibviz week` plans the window (yesterday to five days ahead, within the feed validity):
    nothing when the site already publishes every covered day for this feed version, the whole
    window otherwise, because a deployment replaces the site and a partial build would lose the
-   other days.
+   other days. A manual run can tick a box that passes `--force`, which ignores the published
+   index: without it a run that builds nothing also deploys nothing, so a code fix would wait
+   for the window to slide the next morning.
 3. The same command then builds each day independently, checking what it wrote: a failing day is
    set aside and reported, the others are still written; stale days outside the window are
    removed and `index.json` lists the valid days only. Its exit code says whether a day failed.
