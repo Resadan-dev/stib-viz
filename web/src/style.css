@@ -827,9 +827,9 @@ main.map {
   border: 1px solid var(--panel-border);
   border-radius: 14px;
   background: var(--panel-sheer);
-  /* Stronger blur than the control panel: at half opacity a lit trail would otherwise show
-     through the badges. */
-  backdrop-filter: blur(20px) saturate(120%);
+  /* No backdrop blur, unlike the control panel: the network lines are one pixel wide, so any
+     blur worth the name averages the night map into a flat dark field and the picker reads as
+     opaque whatever its alpha. The badges are opaque, so nothing passing behind disturbs them. */
   box-shadow: 0 20px 50px rgb(0 0 0 / 0.45);
   overflow: hidden;
 }
