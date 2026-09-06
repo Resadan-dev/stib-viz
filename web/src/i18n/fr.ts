@@ -66,6 +66,8 @@ export const fr = {
   offDuty: "Hors service à cet instant",
   vehicleBlock: "Véhicule",
   scrubberLabel: "Instant de la journée",
+  expandPanel: "Afficher tout le panneau",
+  collapsePanel: "Réduire le panneau",
   about: "À propos",
   aboutTitle: "À propos de cette carte",
   aboutMethod:
@@ -85,7 +87,7 @@ export const fr = {
   keyDigits: "1 à 5",
   keyDigitsMeaning: "vitesse ×60, ×120, ×300, ×600, ×1200",
   keyEscape: "Échap",
-  keyEscapeMeaning: "fermer le sélecteur de ligne, puis la sélection",
+  keyEscapeMeaning: "fermer le sélecteur de ligne, le panneau, puis la sélection",
   aboutSource: "Code source sur GitHub",
 } as const;
 

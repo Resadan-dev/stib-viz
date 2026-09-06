@@ -73,6 +73,11 @@ export function createLinePicker(
   host: HTMLElement,
   routes: readonly RouteInfo[],
   onSelect: (line: string | null) => void,
+  /**
+   * Called as the picker opens. On a phone it shares the bottom of the screen with the control
+   * sheet, which folds on this signal rather than letting two drawers stack up.
+   */
+  onOpen?: () => void,
 ): LinePicker {
   const lines = sortLines(routes);
   const byName = new Map(lines.map((route) => [route.name, route]));
@@ -170,6 +175,7 @@ export function createLinePicker(
   }
 
   function open(): void {
+    onOpen?.();
     section.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
     const current = selected === null ? undefined : lineButtons.get(selected);

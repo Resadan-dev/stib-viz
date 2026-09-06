@@ -42,7 +42,7 @@ describe("the control panel", () => {
 
   it("reserves above and below itself exactly what its own offset asks for", () => {
     const top = rem(declarations, /top: ([0-9.]+)rem;/);
-    const reserved = rem(declarations, /max-height: calc\(100vh - ([0-9.]+)rem\);/);
+    const reserved = rem(declarations, /max-height: calc\(100dvh - ([0-9.]+)rem\);/);
     expect(reserved).toBeCloseTo(2 * top, 5);
   });
 

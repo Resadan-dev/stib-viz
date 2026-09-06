@@ -2,7 +2,8 @@
 
 Status: scope frozen on 5 September 2026, after an exploration phase
 ([docs/01-exploration.md](docs/01-exploration.md)) and ten framing questions; adjusted the same
-day after an architecture review (playback speeds, budgets, anomaly policy).
+day after an architecture review (playback speeds, budgets, anomaly policy); widened on
+6 September to a phone layout, which the milestone list had left for version 2.
 The companion technical document is [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 1. Vision
@@ -33,7 +34,7 @@ chain their trips, and a service day that crosses midnight.
 | v1 interactions | Play, pause, speed, scrubber on the activity curve, per-mode filters, one line selected with its vehicles stepped through and followed, official colours, click a vehicle, shareable URL state | Everything else is documented for v2 |
 | UI language | French UI copy, centralised so Dutch and English can follow later | Brussels is bilingual, but v1 stays small |
 | Repository language | Documentation, code comments and commit messages in English | The repository will be made public; English is the language contributors expect |
-| Targets | Desktop first; mobile works but no smoothness promise | Rendering 800 vehicles with trails is demanding |
+| Targets | Desktop first, with a phone layout of its own; no smoothness promise on a phone | The interface has to be usable on the screen most people carry; rendering 800 vehicles with trails stays demanding |
 
 ## 3. Reference figures
 
@@ -138,8 +139,12 @@ largest slice being 1.29 MB.
 ### 4.5 Platforms and performance
 
 - Browsers: current versions of Chrome, Edge, Firefox and Safari on desktop.
-- Mobile: the page loads, reads and plays with no horizontal scrolling from 360 px wide;
-  no smoothness promise.
+- Mobile: the page loads, reads and plays with no horizontal scrolling from 360 px wide; no
+  smoothness promise. Under 600 px the control panel is a sheet at the bottom of the screen,
+  folded on every load: a bar with the clock, playback and the scrubber, which leaves the map
+  the rest of the screen, and unfolds over at most seven tenths of it for everything else.
+  The selected vehicle moves to the top, the line picker becomes a sheet of its own, and
+  opening either one folds the other. Portrait only; landscape is not addressed in v1.
 - Budgets: first frame under 4 MB of site-owned data excluding tiles, meaning a manifest of at
   most 300 KB, a network layer of at most 1 MB and one hour of slices of at most 2.5 MB; at most
   35 MB per day including overlap; 60 frames per second at peak on a 2020 laptop. The vehicle
@@ -159,7 +164,8 @@ largest slice being 1.29 MB.
 - No position recording; only the extension points are prepared.
 - No selection of several lines at once, no video export.
 - No Dutch or English user interface.
-- No mobile-optimised build, no 3D, no self-hosted basemap.
+- No mobile-optimised data build: a phone downloads and draws the same slices as a desktop,
+  and the phone layout is portrait only. No 3D, no self-hosted basemap.
 - No other operators (SNCB, De Lijn, TEC), no accounts, no analytics.
 
 ## 6. Version 2: documented directions
@@ -172,7 +178,7 @@ largest slice being 1.29 MB.
 | Several lines selected at once | The single-line picker keeps the dimming rule simple; a list of lines needs a legend |
 | Dutch and English UI | Copy is already centralised in v1 |
 | Self-hosted basemap (Protomaps / PMTiles) | Removes the last external dependency |
-| Mobile as a first-class target | 5 to 10 m tolerance, shorter slices, testing on phones |
+| Smooth playback on a phone | The layout is v1; what is left is the volume of data: 5 to 10 m tolerance, shorter slices, measurement on real devices |
 | Quantised binary format | 16-bit positions relative to the bounding box: half the size |
 | Other operators in Brussels | The SNCB, De Lijn and TEC GTFS feeds live on the same portal |
 | 3D metro under UrbIS buildings | Idea borrowed from Mini Tokyo 3D |
@@ -281,6 +287,9 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
 - [x] Accessibility: focus, keyboard, `prefers-reduced-motion`, axe audit in the smoke suite
 - [x] Line picker: badges in official colours, one tab per mode, translucent non-modal dialog
       in the bottom right corner, replacing the text field (asked for on 6 September)
+- [x] Phone layout: the control panel as a two-position sheet, the vehicle card at the top,
+      the line picker as a full-width sheet, 44 px targets, safe areas (asked for on
+      6 September)
 - [x] Documentation: README, about panel, `docs/` runbook, v2 list up to date
 - [ ] Final review
 

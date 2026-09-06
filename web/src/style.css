@@ -184,6 +184,42 @@ main.map {
   outline-offset: 2px;
 }
 
+/* Play and the chevron of the phone sheet. On a wide screen the box is not there at all and
+   the play button is a child of the controls row, exactly as it was. */
+.panel__playback {
+  display: contents;
+}
+
+.sheet__toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.sheet__toggle:hover {
+  color: var(--ink);
+  border-color: rgb(255 232 196 / 0.45);
+}
+
+.sheet__toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.sheet__chevron {
+  width: 22px;
+  height: 22px;
+  transition: transform 200ms ease;
+}
+
 .status {
   margin: 0;
   font-size: 0.85rem;
@@ -214,27 +250,6 @@ main.map {
 
 .maplibregl-ctrl-attrib a {
   color: var(--ink-muted);
-}
-
-@media (max-width: 480px) {
-  .panel {
-    top: auto;
-    bottom: 1rem;
-    left: 1rem;
-    right: 1rem;
-    width: auto;
-  }
-
-  .clock__time {
-    font-size: 2.4rem;
-  }
-
-  /* A phone panel is narrower than the desktop one, so the speed buttons give back some padding
-     rather than push a horizontal scrollbar. */
-  .speeds__button {
-    padding: 0.4rem 0.5rem;
-    font-size: 0.75rem;
-  }
 }
 
 /* --- Milestone M3: controls, counters, filters --- */
@@ -587,21 +602,12 @@ main.map {
   color: var(--ink-faint);
 }
 
-@media (max-width: 480px) {
-  .vehicle-slot {
-    top: 1rem;
-    right: 1rem;
-    left: 1rem;
-    width: auto;
-  }
-}
-
 /* --- Milestone M3: activity curve and scrubber, about dialog, small screens --- */
 
 /* Only as much reserve as the panel's own offsets: any more and it scrolls with empty space
    below it. Wide enough, too, that the row of five speed buttons never wraps or overflows. */
 .panel {
-  max-height: calc(100vh - 2.5rem);
+  max-height: calc(100dvh - 2.5rem);
   overflow-y: auto;
 }
 
@@ -765,25 +771,6 @@ main.map {
   margin: 0;
 }
 
-@media (max-width: 480px) {
-  .panel {
-    top: 0.75rem;
-    right: 0.75rem;
-    bottom: auto;
-    left: 0.75rem;
-    width: auto;
-    max-height: calc(100vh - 11rem);
-    padding: 0.9rem 1rem 0.7rem;
-  }
-
-  .vehicle-slot {
-    top: auto;
-    right: 0.75rem;
-    bottom: 0.75rem;
-    left: 0.75rem;
-  }
-}
-
 /* --- Milestone M4: day selector --- */
 
 .panel__days {
@@ -846,7 +833,7 @@ main.map {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  max-height: min(32rem, calc(100vh - 4.5rem));
+  max-height: min(32rem, calc(100dvh - 4.5rem));
   padding: 0.9rem 1rem;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
@@ -1050,20 +1037,187 @@ main.map {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .picker__line {
+  .picker__line,
+  .sheet__chevron {
     transition: none;
   }
 }
 
-@media (max-width: 480px) {
-  .picker-slot {
+/* --- Milestone M5: the phone sheet ---
+
+   The only breakpoint the site has: one width decides the whole phone layout. Under it the
+   control panel is a sheet at the bottom of the screen with two positions, written into
+   `data-sheet` by ui/sheet.ts.
+
+   Folded, and it always opens folded, the sheet is a bar of about 130 px: the clock, playback
+   and the scrubber. The map keeps the rest of the screen, which is what makes it possible to
+   pan and zoom at all. Unfolded, the sheet rises over at most seven tenths of the screen and
+   scrolls inside itself, the map still visible above it and a tap on it enough to fold back.
+
+   Heights are in dvh, not vh: the phone address bar shrinks the screen as it is scrolled, and
+   a sheet sized against the tall viewport would hang below the bottom edge. */
+@media (max-width: 600px) {
+  .panel {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    gap: 0.5rem 0.7rem;
+    padding: 0.6rem 0.9rem calc(0.6rem + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 16px 16px 0 0;
+    /* Two columns for the bar: the clock on the left, playback and the chevron on the right;
+       every other part spans both and follows underneath. */
+    grid-template-columns: minmax(0, 1fr) auto;
+    overscroll-behavior: contain;
+  }
+
+  .panel > * {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  /* The bar comes first whatever the order in the page: on a phone these are the sheet. */
+  .panel__clock {
+    order: -4;
+    grid-column: 1;
+    align-items: center;
+    gap: 0.3rem 0.7rem;
+  }
+
+  .panel__controls {
+    display: contents;
+  }
+
+  .panel__playback {
+    display: flex;
+    order: -3;
+    grid-column: 2;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .panel__speed {
+    order: -2;
+    grid-column: 1 / -1;
+  }
+
+  .panel__activity {
+    order: -1;
+    margin-top: 0;
+  }
+
+  .clock__time {
+    font-size: 2.6rem;
+  }
+
+  .sheet__toggle {
+    display: inline-flex;
+  }
+
+  .panel[data-sheet="collapsed"] {
+    overflow: hidden;
+  }
+
+  /* Folded, the bar and nothing else. Hidden with display, not with opacity, so what is out of
+     sight is also out of the tab order and out of what a screen reader walks through. */
+  .panel[data-sheet="collapsed"] > *:not(.panel__clock, .panel__controls, .panel__activity),
+  .panel[data-sheet="collapsed"] .panel__speed,
+  .panel[data-sheet="collapsed"] .reset {
+    display: none;
+  }
+
+  .panel[data-sheet="expanded"] {
+    max-height: 70dvh;
+    overflow-y: auto;
+  }
+
+  .panel[data-sheet="expanded"] .sheet__chevron {
+    transform: rotate(180deg);
+  }
+
+  /* The seven days on one line that slides, rather than two rows of chips eating the sheet.
+     The padding gives the focus ring room inside the scrolling box and the margin takes it
+     back, so the chips stay aligned with the rest of the panel. */
+  .days {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 0.25rem;
+    margin: -0.25rem;
+  }
+
+  .days__day {
+    flex: none;
+  }
+
+  /* A thumb, not a mouse pointer: every control of the panel is at least 44 px tall. */
+  .play,
+  .reset,
+  .toggle,
+  .days__day,
+  .speeds__button,
+  .filters__mode,
+  .lines__trigger,
+  .lines__clear,
+  .picker__all,
+  .picker__line,
+  .stepper__button,
+  .sheet__toggle {
+    min-height: 44px;
+  }
+
+  .vehicle__close {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Narrower than a desktop panel, so the five speeds give back some padding rather than push
+     a horizontal scrollbar. */
+  .speeds__button {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.78rem;
+  }
+
+  /* The selected vehicle moves to the top of the screen: at the bottom it would sit on the
+     sheet. A compact card, since the map above it is the point. */
+  .vehicle-slot {
+    top: calc(0.75rem + env(safe-area-inset-top));
     right: 0.75rem;
-    bottom: 0.75rem;
+    bottom: auto;
     left: 0.75rem;
     width: auto;
   }
 
+  .vehicle {
+    gap: 0.3rem;
+    padding: 0.7rem 0.85rem;
+  }
+
+  .vehicle__headsign {
+    font-size: 0.95rem;
+  }
+
+  /* The line picker is a sheet of its own across the full width, over the folded bar. Opening
+     one folds the other, so the two are never stacked. */
+  .picker-slot {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 12;
+    width: auto;
+  }
+
   .picker {
-    max-height: calc(100vh - 6rem);
+    max-height: 70dvh;
+    padding: 0.9rem 1rem calc(0.9rem + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 16px 16px 0 0;
+    /* Opaque here, unlike on a desktop where it floats over the map alone: what lies behind it
+       on a phone is the sheet, and a clock read through a grid of badges is a mess. */
+    background: var(--panel);
+    backdrop-filter: blur(14px) saturate(120%);
   }
 }

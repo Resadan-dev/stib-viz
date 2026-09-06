@@ -61,6 +61,7 @@ import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
 import { createLinePicker } from "./ui/lines";
 import { createResetButton } from "./ui/reset";
+import { closeTopmost, createSheet } from "./ui/sheet";
 import { createSpeedControl } from "./ui/speed";
 import { createStatusView } from "./ui/status";
 import { createVehicleStepper } from "./ui/stepper";
@@ -138,12 +139,15 @@ function element<K extends keyof HTMLElementTagNameMap>(
 
 interface Shell {
   map: HTMLElement;
+  /** The control panel itself, which becomes the sheet on a phone. */
+  panel: HTMLElement;
   date: HTMLElement;
   kind: HTMLElement;
   days: HTMLElement;
   clock: HTMLElement;
   controls: HTMLElement;
   speed: HTMLElement;
+  playback: HTMLElement;
   counters: HTMLElement;
   filters: HTMLElement;
   appearance: HTMLElement;
@@ -162,6 +166,8 @@ function buildShell(root: HTMLElement): Shell {
   const map = element("main", "map", root);
   map.setAttribute("aria-label", fr.mapLabel);
   const panel = element("aside", "panel", root);
+  // Named so the chevron of the phone sheet can point at what it opens.
+  panel.id = "control-panel";
   const header = element("header", "panel__header", panel);
   element("h1", "panel__title", header).textContent = fr.appTitle;
   const dateLine = element("p", "panel__date", header);
@@ -171,6 +177,10 @@ function buildShell(root: HTMLElement): Shell {
   const clock = element("div", "panel__clock", panel);
   const controls = element("div", "panel__controls", panel);
   const speed = element("div", "panel__speed", controls);
+  // Play and the sheet chevron travel together: on a phone they are the right half of the
+  // folded bar, while the speeds drop to a row of their own. On a wide screen this box is
+  // `display: contents` and changes nothing.
+  const playback = element("div", "panel__playback", controls);
   const counters = element("div", "panel__counters", panel);
   const filters = element("div", "panel__filters", panel);
   const appearance = element("div", "panel__appearance", panel);
@@ -186,6 +196,8 @@ function buildShell(root: HTMLElement): Shell {
     picker,
     activity,
     map,
+    panel,
+    playback,
     date,
     kind,
     days,
@@ -237,7 +249,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   createResetButton(shell.clock, () => {
     player.seek(DAY_START_TIME_S);
   });
-  const playButton = createPlayButton(shell.controls, () => {
+  const playButton = createPlayButton(shell.playback, () => {
     player.toggle();
   });
   const speedControl = createSpeedControl(shell.speed, (speed) => {
@@ -247,12 +259,27 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const filters = createFilters(shell.filters, (mode, visible) => {
     store.set({ modes: { ...store.get().modes, [mode]: visible } });
   });
-  const linePicker = createLinePicker(shell.appearance, shell.picker, routes, (line) => {
-    // Selecting a line shows its mode again: a hidden selection would be a puzzle.
-    const route = routes.find((candidate) => candidate.name === line);
-    const modes =
-      route === undefined ? store.get().modes : { ...store.get().modes, [route.mode]: true };
-    store.set({ line, modes });
+  const linePicker = createLinePicker(
+    shell.appearance,
+    shell.picker,
+    routes,
+    (line) => {
+      // Selecting a line shows its mode again: a hidden selection would be a puzzle.
+      const route = routes.find((candidate) => candidate.name === line);
+      const modes =
+        route === undefined ? store.get().modes : { ...store.get().modes, [route.mode]: true };
+      store.set({ line, modes });
+    },
+    () => {
+      // On a phone both open at the bottom of the screen: the picker takes the place.
+      sheet.collapse();
+    },
+  );
+  const sheet = createSheet({
+    panel: shell.panel,
+    host: shell.playback,
+    map: shell.map,
+    picker: linePicker,
   });
   const stepper = createVehicleStepper(linePicker.vehicles, (direction) => {
     const next = stepVehicle(lineVehicles, store.get().vehicle, direction);
@@ -291,12 +318,10 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       player.setSpeed(speed);
     },
     escape: () => {
-      // The picker goes first; the selected vehicle only on a second press.
-      if (linePicker.isOpen()) {
-        linePicker.close();
-        return;
-      }
-      store.set({ vehicle: null, follow: false });
+      // The picker first, then the phone sheet, then the selected vehicle: one press, one thing.
+      closeTopmost(linePicker, sheet, () => {
+        store.set({ vehicle: null, follow: false });
+      });
     },
   });
 

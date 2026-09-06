@@ -21,11 +21,11 @@ function routes(withNoctis = true): RouteInfo[] {
   ];
 }
 
-function mount(withNoctis = true) {
+function mount(withNoctis = true, onOpen?: () => void) {
   const parent = document.body.appendChild(document.createElement("div"));
   const host = document.body.appendChild(document.createElement("div"));
   const onSelect = vi.fn();
-  const picker = createLinePicker(parent, host, routes(withNoctis), onSelect);
+  const picker = createLinePicker(parent, host, routes(withNoctis), onSelect, onOpen);
   const trigger = parent.querySelector<HTMLButtonElement>(".lines__trigger");
   const clear = parent.querySelector<HTMLButtonElement>(".lines__clear");
   const section = host.querySelector<HTMLElement>(".picker");
@@ -118,6 +118,18 @@ describe("createLinePicker", () => {
     trigger.click();
     trigger.click();
     expect(picker.isOpen()).toBe(false);
+  });
+
+  it("says when it opens, so the sheet it shares the bottom of a phone with can fold", () => {
+    const onOpen = vi.fn();
+    const { trigger, picker } = mount(true, onOpen);
+    trigger.click();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    // Shutting it says nothing: only opening has to move another drawer out of the way.
+    trigger.click();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    picker.open();
+    expect(onOpen).toHaveBeenCalledTimes(2);
   });
 
   it("selects a line on click without closing, and reflects the selection when told", () => {

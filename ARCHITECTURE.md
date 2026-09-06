@@ -82,8 +82,8 @@ stib-viz/
 │   │   ├── render/               MapLibre map, deck.gl layers, current positions, selection,
 │   │   │                         device pixel cap
 │   │   ├── ui/                   clock, day selector, counters, activity curve and scrubber,
-│   │   │                         filters, line picker, stepper, colours, vehicle panel, about,
-│   │   │                         keyboard shortcuts
+│   │   │                         filters, line picker, stepper, colours, vehicle panel, phone
+│   │   │                         sheet, about, keyboard shortcuts
 │   │   ├── state/                single state object and URL synchronisation
 │   │   ├── theme/                night basemap style, mode colours, reduced motion
 │   │   └── i18n/                 fr.ts, centralised UI copy
@@ -353,7 +353,7 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
 | `time/` | Service-day clock (seconds since 04:00), variable-speed player driven by `requestAnimationFrame`, civil-time conversion, slice waiting | vitest: 90,000 s renders as 05:00 next day, speeds, pause, bounds, waiting |
 | `render/` | MapLibre map, night style, network layer, deck.gl layers, current vehicle positions, click selection | vitest for position computation, layover and single-mount uniqueness; Playwright smoke test for rendering |
 | `state/` | Single state object, subscriptions, URL read and write | vitest: URL round trip, invalid values ignored |
-| `ui/` | Framework-free DOM components: clock, selector, counters, activity curve and scrubber, filters, vehicle panel, about | vitest with a simulated DOM for the logic; smoke test for the assembly |
+| `ui/` | Framework-free DOM components: clock, selector, counters, activity curve and scrubber, filters, vehicle panel, phone sheet, about | vitest with a simulated DOM for the logic; smoke test for the assembly |
 | `theme/` | Mode colours, basemap style, visual constants | visual review |
 | `i18n/` | French UI copy | a test that checks for missing keys |
 
@@ -440,9 +440,21 @@ rewrites it a few times a second at most, well under the browser throttling of `
 ### 6.6 Accessibility and keyboard
 
 Space: play and pause. Arrow keys: one minute; with Shift: ten minutes. One digit per speed, 1 to
-5: ×60, ×120, ×300, ×600, ×1200. Escape closes the line picker when it is open, the selected
-vehicle otherwise. Every button has a label and a visible focus state. When the visitor prefers
-reduced motion the page starts paused and the camera jumps instead of gliding.
+5: ×60, ×120, ×300, ×600, ×1200. Escape closes one thing at a time, the nearest first: the line
+picker, then the phone sheet, then the selected vehicle. Every button has a label and a visible
+focus state. When the visitor prefers reduced motion the page starts paused and the camera jumps
+instead of gliding.
+
+Under 600 pixels the control panel is a sheet at the bottom of the screen with two positions,
+held in a `data-sheet` attribute by `ui/sheet.ts`. It opens folded on every load and keeps no
+memory between visits: folded it is a bar of about 130 pixels, the clock, playback and the
+scrubber, and the map keeps the rest of the screen; unfolded it rises over at most seven tenths
+of the screen and scrolls inside itself. A tap on the map folds it back, as Escape does. What
+the fold hides is hidden with `display`, so it leaves the tab order and the accessibility tree
+rather than lingering invisibly in both. The line picker becomes a sheet of its own across the
+full width, and opening either one folds the other: two stacked drawers would leave no map. In
+the panel, pointer targets are at least 44 pixels tall there, above the 24 the audit asks for,
+and heights are measured in `dvh` so the phone address bar cannot cut the sheet off.
 
 The palette is held to WCAG 2.2 AA by a unit test that reads the tokens out of `style.css` and
 measures each against the panel background; the smoke suite runs an axe audit of the page, of the
@@ -583,6 +595,7 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Badge ink kept from the feed only when it reaches 4.5:1, else black or white | The feed's text colour as is | STIB writes white on its orange, red and green; a third of the lines would fail the audit and be hard to read at badge size |
 | Vehicles of a line stepped through with two buttons inside the line picker, follow mode on the camera | Clicking heads only; the stepper in the control panel (M3 to M5) | Heads are a few pixels wide among hundreds; stepping never misses, and the follow mode is what the stepping is for. A manual drag ends it. Choosing a line and walking its vehicles are one task, so they share one surface, where the control is large and named rather than a pair of arrows in a corner |
 | Picking radius of 6 px around heads | deck.gl default of 0 | Clicking a three-pixel dot in a dense area is otherwise a matter of luck |
+| Control panel folded into a two-position sheet under 600 px, opening folded every time | A panel that scrolls the whole screen (M3 to M5); a full-screen drawer; remembering the position between visits | On a 412 px phone the panel filled the screen and the map could not be touched. Folded, the bar keeps the clock, playback and the scrubber, which is what a phone visitor watches, and gives the map six sevenths of the screen. It never remembers being open: the map is what the link promises, and a sheet restored over it would hide it before a word is read |
 | Day change reloads the page with the new URL | Swapping the day in place | The URL already carries the whole scene; a reload is a two-line restart with no state to invalidate, for a one-second blink |
 | `stibviz plan` against the published index | Rebuilding the week every night | A run with nothing to do ends in a minute; a new feed still rebuilds every day |
 | Deployment gated on the presence of the secrets | Failing without them | A fork or a fresh clone builds and tests the nightly run without a Cloudflare account |
@@ -612,6 +625,8 @@ To settle during implementation, each with a test behind it:
   caution on identifiers.
 - 5 September 2026, v1.2: repository documentation translated to English ahead of publication;
   workflow hardened with least-privilege permissions.
+- 6 September 2026, v1.4: the phone layout, folded into a sheet, and the Escape chain that goes
+  with it (section 6.6).
 - 6 September 2026, v1.3: the document follows the delivered code of M0 to M4 and the M5 polish:
   `stibviz week` and the whole-window rule, lines keyed by number, vehicle stepping and follow
   mode, speed ×1200, device pixel cap, reduced motion, accessibility audit, operations runbook.
