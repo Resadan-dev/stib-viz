@@ -87,8 +87,9 @@ largest slice being 1.29 MB.
 
 ### 4.2 Map and night-time rendering
 
-- Dark OpenFreeMap basemap, customised: roads and water barely visible, no points of interest,
-  place names rare and discreet.
+- Dark OpenFreeMap basemap, customised: roads, water and vegetation barely visible, no points of
+  interest, place names rare and discreet. The woods and parks are what give the region its shape
+  at a glance, so they are drawn, a shade above the ground and far below the vehicles.
 - Network layer: every shape, very dark, with intensity rising with the number of daily runs. It
   keeps the map readable even if the basemap tiles fail to load. Metro appears as an underground
   layer, dimmer still.
@@ -282,7 +283,8 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
 
 **M5 Polish**
 
-- [ ] Night style: mode colours tuned on the real render, basemap adjusted
+- [x] Night style: mode colours tuned on the real render, basemap adjusted (vegetation read
+      from the `landcover` layer, every painted colour held below the dimmest vehicle colour)
 - [x] Performance: device pixels capped at 1.5, measured at the peak on desktop and on a phone
 - [x] Accessibility: focus, keyboard, `prefers-reduced-motion`, axe audit in the smoke suite
 - [x] Line picker: badges in official colours, one tab per mode, translucent non-modal dialog

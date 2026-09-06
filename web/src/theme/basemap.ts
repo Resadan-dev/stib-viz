@@ -22,7 +22,11 @@ export const BASEMAP_ATTRIBUTION =
 
 const GROUND = "#04060c";
 const WATER = "#0a1020";
-const PARK = "#070c12";
+// Vegetation reads as vegetation rather than as slightly paler ground: a green so dark it is
+// nearly subliminal, the wood a shade above the grass so the Forêt de Soignes has more presence
+// than a lawn. Both stay under the dimmest vehicle colour, which a unit test holds them to.
+const WOOD = "#08120c";
+const GRASS = "#070e0a";
 const ROAD_MINOR = "#0f141d";
 const ROAD_MAJOR = "#151b27";
 const ROAD_MOTORWAY = "#1a2231";
@@ -72,12 +76,25 @@ export function nightStyle(): StyleSpecification {
     glyphs: OPENFREEMAP_GLYPHS,
     layers: [
       { id: "background", type: "background", paint: { "background-color": GROUND } },
+      // Where the green of Brussels actually lives in the OpenMapTiles schema: `landcover`
+      // carries the Forêt de Soignes and the Bois de la Cambre as class wood, and every city
+      // park, garden and lawn as class grass. The `park` layer below holds nature reserves and
+      // protected areas only, so painting it alone left the whole south-east of the region a
+      // flat void.
+      {
+        id: "landcover",
+        type: "fill",
+        source: SOURCE,
+        "source-layer": "landcover",
+        filter: ["match", ["get", "class"], ["wood", "grass"], true, false],
+        paint: { "fill-color": ["match", ["get", "class"], "wood", WOOD, GRASS] },
+      },
       {
         id: "park",
         type: "fill",
         source: SOURCE,
         "source-layer": "park",
-        paint: { "fill-color": PARK },
+        paint: { "fill-color": WOOD },
       },
       {
         id: "water",

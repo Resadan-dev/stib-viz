@@ -428,8 +428,13 @@ rewrites it a few times a second at most, well under the browser throttling of `
 ### 6.5 Night-time style
 
 - Basemap: our own MapLibre style (`theme/basemap.ts`) over OpenFreeMap vector tiles, reduced to
-  water, parks, three road classes and city, town and suburb names, all very dark; no point of
-  interest. The basemap must never compete with the vehicles, and the page works without it.
+  vegetation, water, three road classes and city, town and suburb names, all very dark; no point
+  of interest. The basemap must never compete with the vehicles, and the page works without it: a
+  unit test holds every colour it paints below the dimmest of the four mode colours. Vegetation is
+  read from the `landcover` layer, classes wood and grass, which is where the OpenMapTiles schema
+  keeps the Forêt de Soignes, the Bois de la Cambre and every city park; the `park` layer holds
+  nature reserves and protected areas alone, and painting it by itself left the south-east of the
+  region a flat void.
 - Modes: warm white for metro, official colour for trams, a single cool blue for buses, violet for
   Noctis by default; a colour toggle (section 6.3) switches every mode to its own route's official
   colour instead. Exact default values live in `theme/` and were tuned at milestone M2 against the
@@ -583,6 +588,7 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Vertex times at least 0.05 s apart, Float32 pushed to the next representable value when equal | 1 ms nudge | Float32 resolution near 86,400 s is 0.008 s; a 1 ms nudge collapsed and the check on written files caught it |
 | GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
 | Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
+| Vegetation drawn from the `landcover` layer, woods a shade above grass | Painting the `park` layer alone (M2 to M5) | In the OpenMapTiles schema `park` is nature reserves and protected areas; the green of Brussels is `landcover`. The Forêt de Soignes, the largest feature of the region, was missing, and the map read as a void wherever the city is not built |
 | Own MapLibre style over OpenFreeMap tiles | The OpenFreeMap dark or fiord styles | Full control of what is drawn: no point of interest, rare labels; the style is a tested object rather than a fetched file |
 | Layover held from the slice first, from `vehicles.json` second | Zero-length paths in the slices | Degenerate paths break rendering; the trip list is small and only read after the first frame |
 | Square trail joints and caps | Round joints and caps | Invisible at two pixels; 55 → 60 frames per second at the 17:03 peak on an integrated Intel GPU |
@@ -625,6 +631,8 @@ To settle during implementation, each with a test behind it:
   caution on identifiers.
 - 5 September 2026, v1.2: repository documentation translated to English ahead of publication;
   workflow hardened with least-privilege permissions.
+- 6 September 2026, v1.5: milestone M5 closed. Vegetation added to the night style, read from
+  the layer that actually holds it (section 6.5).
 - 6 September 2026, v1.4: the phone layout, folded into a sheet, and the Escape chain that goes
   with it (section 6.6).
 - 6 September 2026, v1.3: the document follows the delivered code of M0 to M4 and the M5 polish:
