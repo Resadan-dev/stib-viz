@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BASEMAP_ATTRIBUTION, nightStyle } from "../../src/theme/basemap";
+import { BASEMAP_ATTRIBUTION, MIN_LABEL_CONTRAST, nightStyle } from "../../src/theme/basemap";
 import { MODE_COLORS, contrastRatio } from "../../src/theme/colors";
 
 /** Every colour a layer paints with, however deep in an expression it is written. */
@@ -85,6 +85,22 @@ describe("nightStyle", () => {
     for (const colour of painted) {
       expect(brightness(colour), `#${colour} is not a night-time colour`).toBeLessThan(dimmest);
     }
+  });
+
+  it("writes the place names legibly on the ground they sit on", () => {
+    // Rare is not the same as unreadable. Their halo is the ground, so the ground is the
+    // background to measure against whatever a name crosses, water or wood or a motorway.
+    const labels = style.layers.find((layer) => layer.id === "place-labels");
+    const ground = style.layers.find((layer) => layer.id === "background");
+    const ink = labels?.type === "symbol" ? labels.paint?.["text-color"] : undefined;
+    const paper = ground?.type === "background" ? ground.paint?.["background-color"] : undefined;
+    expect(typeof ink, "the place names carry no flat colour to audit").toBe("string");
+    expect(typeof paper, "the ground carries no flat colour to audit").toBe("string");
+    const contrast = contrastRatio(String(ink).replace("#", ""), String(paper).replace("#", ""));
+    expect(
+      contrast,
+      `${String(ink)} on ${String(paper)} is too faint to read`,
+    ).toBeGreaterThanOrEqual(MIN_LABEL_CONTRAST);
   });
 
   it("draws no point of interest and labels only places", () => {

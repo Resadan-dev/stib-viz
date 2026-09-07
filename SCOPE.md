@@ -89,7 +89,7 @@ largest slice being 1.29 MB.
 ### 4.2 Map and night-time rendering
 
 - Dark OpenFreeMap basemap, customised: roads, water and vegetation barely visible, no points of
-  interest, place names rare and discreet. The woods and parks are what give the region its shape
+  interest, place names rare but legible. The woods and parks are what give the region its shape
   at a glance, so they are drawn, a shade above the ground and far below the vehicles.
 - Network layer: every shape, very dark, with intensity rising with the number of daily runs. It
   keeps the map readable even if the basemap tiles fail to load. Metro appears as an underground

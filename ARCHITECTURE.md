@@ -502,9 +502,12 @@ rewrites it a few times a second at most, well under the browser throttling of `
 - Basemap: our own MapLibre style (`theme/basemap.ts`) over OpenFreeMap vector tiles, reduced to
   vegetation, water, three road classes and city, town and suburb names, all very dark; no point
   of interest. The basemap must never compete with the vehicles, and the page works without it: a
-  unit test holds every colour it paints below the dimmest of the four mode colours. Vegetation is
-  read from the `landcover` layer, classes wood and grass, which is where the OpenMapTiles schema
-  keeps the Forêt de Soignes, the Bois de la Cambre and every city park; the `park` layer holds
+  unit test holds every colour it paints below the dimmest of the four mode colours. Place names
+  are the exception to "very dark": they are the one thing on the basemap meant to be read, so a
+  second test holds them at 4.5:1 on the ground, WCAG AA for normal text, which still leaves them
+  a comfortable margin under that ceiling. Vegetation is read from the `landcover` layer, classes
+  wood and grass, which is where the OpenMapTiles schema keeps the Forêt de Soignes, the Bois de
+  la Cambre and every city park; the `park` layer holds
   nature reserves and protected areas alone, and painting it by itself left the south-east of the
   region a flat void.
 - Modes: warm white for metro, amber for trams, a single cool blue for buses, violet for Noctis
@@ -749,3 +752,6 @@ To settle during implementation, each with a test behind it:
 - 7 September 2026, v1.10: a third reading of the network, the deviation from the habit of each
   segment, which is what makes the clock legible where the absolute speed showed geography
   (section 6.3).
+- 7 September 2026, v1.11: the place names read. Held at 2:1 on the ground they were present
+  without being legible; a test now holds them to WCAG AA, and they stay well under the vehicle
+  ceiling the basemap has always answered to (section 6.5).

@@ -30,7 +30,17 @@ const GRASS = "#070e0a";
 const ROAD_MINOR = "#0f141d";
 const ROAD_MAJOR = "#151b27";
 const ROAD_MOTORWAY = "#1a2231";
-const LABEL = "#3b4354";
+
+/**
+ * The contrast a place name keeps on the ground it is written on: WCAG AA for normal text, the
+ * floor the line badges already hold. Place names are the one thing on the basemap meant to be
+ * read, and rare is not the same as unreadable.
+ */
+export const MIN_LABEL_CONTRAST = 4.5;
+
+// Above that floor with room to spare, and still well below the dimmest vehicle, which a unit
+// test holds it to: the names situate the map without ever reading as something that moves.
+const LABEL = "#7b849a";
 
 const SOURCE = "openmaptiles";
 const LINE: ExpressionSpecification = [
