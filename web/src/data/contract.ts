@@ -60,6 +60,8 @@ export interface Manifest {
   feed_version: string;
   attribution: string;
   network: string;
+  /** The companion file of hourly speeds, or null in a manifest written before it existed. */
+  network_hourly: string | null;
   service_day_start_s: number;
   totals: { trips: number; vehicles: number; km: number };
   peak: { vehicles: number; minute: number };
@@ -168,6 +170,18 @@ function nullableNumber(fields: Fields, key: string, where: string): number | nu
   return value;
 }
 
+/** A string, or null when the field is null or absent: for a value a file may not carry. */
+function nullableString(fields: Fields, key: string, where: string): string | null {
+  const value = fields[key];
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new DataError(`${where}: invalid ${key}`);
+  }
+  return value;
+}
+
 function boolean(fields: Fields, key: string, where: string): boolean {
   const value = fields[key];
   if (typeof value !== "boolean") {
@@ -270,6 +284,7 @@ export function parseManifest(value: unknown): Manifest {
     feed_version: string(fields, "feed_version", where),
     attribution: string(fields, "attribution", where),
     network: string(fields, "network", where),
+    network_hourly: nullableString(fields, "network_hourly", where),
     service_day_start_s: number(fields, "service_day_start_s", where),
     totals: {
       trips: number(totals, "trips", `${where}: totals`),

@@ -11,8 +11,9 @@ import {
   headsLayerProps,
   tripsLayerProps,
 } from "../../src/render/layers";
+import { parseHourlySpeeds } from "../../src/data/hourly";
 import { networkColor } from "../../src/theme/colors";
-import { MANIFEST, NETWORK } from "../helpers/fixtures";
+import { HOURLY, MANIFEST, NETWORK } from "../helpers/fixtures";
 import { encodeSlice } from "../helpers/stv1";
 
 const slice = decodeSlice(
@@ -126,6 +127,42 @@ describe("createNetworkLayer", () => {
     }
     expect(getLineWidth(tram, context)).toBeGreaterThan(runs(tram, context));
     // Same id in both views: without the trigger deck.gl would keep the colours it has.
-    expect(updateTriggers).toMatchObject({ getLineColor: "speed", getLineWidth: "speed" });
+    expect(updateTriggers).toMatchObject({ getLineWidth: "speed" });
+  });
+
+  it("takes the speed of the hour when it has it, and the speed of the day until then", () => {
+    const hourly = parseHourlySpeeds(HOURLY);
+    const [tram, metro] = NETWORK.features;
+    if (tram === undefined || metro === undefined) {
+      throw new Error("fixture features missing");
+    }
+    const context = { index: 0, data: NETWORK.features, target: [] };
+    const colourAt = (hour: number, feature: typeof tram): unknown => {
+      const accessor = createNetworkLayer(NETWORK, "speed", hourly, hour).props.getLineColor;
+      if (typeof accessor !== "function") {
+        throw new Error("getLineColor should be an accessor function");
+      }
+      return accessor(feature, context);
+    };
+    // The tram crawls at 08:00 and picks up by 14:00: two hours, two colours.
+    expect(colourAt(8, tram)).toEqual(networkColor({ ...tram.properties, speed: 12.3 }, "speed"));
+    expect(colourAt(14, tram)).toEqual(networkColor({ ...tram.properties, speed: 25.1 }, "speed"));
+    // An hour the timetable cannot time is drawn as unknown, never as the day's average.
+    expect(colourAt(9, tram)).toEqual(networkColor({ ...tram.properties, speed: null }, "speed"));
+    expect(colourAt(8, metro)).toEqual(networkColor({ ...metro.properties, speed: null }, "speed"));
+
+    // Before the file arrives the network wears the speed of the whole day.
+    const waiting = createNetworkLayer(NETWORK, "speed").props.getLineColor;
+    if (typeof waiting !== "function") {
+      throw new Error("getLineColor should be an accessor function");
+    }
+    expect(waiting(tram, context)).toEqual(networkColor(tram.properties, "speed"));
+  });
+
+  it("tells deck.gl the hour changed, not only the view", () => {
+    const hourly = parseHourlySpeeds(HOURLY);
+    const triggers = (hour: number): unknown =>
+      createNetworkLayer(NETWORK, "speed", hourly, hour).props.updateTriggers.getLineColor;
+    expect(triggers(8)).not.toEqual(triggers(9));
   });
 });

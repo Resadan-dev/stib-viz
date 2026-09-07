@@ -194,8 +194,9 @@ def test_week_gives_each_day_the_network_of_its_own_timetable(
         assert (out / manifest["network"]).is_file()
     # The Wednesday runs no Noctis and the Friday does: each reads its own network.
     assert named["2026-09-09"] != named["2026-09-11"]
-    # Seven days, but only as many files as there are distinct timetables among them.
-    assert len(list((out / "network").iterdir())) < 7
+    # Seven days, but only as many network files as there are distinct timetables among them.
+    networks = [p for p in (out / "network").iterdir() if not p.name.endswith("-hourly.json")]
+    assert len(networks) < 7
 
 
 def test_week_is_a_no_op_when_the_site_is_up_to_date(

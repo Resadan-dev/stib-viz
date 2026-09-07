@@ -215,7 +215,10 @@ def test_the_network_file_is_named_by_what_is_in_it(
 
     # The same day written again lands on the same name rather than on a second file.
     assert write_day(_bundle(wednesday_state), tmp_path)["network"] == wednesday["network"]
-    assert len(list((tmp_path / "network").iterdir())) == 2
+    written = [
+        p.name for p in (tmp_path / "network").iterdir() if not p.name.endswith("-hourly.json")
+    ]
+    assert len(written) == 2
 
     def segments(name: str) -> set[tuple[str, str, str]]:
         content = json.loads((tmp_path / name).read_text(encoding="utf-8"))
@@ -226,6 +229,42 @@ def test_the_network_file_is_named_by_what_is_in_it(
 
     assert ("noctis", "S1", "S2") in segments(friday["network"])
     assert ("noctis", "S1", "S2") not in segments(wednesday["network"])
+
+
+def test_the_hourly_speeds_are_a_file_of_their_own(
+    wednesday_state: PipelineState, friday_state: PipelineState, tmp_path: Path
+) -> None:
+    """Kept out of the network file, which every session reads for its first frame.
+
+    The hourly speeds are twenty-four numbers per segment and only the speed view ever needs
+    them, so they travel in a file of their own, loaded the first time that view is turned on.
+    """
+    manifest = write_day(_bundle(wednesday_state), tmp_path)
+    name = manifest["network_hourly"]
+    assert re.fullmatch(r"network/test_2026-[0-9a-f]{12}-hourly\.json", name)
+    payload = json.loads((tmp_path / name).read_text(encoding="utf-8"))
+    assert (payload["first_hour"], payload["hours"], payload["min_runs"]) == (4, 24, 3)
+
+    row = payload["speeds"]["metro|S1|S2"]
+    assert len(row) == 24
+    # Tenths of a km/h as whole numbers, and zero for an hour the timetable cannot time.
+    assert all(isinstance(value, int) and value >= 0 for value in row)
+    assert row[1] > 0
+    assert row[12] == 0
+
+    # None of it reaches the network file, which is read for the first frame of every session.
+    network = json.loads((tmp_path / manifest["network"]).read_text(encoding="utf-8"))
+    assert set(network["features"][0]["properties"]) == {
+        "mode",
+        "from",
+        "to",
+        "runs",
+        "class",
+        "underground",
+        "speed",
+    }
+    # A different timetable is a different file, named by its own content like the network.
+    assert write_day(_bundle(friday_state), tmp_path)["network_hourly"] != name
 
 
 def test_index_lists_the_written_days(wednesday_state: PipelineState, tmp_path: Path) -> None:

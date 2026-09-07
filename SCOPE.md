@@ -340,12 +340,21 @@ fast the timetable expects them to: the centre in deep violet where everything c
 radials warming through red and orange, and the metro tunnels glowing straight across the city on
 a scale of their own.
 
-The speed is one number per segment for a whole service day, and it leans towards the busy hours
-rather than averaging them evenly: it is the distance of every run over the time of every run, so
-the hours with the most runs weigh the most and the slow runs within them weigh more still. A
-speed that follows the clock is the next step and a chantier of its own; it needs the sums kept
-per hour, about 140 KB a day in sixteen-bit integers, and a rule for the hours a segment is
-served too few times for whole-minute timetables to say anything.
+**V2-2 The speed map follows the clock** (7 September 2026)
+
+- [x] Pipeline: the same sums kept per hour of departure, and one speed per hour of the service
+      day; an hour served fewer than three times widens its window by one hour and then by two,
+      and stays unknown rather than guess
+- [x] Data contract: a companion file beside the network, keyed by segment, tenths of a km/h,
+      272 KB for a Wednesday, of which 92% of the segment-hours carry a speed
+- [x] Site: fetched the first time the speed view is opened and never before; the network wears
+      the speed of the whole day until it arrives, and repaints on the hour afterwards
+- [x] Tests: the widening rule and the bucketing in pytest; the file, the layer at several hours
+      and the fallbacks in vitest
+
+Brussels turns violet through both peaks and warms through the evening: at 23:00 the same city
+runs a scale and a half faster than at 08:00. An hour a segment is served too rarely stays grey,
+so a grey segment is silent rather than slow.
 
 ## 8. Quality and method
 

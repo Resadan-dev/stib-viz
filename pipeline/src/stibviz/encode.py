@@ -37,7 +37,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from stibviz.gtfs import FeedInfo
-from stibviz.network import INTENSITY_BREAKS, NetworkSegment
+from stibviz.network import HOURLY_MIN_RUNS, HOURS_PER_DAY, INTENSITY_BREAKS, NetworkSegment
 from stibviz.service_day import SERVICE_DAY_START_S
 from stibviz.slicing import FIRST_HOUR, Slice, window
 from stibviz.stats import DayStats, RouteInfo
@@ -234,6 +234,28 @@ def _network_payload(bundle: DayBundle) -> dict[str, Any]:
     }
 
 
+def _hourly_payload(bundle: DayBundle) -> dict[str, Any]:
+    """The speeds hour by hour, keyed by segment, in tenths of a km/h.
+
+    A file of its own rather than a field of the network layer: it is twenty-four numbers per
+    segment, and only the speed view of the site ever reads them. Keyed by the segment rather
+    than by its position, so nothing depends on two files agreeing on an order. Zero means the
+    timetable cannot time that segment in that hour (ARCHITECTURE.md, section 5.8).
+    """
+    return {
+        "feed_version": bundle.feed_info.version,
+        "first_hour": FIRST_HOUR,
+        "hours": HOURS_PER_DAY,
+        "min_runs": HOURLY_MIN_RUNS,
+        "speeds": {
+            f"{segment.mode}|{segment.from_stop}|{segment.to_stop}": [
+                0 if value is None else round(value * 10) for value in segment.hourly_kmh
+            ]
+            for segment in bundle.network
+        },
+    }
+
+
 def _stops_by_hour(
     bundle: DayBundle, hours: Sequence[int]
 ) -> dict[int, dict[str, list[list[Any]]]]:
@@ -295,6 +317,9 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
     network_text = _json_text(_network_payload(bundle))
     network_name = f"{version}-{_digest(network_text)}.json"
     _write_text(safe_path(data_dir, "network", network_name), network_text)
+    hourly_text = _json_text(_hourly_payload(bundle))
+    hourly_name = f"{version}-{_digest(hourly_text)}-hourly.json"
+    _write_text(safe_path(data_dir, "network", hourly_name), hourly_text)
     _write_json(safe_path(data_dir, "lookup", f"{version}.json"), bundle.lookup)
 
     route_index = {route.route_id: i for i, route in enumerate(bundle.routes)}
@@ -322,6 +347,7 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
         "feed_version": version,
         "attribution": f"Source: STIB-MIVB – Open Data – {bundle.generated_at.date().isoformat()}",
         "network": f"network/{network_name}",
+        "network_hourly": f"network/{hourly_name}",
         "service_day_start_s": SERVICE_DAY_START_S,
         "totals": {
             "trips": stats.total_trips,

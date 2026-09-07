@@ -24,9 +24,17 @@ from stibviz.service_day import DayTrips
 from stibviz.shapes import PatternKey, Shape, StopProjection
 from stibviz.stats import RouteInfo
 
+# The service day is twenty-four hours from 04:00; hour 0 of a segment's row is that first hour.
+SECONDS_PER_HOUR = 3600
+HOURS_PER_DAY = 24
+
 # Daily runs above each break move a segment up one intensity class (1 to 5).
 INTENSITY_BREAKS = (20, 60, 120, 240)
 NETWORK_TOLERANCE_M = 5.0
+# An hour of the service day needs this many runs over a segment before its speed is worth
+# reading, and its window grows this far either way in search of them.
+HOURLY_MIN_RUNS = 3
+HOURLY_MAX_RADIUS = 2
 
 
 def intensity_class(runs: int) -> int:
@@ -49,6 +57,9 @@ class NetworkSegment:
     lat: FloatArray
     # Scheduled speed over the segment across the day, in km/h; None when no run measures one.
     speed_kmh: float | None
+    # The same, hour by hour of the service day: 24 values from 04:00, None where the timetable
+    # runs too few times for whole-minute times to say anything.
+    hourly_kmh: tuple[float | None, ...]
 
 
 def aggregate_speed_kmh(lengths_m: Sequence[float], durations_s: Sequence[float]) -> float | None:
@@ -67,6 +78,41 @@ def aggregate_speed_kmh(lengths_m: Sequence[float], durations_s: Sequence[float]
             length += metres
             duration += seconds
     return 3.6 * length / duration if duration > 0 else None
+
+
+def hourly_speeds_kmh(
+    lengths_m: Sequence[float],
+    durations_s: Sequence[float],
+    runs: Sequence[int],
+    *,
+    min_runs: int = HOURLY_MIN_RUNS,
+    max_radius: int = HOURLY_MAX_RADIUS,
+) -> list[float | None]:
+    """One speed per hour of the service day, from sums already bucketed by departure hour.
+
+    Scheduled times are whole minutes, so a single run over a two-minute leg is worth give or
+    take a quarter of its speed: an hour served once says nothing, and drawn raw it would make
+    the quiet hours flicker. Each hour therefore takes the narrowest window centred on it that
+    holds runs enough, and gives up rather than reach further than ``max_radius``, which is what
+    keeps the morning peak from borrowing the speeds of the middle of the day. An hour that
+    never reaches the count is unknown, which the site draws as such rather than as slow.
+    """
+    hours = len(runs)
+    speeds: list[float | None] = []
+    for hour in range(hours):
+        speed: float | None = None
+        for radius in range(max_radius + 1):
+            first = max(0, hour - radius)
+            last = min(hours - 1, hour + radius)
+            window = range(first, last + 1)
+            if sum(runs[i] for i in window) < min_runs:
+                continue
+            duration = sum(durations_s[i] for i in window)
+            if duration > 0:
+                speed = 3.6 * sum(lengths_m[i] for i in window) / duration
+            break
+        speeds.append(speed)
+    return speeds
 
 
 def _portion(
@@ -96,9 +142,13 @@ def build_network(
     runs: Counter[SegmentKey] = Counter()
     geometry: dict[SegmentKey, tuple[str, float, float]] = {}
     # Per segment, the length and scheduled duration of every run: distance over time across
-    # the day is the speed the site colours it with.
+    # the day is the speed the site colours it with, and the same sums bucketed by departure
+    # hour are the speed it colours each hour of the day with.
     lengths: defaultdict[SegmentKey, list[float]] = defaultdict(list)
     durations: defaultdict[SegmentKey, list[float]] = defaultdict(list)
+    by_hour: defaultdict[SegmentKey, tuple[list[float], list[float], list[int]]] = defaultdict(
+        lambda: ([0.0] * HOURS_PER_DAY, [0.0] * HOURS_PER_DAY, [0] * HOURS_PER_DAY)
+    )
     for trip_id, rows in day.stop_times.groupby("trip_id", sort=False):
         shape_id, stop_ids = patterns[trip_id]
         mode = mode_of_route[route_of_trip[trip_id]]
@@ -111,8 +161,17 @@ def build_network(
             key = (mode, stop_ids[i], stop_ids[i + 1])
             runs[key] += 1
             geometry.setdefault(key, (shape_id, float(along[i]), float(along[i + 1])))
-            lengths[key].append(float(along[i + 1] - along[i]))
-            durations[key].append(float(arr[i + 1] - dep[i]))
+            length = float(along[i + 1] - along[i])
+            duration = float(arr[i + 1] - dep[i])
+            lengths[key].append(length)
+            durations[key].append(duration)
+            if duration > 0:
+                # The hour the run sets off in, counted from the first hour of the service day.
+                hour = min(HOURS_PER_DAY - 1, max(0, int(dep[i] // SECONDS_PER_HOUR)))
+                hour_lengths, hour_durations, hour_runs = by_hour[key]
+                hour_lengths[hour] += length
+                hour_durations[hour] += duration
+                hour_runs[hour] += 1
 
     segments = []
     for key in sorted(runs):
@@ -130,6 +189,7 @@ def build_network(
                 lon=lon,
                 lat=lat,
                 speed_kmh=aggregate_speed_kmh(lengths[key], durations[key]),
+                hourly_kmh=tuple(hourly_speeds_kmh(*by_hour[key])),
             )
         )
     return segments

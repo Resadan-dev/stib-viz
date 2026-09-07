@@ -41,7 +41,7 @@ export const fr = {
   daysLabel: "Journées disponibles",
   officialColours: "Couleurs officielles des lignes",
   networkSpeeds: "Vitesses du réseau",
-  legendSpeed: "Vitesse horaire d’arrêt à arrêt, en km/h",
+  legendSpeed: "Vitesse à cette heure, en km/h",
   lineLabel: "Ligne",
   allLines: "Toutes les lignes",
   showAllLines: "Réafficher toutes les lignes",
@@ -83,7 +83,7 @@ export const fr = {
     "Par défaut, un blanc chaud pour le métro, un bleu pour les bus, un violet pour les Noctis et la couleur officielle pour les trams. Les couleurs officielles de la STIB sont partagées entre plusieurs lignes : deux lignes sans rapport peuvent se ressembler.",
   aboutSpeeds: "Vitesses",
   speedsNote:
-    "La carte des vitesses colore chaque tronçon d’arrêt à arrêt selon la vitesse moyenne de l’horaire théorique sur la journée, temps d’arrêt compris : la distance parcourue divisée par le temps prévu, toutes courses confondues. Un tronçon dont l’horaire ne sépare pas les deux arrêts reste gris.",
+    "La carte des vitesses colore chaque tronçon d’arrêt à arrêt selon la vitesse de l’horaire théorique à l’heure affichée : la distance parcourue divisée par le temps prévu, sur toutes les courses de cette heure-là. Elle suit donc l’horloge, et la ville rougit aux heures de pointe. Les horaires sont donnés à la minute, alors une heure desservie moins de trois fois ne dit rien de fiable : sa fenêtre s’élargit d’une heure puis de deux à la recherche de courses, et reste grise si elle n’en trouve pas assez. Un tronçon gris n’est donc pas lent, il est muet.",
   shortcutsTitle: "Raccourcis clavier",
   keySpace: "Espace",
   keySpaceMeaning: "lecture ou pause",

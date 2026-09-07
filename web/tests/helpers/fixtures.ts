@@ -1,6 +1,7 @@
 /** Small, valid instances of the data contract, shaped like the files the pipeline writes. */
 
 import type { DayIndex, Manifest, Mode, Network, Vehicle } from "../../src/data/contract";
+import type { HourlySpeedsFile } from "../../src/data/hourly";
 
 const MINUTES = 1440;
 
@@ -40,6 +41,7 @@ export const MANIFEST: Manifest = {
   feed_version: "2_20_20260831_010702",
   attribution: "Source: STIB-MIVB – Open Data – 2026-09-05",
   network: "network/2_20_20260831_010702.json",
+  network_hourly: "network/2_20_20260831_010702-hourly.json",
   service_day_start_s: 14400,
   totals: { trips: 3, vehicles: 2, km: 12.5 },
   peak: { vehicles: 2, minute: 240 },
@@ -119,6 +121,25 @@ export const NETWORK: Network = {
   stops: {
     "1000": [4.3596, 50.8451, "DE BROUCKERE"],
     "2788": [4.35926, 50.84563, "BOURSE"],
+  },
+};
+
+/** Tenths of a km/h for twenty-four hours from 04:00; 0 is an hour the day cannot time. */
+function hours(values: Record<number, number>): number[] {
+  return Array.from({ length: 24 }, (_, hour) => values[hour] ?? 0);
+}
+
+export const HOURLY: HourlySpeedsFile = {
+  feed_version: "2_20_20260831_010702",
+  first_hour: 4,
+  hours: 24,
+  min_runs: 3,
+  speeds: {
+    // Rows count from first_hour: index 4 is 08:00, where the tram crawls, and index 10 is
+    // 14:00, where it picks up. Every other hour of the day is unknown.
+    "tram|1000|2788": hours({ 4: 123, 10: 251 }),
+    // The metro is served too thinly for the timetable to say anything at all.
+    "metro|8012|8022": hours({}),
   },
 };
 

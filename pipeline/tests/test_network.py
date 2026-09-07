@@ -10,6 +10,7 @@ from stibviz.network import (
     NetworkSegment,
     aggregate_speed_kmh,
     build_network,
+    hourly_speeds_kmh,
     intensity_class,
     lookup_table,
     stop_dictionary,
@@ -75,6 +76,63 @@ def test_aggregate_speed_leaves_out_runs_whose_stops_share_a_second() -> None:
 def test_aggregate_speed_is_unknown_when_no_run_measures_anything() -> None:
     assert aggregate_speed_kmh([500.0], [0.0]) is None
     assert aggregate_speed_kmh([], []) is None
+
+
+def _empty_day() -> tuple[list[float], list[float], list[int]]:
+    return [0.0] * 24, [0.0] * 24, [0] * 24
+
+
+def test_hourly_speed_reads_the_hour_alone_when_it_has_runs_enough() -> None:
+    lengths, durations, runs = _empty_day()
+    lengths[8], durations[8], runs[8] = 3000.0, 300.0, 3
+    assert hourly_speeds_kmh(lengths, durations, runs)[8] == pytest.approx(36.0)
+
+
+def test_hourly_speed_widens_to_its_neighbours_when_an_hour_is_too_thin() -> None:
+    """Whole-minute timetables make one run worth ±25% on a two-minute leg.
+
+    An hour served once says nothing, so the window grows to its neighbours until it holds runs
+    enough to average that rounding out. It grows no further than two hours either way, which
+    keeps the morning peak from borrowing the speeds of the middle of the day.
+    """
+    lengths, durations, runs = _empty_day()
+    lengths[8], durations[8], runs[8] = 1000.0, 100.0, 1
+    lengths[9], durations[9], runs[9] = 2000.0, 100.0, 2
+    hourly = hourly_speeds_kmh(lengths, durations, runs)
+    # Three runs across the pair: 3,000 m over 200 s, the same reading for both hours.
+    assert hourly[8] == pytest.approx(54.0)
+    assert hourly[9] == pytest.approx(54.0)
+
+
+def test_hourly_speed_is_unknown_when_even_the_widest_window_is_too_thin() -> None:
+    lengths, durations, runs = _empty_day()
+    lengths[12], durations[12], runs[12] = 1000.0, 100.0, 1
+    hourly = hourly_speeds_kmh(lengths, durations, runs)
+    assert all(value is None for value in hourly)
+    assert len(hourly) == 24
+
+
+def test_hourly_speed_never_widens_across_the_ends_of_the_day() -> None:
+    lengths, durations, runs = _empty_day()
+    for hour in (0, 1, 2):
+        lengths[hour], durations[hour], runs[hour] = 1000.0, 100.0, 1
+    hourly = hourly_speeds_kmh(lengths, durations, runs)
+    # The first hour reaches three runs by looking forward only, and the last hour finds none.
+    assert hourly[0] == pytest.approx(36.0)
+    assert hourly[23] is None
+
+
+def test_segments_carry_a_speed_for_each_hour_of_the_service_day(
+    wednesday_state: PipelineState,
+) -> None:
+    by_key = {(s.mode, s.from_stop, s.to_stop): s for s in _segments(wednesday_state)}
+    segment = by_key[("metro", "S1", "S2")]
+    assert len(segment.hourly_kmh) == 24
+    # The synthetic Wednesday runs this leg between 05:00 and 08:20, hours 1 to 4 of the day.
+    assert all(value is not None for value in segment.hourly_kmh[:6])
+    # Nothing runs in the afternoon, and no window of two hours either way reaches it.
+    assert all(value is None for value in segment.hourly_kmh[6:])
+    assert segment.hourly_kmh[1] == pytest.approx(segment.speed_kmh, abs=6)
 
 
 def test_segments_carry_the_scheduled_speed_of_the_day(wednesday_state: PipelineState) -> None:

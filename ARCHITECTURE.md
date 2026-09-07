@@ -343,6 +343,32 @@ For each trip active in the hour, the list of its stops with their scheduled tim
 Loaded on the first click within that hour, never earlier. Names come from the `stops` dictionary
 of the network layer.
 
+### 5.8 Hourly speeds `network/<version>-<digest>-hourly.json`
+
+The scheduled speed of every segment, hour by hour of the service day:
+
+```json
+{ "feed_version": "2_20_20260831_010702", "first_hour": 4, "hours": 24, "min_runs": 3,
+  "speeds": { "tram|1000|2788": [0, 0, 123, "…"], "metro|8012|8022": ["…"] } }
+```
+
+Tenths of a km/h as whole numbers, twenty-four to a row from `first_hour`, `0` for an hour the
+timetable cannot time. Keyed by mode and the two stops, not by position, so nothing depends on
+this file and the network file agreeing on an order. Measured on the Wednesday of 9 September
+2026: 2,529 segments, 272 KB, and 92% of the segment-hours carry a speed.
+
+A file of its own, named by its own content like the network beside it, and fetched the first
+time the speed view is turned on, never before: twenty-four numbers per segment is more than the
+first frame should carry, and most sessions never open that view. Until it arrives the network
+wears the speed of the whole day, so the view is never blank.
+
+An hour is worth reading only if the timetable runs the segment often enough in it. Scheduled
+times are whole minutes, so one run over a two-minute leg is worth give or take a quarter of its
+speed. Each hour therefore takes the narrowest window centred on it holding at least `min_runs`
+runs, widening by an hour and then by two; an hour that never reaches the count is left unknown
+rather than smoothed away, which is what keeps the morning peak from borrowing the speeds of the
+middle of the day.
+
 ### 5.7 Lookup table `lookup/<version>.json`
 
 Written by v1, read only by the v2 real-time converter: for each shape, the ordered list of its
@@ -409,9 +435,11 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
   so it reads by brightness alone and the slow parts of the city sink back into the night. The
   scale is cut to the network rather than to round numbers: on the feed of 31 August 2026 half
   the segments of a weekday sit between 14 and 20 km/h and nine in ten below 25, so a wider
-  scale spends most of its ramp on the tail of the metro and paints the rest one flat shade. The
-  layer keeps one id in both views and declares the view as an update trigger of its accessors;
-  the legend samples the same ramp function, so the two never drift.
+  scale spends most of its ramp on the tail of the metro and paints the rest one flat shade.
+  The speed shown is that of the hour on the clock, from the companion file of section 5.8, so
+  the view follows playback: Brussels turns violet through both peaks and warms through the
+  evening. The layer keeps one id across every view and every hour, and declares both as update
+  triggers of its accessors; the legend samples the same ramp function, so the two never drift.
 - Follow mode: while it is on and the selected vehicle has a head, every frame recentres the map
   on it with `jumpTo`; at ×300 the vehicle moves under a pixel per frame at zoom 14, so the camera
   glides. A `dragstart` from the person turns it off; stepping to a vehicle turns it on and eases
@@ -632,6 +660,8 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Vertex times at least 0.05 s apart, Float32 pushed to the next representable value when equal | 1 ms nudge | Float32 resolution near 86,400 s is 0.008 s; a 1 ms nudge collapsed and the check on written files caught it |
 | GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
 | Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
+| Hourly speeds in a file of their own, fetched when the view is first opened | A field of the network layer; a per-hour field in the manifest | Twenty-four numbers per segment is 272 KB, a third of the network layer again, for a view most sessions never open. The pattern is the one the stops of an hour already use |
+| An hour with fewer than three runs widens its window, then gives up | Showing it raw; falling back to the speed of the day | Whole-minute timetables make one run worth ±25% on a two-minute leg, which would make the quiet hours flicker. Falling back to the day would state an average as if it were the hour: an unknown hour is drawn as unknown |
 | Network file named by a digest of its content | The feed version alone; the version plus a format suffix; the version plus the day | Named by version, the seven days of a window wrote the file in turn and the last one won, so every day showed another day's runs and speeds. A digest gives each timetable its own file and lets the weekdays of a window share one, where a per-day name would have deployed five copies of the same megabyte |
 | Speed scale cut to the measured spread of the network, 10 to 28 km/h | A round 8 to 40, covering every segment | Half the segments of a weekday sit between 14 and 20 km/h: the wider scale spent two thirds of its ramp on the tenth of the network that is metro and painted the whole surface network one shade of rose. Clipping the metro at the bright end is the true reading, since it is not on the same scale as the rest |
 | Speed of a segment as distance over time summed across the day | Mean or median of the per-run speeds | Scheduled times are whole minutes: one run over a 700 m segment reads as 21 or 42 km/h and nothing between, and only the ratio of sums lets that rounding average out. A run whose stops share a second is left out rather than counted as infinite or as zero |
@@ -700,3 +730,6 @@ To settle during implementation, each with a test behind it:
 - 7 September 2026, v1.8: each published day carries its own network. The file is named by a
   digest of its content, so the days of a window no longer overwrite one another's runs and
   speeds, and days that share a timetable still share one file (section 5.5).
+- 7 September 2026, v1.9: the speed map follows the clock. The pipeline measures every segment
+  hour by hour and writes them beside the network; the site fetches them when the view is first
+  opened and repaints on the hour (sections 5.8, 6.3).

@@ -16,6 +16,7 @@ import {
   loadVehicles,
   type Day,
 } from "./data/loader";
+import { loadHourlySpeeds, type HourlySpeeds } from "./data/hourly";
 import { createSliceStore } from "./data/slices";
 import { createStopsStore, parseStops } from "./data/stops";
 import { dayKindLabel, fr } from "./i18n/fr";
@@ -348,8 +349,35 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       camera: { latitude: center.lat, longitude: center.lng, zoom: view.map.getZoom() },
     });
   });
-  // Rebuilt when the view changes: the layer keeps its id, its accessors do not.
+  // Rebuilt when the view or the hour changes: the layer keeps its id, its accessors do not.
+  // The speeds of each hour are fetched the first time the speed view is asked for, never
+  // before; until they arrive the network wears the speed of the whole day.
+  let hourlySpeeds: HourlySpeeds | null = null;
+  let hourlyAsked = false;
+  let networkHour = -1;
   let networkLayer = createNetworkLayer(network, store.get().network);
+
+  function repaintNetwork(state: AppState): void {
+    networkHour = hourOf(state.time);
+    networkLayer = createNetworkLayer(network, state.network, hourlySpeeds, networkHour);
+    renderedKey = "";
+  }
+
+  function ensureHourlySpeeds(state: AppState): void {
+    if (state.network !== "speed" || hourlyAsked) {
+      return;
+    }
+    hourlyAsked = true;
+    loadHourlySpeeds(source, day)
+      .then((speeds) => {
+        hourlySpeeds = speeds;
+        repaintNetwork(store.get());
+      })
+      .catch((error: unknown) => {
+        // The day's own speed is already on screen: say so and leave it there.
+        console.warn("hourly speeds unavailable, the network keeps the speed of the day", error);
+      });
+  }
   const stopsStore = createStopsStore(day.manifest.stops_files, (entry) =>
     source.json(day.directory + entry.path).then(parseStops),
   );
@@ -583,10 +611,13 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     networkToggle.update(state.network);
     legend.update(state.network);
     activity.update(state.time, state.modes);
-    if (state.network !== previous.network) {
-      networkLayer = createNetworkLayer(network, state.network);
-      renderedKey = "";
+    if (
+      state.network !== previous.network ||
+      (state.network === "speed" && hourOf(state.time) !== networkHour)
+    ) {
+      repaintNetwork(state);
     }
+    ensureHourlySpeeds(state);
     if (state.colours !== previous.colours || state.line !== previous.line) {
       const options = colourOptions(state);
       mounted = mounted.map((item) => recolour(item, routes, options));

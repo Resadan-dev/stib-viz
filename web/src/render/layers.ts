@@ -11,6 +11,7 @@ import { TripsLayer } from "@deck.gl/geo-layers";
 import { GeoJsonLayer, ScatterplotLayer } from "@deck.gl/layers";
 
 import type { Network, NetworkFeature } from "../data/contract";
+import { segmentKey, type HourlySpeeds } from "../data/hourly";
 import type { NetworkView } from "../state/app-state";
 import { networkColor, type Rgb } from "../theme/colors";
 import type { HeadBuffers, MountedSlice } from "./heads";
@@ -169,7 +170,12 @@ function networkWidth(underground: boolean, view: NetworkView): number {
 export function createNetworkLayer(
   network: Network,
   view: NetworkView = "runs",
+  /** The speeds of each hour, once fetched; until then the day's own speed stands in. */
+  hourly: HourlySpeeds | null = null,
+  hour = 0,
 ): GeoJsonLayer<NetworkFeature["properties"]> {
+  const speedOf = (properties: NetworkFeature["properties"]): number | null =>
+    hourly === null ? properties.speed : hourly.at(segmentKey(properties), hour);
   return new GeoJsonLayer<NetworkFeature["properties"]>({
     id: "network",
     data: network,
@@ -178,9 +184,10 @@ export function createNetworkLayer(
     lineWidthUnits: "pixels",
     lineWidthMinPixels: 1,
     getLineWidth: (feature) => networkWidth(feature.properties.underground, view),
-    getLineColor: (feature) => networkColor(feature.properties, view),
-    // One id for both views, so deck.gl has to be told that the accessors changed with it.
-    updateTriggers: { getLineColor: view, getLineWidth: view },
+    getLineColor: (feature) =>
+      networkColor({ ...feature.properties, speed: speedOf(feature.properties) }, view),
+    // One id for every view and every hour, so deck.gl has to be told what changed under it.
+    updateTriggers: { getLineColor: [view, hour, hourly !== null], getLineWidth: view },
     lineCapRounded: true,
     lineJointRounded: true,
     parameters: FLAT,
