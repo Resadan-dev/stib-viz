@@ -22,6 +22,23 @@ function brightness(colour: string): number {
   return contrastRatio(colour, "000000");
 }
 
+/**
+ * The flat colour a named layer paints a property with, read as plain data. Narrowing the style's
+ * own layer union by its discriminant and then indexing `paint` is what the types invite, and it
+ * costs minutes: the paint of a symbol layer is a recursive union of every expression MapLibre
+ * accepts, which the type-aware lint rules unfold until they hang. Reading it as `unknown` and
+ * checking the shape at runtime asks the checker for nothing, and a style is data at runtime
+ * anyway, which is where the map reads it from.
+ */
+function flatColour(layer: unknown, property: string): string | undefined {
+  const paint: unknown = (layer as { paint?: unknown } | undefined)?.paint;
+  if (typeof paint !== "object" || paint === null) {
+    return undefined;
+  }
+  const value: unknown = (paint as Record<string, unknown>)[property];
+  return typeof value === "string" ? value : undefined;
+}
+
 describe("nightStyle", () => {
   const style = nightStyle();
 
@@ -90,12 +107,16 @@ describe("nightStyle", () => {
   it("writes the place names legibly on the ground they sit on", () => {
     // Rare is not the same as unreadable. Their halo is the ground, so the ground is the
     // background to measure against whatever a name crosses, water or wood or a motorway.
-    const labels = style.layers.find((layer) => layer.id === "place-labels");
-    const ground = style.layers.find((layer) => layer.id === "background");
-    const ink = labels?.type === "symbol" ? labels.paint?.["text-color"] : undefined;
-    const paper = ground?.type === "background" ? ground.paint?.["background-color"] : undefined;
-    expect(typeof ink, "the place names carry no flat colour to audit").toBe("string");
-    expect(typeof paper, "the ground carries no flat colour to audit").toBe("string");
+    const ink = flatColour(
+      style.layers.find((layer) => layer.id === "place-labels"),
+      "text-color",
+    );
+    const paper = flatColour(
+      style.layers.find((layer) => layer.id === "background"),
+      "background-color",
+    );
+    expect(ink, "the place names carry no flat colour to audit").toBeDefined();
+    expect(paper, "the ground carries no flat colour to audit").toBeDefined();
     const contrast = contrastRatio(String(ink).replace("#", ""), String(paper).replace("#", ""));
     expect(
       contrast,
