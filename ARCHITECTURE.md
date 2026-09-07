@@ -468,7 +468,7 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
   a low fixed opacity for every other one — and restored on deselection. The rebuild touches only
   the colour arrays, not positions or times, and runs once per selection change, not per frame.
 - Colour toggle: `theme/colors.ts` reads the route's own `color` field for every mode when the
-  toggle is on, the mode palette when it is off; trams already read their own colour either way.
+  toggle is on, and the mode palette, trams included, when it is off.
   Flipping the toggle rebuilds the colour buffers of the mounted slices the same way a line
   selection does. Colours come from the feed, not invented: STIB reuses roughly a dozen colours
   across its routes, so the toggle can still show two unrelated lines in the same colour — noted
@@ -507,10 +507,10 @@ rewrites it a few times a second at most, well under the browser throttling of `
   keeps the Forêt de Soignes, the Bois de la Cambre and every city park; the `park` layer holds
   nature reserves and protected areas alone, and painting it by itself left the south-east of the
   region a flat void.
-- Modes: warm white for metro, official colour for trams, a single cool blue for buses, violet for
-  Noctis by default; a colour toggle (section 6.3) switches every mode to its own route's official
-  colour instead. Exact default values live in `theme/` and were tuned at milestone M2 against the
-  real render.
+- Modes: warm white for metro, amber for trams, a single cool blue for buses, violet for Noctis
+  by default, one flat colour per mode; a colour toggle (section 6.3) switches every mode to its
+  own route's official colour instead. Exact default values live in `theme/` and were tuned at
+  milestone M2 against the real render.
 - Network: five levels of one blue-grey, from nearly invisible to discreet.
 - Interface: dark translucent panels, sober typography, tabular figures.
 

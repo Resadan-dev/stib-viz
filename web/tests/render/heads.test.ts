@@ -12,6 +12,7 @@ import {
   positionAt,
   recolour,
 } from "../../src/render/heads";
+import { MODE_COLORS } from "../../src/theme/colors";
 import { MANIFEST } from "../helpers/fixtures";
 import { encodeSlice } from "../helpers/stv1";
 
@@ -126,7 +127,7 @@ describe("computeHeads", () => {
   it("places a running vehicle on its path with the colour of its route", () => {
     const result = heads(130);
     expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ vehicle: 0, color: [239, 224, 72, 255] });
+    expect(result[0]).toMatchObject({ vehicle: 0, color: [...MODE_COLORS.tram, 255] });
     expect(result[0]?.lon).toBeCloseTo(4.355, 5);
   });
 

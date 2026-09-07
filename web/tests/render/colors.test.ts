@@ -8,6 +8,7 @@ import {
   pathColors,
   vertexColors,
 } from "../../src/render/colors";
+import { MODE_COLORS } from "../../src/theme/colors";
 import { MANIFEST } from "../helpers/fixtures";
 import { encodeSlice } from "../helpers/stv1";
 
@@ -30,8 +31,8 @@ describe("vertexColors", () => {
   it("unfolds one opaque RGBA colour per vertex from the route of its path", () => {
     const colors = vertexColors(slice, MANIFEST.routes);
     expect(colors).toHaveLength(4 * slice.vertices);
-    expect(Array.from(colors.subarray(0, 4))).toEqual([239, 224, 72, 255]);
-    expect(Array.from(colors.subarray(8, 12))).toEqual([239, 224, 72, 255]);
+    expect(Array.from(colors.subarray(0, 4))).toEqual([...MODE_COLORS.tram, 255]);
+    expect(Array.from(colors.subarray(8, 12))).toEqual([...MODE_COLORS.tram, 255]);
     expect(Array.from(colors.subarray(12, 16))).toEqual([255, 232, 196, 255]);
   });
 
@@ -60,6 +61,13 @@ describe("colour options", () => {
     expect(Array.from(vertexColors(bus, routes, { scheme: "official" }).subarray(0, 3))).toEqual([
       76, 139, 51,
     ]);
+  });
+
+  it("paints trams in the tram colour by default, in their official colour on demand", () => {
+    const palette = vertexColors(slice, MANIFEST.routes);
+    expect(Array.from(palette.subarray(0, 3))).toEqual([...MODE_COLORS.tram]);
+    const official = vertexColors(slice, MANIFEST.routes, { scheme: "official" });
+    expect(Array.from(official.subarray(0, 3))).toEqual([239, 224, 72]);
   });
 
   it("dims every route but the selected line, by line name, in vertices and in heads", () => {

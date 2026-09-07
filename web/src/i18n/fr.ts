@@ -85,7 +85,7 @@ export const fr = {
   aboutBasemap: "Fond de carte OpenFreeMap © OpenMapTiles, données © contributeurs OpenStreetMap.",
   aboutColours: "Couleurs",
   sharedColoursNote:
-    "Par défaut, un blanc chaud pour le métro, un bleu pour les bus, un violet pour les Noctis et la couleur officielle pour les trams. Les couleurs officielles de la STIB sont partagées entre plusieurs lignes : deux lignes sans rapport peuvent se ressembler.",
+    "Par défaut, une couleur par mode : un blanc chaud pour le métro, un jaune doré pour les trams, un bleu pour les bus, un violet pour les Noctis. Avec les couleurs officielles, chaque ligne prend la sienne ; la STIB les partage entre plusieurs lignes, et deux lignes sans rapport peuvent se ressembler.",
   aboutSpeeds: "Vitesses",
   speedsNote:
     "Le réseau se lit de trois façons. « Passages » l’éclaire selon le nombre de courses de la journée. « Vitesse » colore chaque tronçon d’arrêt à arrêt selon la vitesse de l’horaire théorique à l’heure affichée : la distance divisée par le temps prévu, sur toutes les courses de cette heure-là. « Écart à l’habitude » rapporte cette vitesse à celle du même tronçon sur la journée entière.",

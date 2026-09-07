@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_START_TIME_S, allModes, initialState } from "../../src/state/app-state";
+import { formatClock } from "../../src/time/clock";
 
 describe("initialState", () => {
-  it("opens at 08:00, at x300, paused, every mode visible, palette colours", () => {
+  it("opens at 04:30, at x300, paused, every mode visible, palette colours", () => {
     const state = initialState("2026-09-09");
     expect(state).toMatchObject({
       day: "2026-09-09",
@@ -17,7 +18,7 @@ describe("initialState", () => {
       vehicle: null,
       follow: false,
     });
-    expect(DEFAULT_START_TIME_S).toBe(14400);
+    expect(formatClock(DEFAULT_START_TIME_S)).toBe("04:30");
     expect(state.modes).toEqual({ metro: true, tram: true, bus: true, noctis: true });
   });
 

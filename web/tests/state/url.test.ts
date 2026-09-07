@@ -127,7 +127,8 @@ describe("syncUrl", () => {
 
   it("writes the query after a debounce, only when it changed", () => {
     vi.useFakeTimers();
-    const store = createStore(initialState("2026-09-09"));
+    // Opened at 08:00: the first instant below stays in that minute, the second leaves it.
+    const store = createStore(initialState("2026-09-09", { time: 14400 }));
     const replace = vi.fn();
     const stop = syncUrl(store, replace, 300);
 

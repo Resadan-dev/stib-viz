@@ -1,8 +1,8 @@
 /**
  * Night-time palette (SCOPE.md, section 4.2; ARCHITECTURE.md, section 6.5).
  *
- * Warm white for metro, the official colour for trams, one cool blue for buses, violet for
- * Noctis. The network is five levels of one blue-grey, dimmer underground.
+ * Warm white for metro, amber for trams, one cool blue for buses, violet for Noctis. The
+ * network is five levels of one blue-grey, dimmer underground.
  */
 
 import type { Mode, NetworkProperties, RouteInfo } from "../data/contract";
@@ -148,15 +148,16 @@ export function contrastRatio(foreground: string, background: string): number {
 }
 
 /**
- * Palette scheme: trams keep their official colour, every other mode takes the palette colour.
- * Official scheme: every route takes its own colour from the feed, the palette as a fallback.
- * STIB reuses about a dozen colours across its routes, so two unrelated lines can still match.
+ * Palette scheme: every route takes the colour of its mode, trams included, whatever the feed
+ * says. Official scheme: every route takes its own colour from the feed, the palette as a
+ * fallback. STIB reuses about a dozen colours across its routes, so two unrelated lines can
+ * still match.
  */
 export function routeColor(
   route: Pick<RouteInfo, "mode" | "color">,
   scheme: ColourScheme = "palette",
 ): Rgb {
-  if (scheme === "palette" && route.mode !== "tram") {
+  if (scheme === "palette") {
     return MODE_COLORS[route.mode];
   }
   return parseHexColor(route.color) ?? MODE_COLORS[route.mode];

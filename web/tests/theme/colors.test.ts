@@ -35,29 +35,29 @@ describe("parseHexColor", () => {
 });
 
 describe("routeColor", () => {
-  it("gives trams their official colour", () => {
-    expect(routeColor(tram)).toEqual([239, 224, 72]);
-  });
-
-  it("gives every other mode the palette colour, whatever the feed says", () => {
+  it("gives every mode its palette colour by default, trams included", () => {
+    // The fixture tram carries the official STIB yellow, which the palette must not pick up.
+    expect(parseHexColor(tram.color)).not.toEqual(MODE_COLORS.tram);
+    expect(routeColor(tram)).toEqual(MODE_COLORS.tram);
     expect(routeColor(metro)).toEqual(MODE_COLORS.metro);
     expect(routeColor({ ...tram, mode: "bus" })).toEqual(MODE_COLORS.bus);
     expect(routeColor({ ...tram, mode: "noctis" })).toEqual(MODE_COLORS.noctis);
   });
 
-  it("falls back to the palette when the tram colour is unreadable", () => {
-    expect(routeColor({ ...tram, color: "nope" })).toEqual(MODE_COLORS.tram);
-  });
-
   it("gives every mode its official colour under the official scheme", () => {
+    expect(routeColor(tram, "official")).toEqual([239, 224, 72]);
     expect(routeColor(metro, "official")).toEqual([181, 55, 140]);
     expect(routeColor({ ...tram, mode: "bus", color: "4C8B33" }, "official")).toEqual([
       76, 139, 51,
     ]);
+    expect(routeColor(metro, "palette")).toEqual(MODE_COLORS.metro);
+  });
+
+  it("falls back to the palette when the official colour is unreadable", () => {
+    expect(routeColor({ ...tram, color: "nope" }, "official")).toEqual(MODE_COLORS.tram);
     expect(routeColor({ ...tram, mode: "noctis", color: "nope" }, "official")).toEqual(
       MODE_COLORS.noctis,
     );
-    expect(routeColor(metro, "palette")).toEqual(MODE_COLORS.metro);
   });
 });
 
