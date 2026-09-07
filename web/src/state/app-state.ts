@@ -14,8 +14,13 @@ export const DEFAULT_START_TIME_S = 14400;
 export const DAY_START_TIME_S = 0;
 
 export type ColourScheme = "palette" | "official";
-/** What the network layer shows: the runs of the day, or the scheduled speed over each segment. */
-export type NetworkView = "runs" | "speed";
+/**
+ * What the network layer shows: the runs of the day, the scheduled speed over each segment, or
+ * how far this hour is from that segment's own speed for the day.
+ */
+export type NetworkView = "runs" | "speed" | "relative";
+/** In the order the control offers them. */
+export const NETWORK_VIEWS: readonly NetworkView[] = ["runs", "speed", "relative"];
 export type ModeVisibility = Readonly<Record<Mode, boolean>>;
 
 export interface Camera {

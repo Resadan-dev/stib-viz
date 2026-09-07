@@ -1,5 +1,5 @@
 import { fr } from "../i18n/fr";
-import type { ColourScheme, NetworkView } from "../state/app-state";
+import { NETWORK_VIEWS, type ColourScheme, type NetworkView } from "../state/app-state";
 
 export interface ColourToggle {
   update(scheme: ColourScheme): void;
@@ -32,25 +32,49 @@ export interface NetworkToggle {
   update(view: NetworkView): void;
 }
 
-/** One pressed-state button: pressed means the network shows the scheduled speed of each segment. */
-export function createNetworkToggle(
+/**
+ * The three readings of the network layer, as one group of pressed-state buttons: how often it
+ * is run, how fast the timetable is over it at this hour, and how far that hour is from the
+ * habit of the segment itself.
+ */
+export function createNetworkViews(
   parent: HTMLElement,
   onChange: (view: NetworkView) => void,
 ): NetworkToggle {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "toggle";
-  button.textContent = fr.networkSpeeds;
-  button.setAttribute("aria-pressed", "false");
-  let shown: NetworkView = "runs";
-  button.addEventListener("click", () => {
-    onChange(shown === "speed" ? "runs" : "speed");
-  });
-  parent.append(button);
+  const wrapper = document.createElement("div");
+  wrapper.className = "views";
+  const label = document.createElement("span");
+  label.className = "views__label";
+  label.textContent = fr.networkLabel;
+  const group = document.createElement("div");
+  group.className = "views__group";
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", fr.networkLabel);
+  const wording: Record<NetworkView, string> = {
+    runs: fr.networkRuns,
+    speed: fr.networkSpeed,
+    relative: fr.networkDeviation,
+  };
+  const buttons = new Map<NetworkView, HTMLButtonElement>();
+  for (const view of NETWORK_VIEWS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "views__button";
+    button.textContent = wording[view];
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => {
+      onChange(view);
+    });
+    group.append(button);
+    buttons.set(view, button);
+  }
+  wrapper.append(label, group);
+  parent.append(wrapper);
   return {
     update(view) {
-      shown = view;
-      button.setAttribute("aria-pressed", view === "speed" ? "true" : "false");
+      for (const [candidate, button] of buttons) {
+        button.setAttribute("aria-pressed", candidate === view ? "true" : "false");
+      }
     },
   };
 }

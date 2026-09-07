@@ -30,13 +30,18 @@ test("writes speed, filters, colours, line and instant back to the URL", async (
   await page.getByRole("button", { name: "Couleurs officielles des lignes" }).click();
   await expect.poll(() => param(page, "colours")).toBe("official");
 
-  // The speed view repaints the network and brings its scale with it.
-  await page.getByRole("button", { name: "Vitesses du réseau" }).click();
+  // Each reading of the network repaints it and brings its own scale with it.
+  const views = page.getByRole("group", { name: "Réseau" });
+  const legend = page.locator("figure.legend");
+  await views.getByRole("button", { name: "Vitesse", exact: true }).click();
   await expect.poll(() => param(page, "network")).toBe("speed");
-  await expect(page.locator("figure.legend")).toBeVisible();
-  await page.getByRole("button", { name: "Vitesses du réseau" }).click();
+  await expect(legend).toContainText("km/h");
+  await views.getByRole("button", { name: "Écart à l’habitude" }).click();
+  await expect.poll(() => param(page, "network")).toBe("relative");
+  await expect(legend).toContainText("habituel");
+  await views.getByRole("button", { name: "Passages" }).click();
   await expect.poll(() => param(page, "network")).toBeNull();
-  await expect(page.locator("figure.legend")).toBeHidden();
+  await expect(legend).toBeHidden();
 
   await page.getByRole("button", { name: "Choisir une ligne" }).click();
   const picker = page.locator("section.picker");

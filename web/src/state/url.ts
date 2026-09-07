@@ -12,6 +12,7 @@ import { formatClock, parseClock } from "../time/clock";
 import { SPEEDS } from "../time/player";
 import {
   DAY_START_TIME_S,
+  NETWORK_VIEWS,
   allModes,
   type AppState,
   type Camera,
@@ -56,6 +57,10 @@ function isMode(value: string): value is Mode {
   return (MODES as readonly string[]).includes(value);
 }
 
+function isNetworkView(value: string): value is NetworkView {
+  return (NETWORK_VIEWS as readonly string[]).includes(value);
+}
+
 export function readUrlState(search: string): UrlState {
   const params = new URLSearchParams(search);
   const state: UrlState = {};
@@ -91,7 +96,7 @@ export function readUrlState(search: string): UrlState {
     state.colours = colours;
   }
   const network = params.get("network");
-  if (network === "speed" || network === "runs") {
+  if (network !== null && isNetworkView(network)) {
     state.network = network;
   }
   const camera = params.get("c");

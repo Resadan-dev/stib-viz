@@ -45,6 +45,7 @@ describe("readUrlState", () => {
 
   it("reads the network view, and ignores one it does not know", () => {
     expect(readUrlState("?network=speed")).toEqual({ network: "speed" });
+    expect(readUrlState("?network=relative")).toEqual({ network: "relative" });
     expect(readUrlState("?network=runs")).toEqual({ network: "runs" });
     expect(readUrlState("?network=delays")).toEqual({});
   });
@@ -84,6 +85,9 @@ describe("writeUrlState", () => {
   it("names the network view only when it is not the runs of the day", () => {
     expect(writeUrlState({ ...base, network: "speed" })).toBe(
       "?d=2026-09-09&t=17:03&s=300&network=speed&p=1",
+    );
+    expect(writeUrlState({ ...base, network: "relative" })).toBe(
+      "?d=2026-09-09&t=17:03&s=300&network=relative&p=1",
     );
     expect(writeUrlState({ ...base, network: "runs" })).toBe("?d=2026-09-09&t=17:03&s=300&p=1");
   });

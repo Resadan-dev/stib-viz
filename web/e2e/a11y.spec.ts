@@ -31,10 +31,13 @@ async function audit(page: Page): Promise<void> {
 test("the page passes an axe audit, in the speed view of the network too", async ({ page }) => {
   await open(page);
   await audit(page);
-  // The speed view adds the legend to the panel: audit that state as well.
-  await page.getByRole("button", { name: "Vitesses du réseau" }).click();
-  await expect(page.locator("figure.legend")).toBeVisible();
-  await audit(page);
+  // Each reading of the network by colour adds its legend to the panel: audit both.
+  const views = page.getByRole("group", { name: "Réseau" });
+  for (const reading of ["Vitesse", "Écart à l’habitude"]) {
+    await views.getByRole("button", { name: reading, exact: true }).click();
+    await expect(page.locator("figure.legend")).toBeVisible();
+    await audit(page);
+  }
 });
 
 test("the vehicle panel and the about dialog pass an axe audit", async ({ page }) => {

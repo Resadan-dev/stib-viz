@@ -13,7 +13,7 @@ import { GeoJsonLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Network, NetworkFeature } from "../data/contract";
 import { segmentKey, type HourlySpeeds } from "../data/hourly";
 import type { NetworkView } from "../state/app-state";
-import { networkColor, type Rgb } from "../theme/colors";
+import { networkColor, type NetworkPaint, type Rgb } from "../theme/colors";
 import type { HeadBuffers, MountedSlice } from "./heads";
 
 /** Trail length in service-day seconds, always below the 300 s upstream overlap of the slices. */
@@ -158,12 +158,12 @@ export function createSelectionLayer(
   });
 }
 
-/** Wider in the speed view, where the network is the picture and its colours must be read. */
+/** Wider wherever the network is read by colour, where it is the picture rather than the ground. */
 function networkWidth(underground: boolean, view: NetworkView): number {
-  if (view === "speed") {
-    return underground ? 3 : 2;
+  if (view === "runs") {
+    return underground ? 2.5 : 1.5;
   }
-  return underground ? 2.5 : 1.5;
+  return underground ? 3 : 2;
 }
 
 /** The network beneath the vehicles; created once per day and once per view, never per frame. */
@@ -174,8 +174,17 @@ export function createNetworkLayer(
   hourly: HourlySpeeds | null = null,
   hour = 0,
 ): GeoJsonLayer<NetworkFeature["properties"]> {
-  const speedOf = (properties: NetworkFeature["properties"]): number | null =>
-    hourly === null ? properties.speed : hourly.at(segmentKey(properties), hour);
+  // What the colour of a segment is read from: the speed of this hour, or of the whole day
+  // until the hourly file arrives, and how far the one is from the other.
+  const paintOf = (properties: NetworkFeature["properties"]): NetworkPaint => {
+    const usual = properties.speed;
+    const now = hourly === null ? usual : hourly.at(segmentKey(properties), hour);
+    return {
+      ...properties,
+      speed: now,
+      deviation: now === null || usual === null || usual <= 0 ? null : now / usual,
+    };
+  };
   return new GeoJsonLayer<NetworkFeature["properties"]>({
     id: "network",
     data: network,
@@ -184,8 +193,7 @@ export function createNetworkLayer(
     lineWidthUnits: "pixels",
     lineWidthMinPixels: 1,
     getLineWidth: (feature) => networkWidth(feature.properties.underground, view),
-    getLineColor: (feature) =>
-      networkColor({ ...feature.properties, speed: speedOf(feature.properties) }, view),
+    getLineColor: (feature) => networkColor(paintOf(feature.properties), view),
     // One id for every view and every hour, so deck.gl has to be told what changed under it.
     updateTriggers: { getLineColor: [view, hour, hourly !== null], getLineWidth: view },
     lineCapRounded: true,

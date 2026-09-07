@@ -277,7 +277,8 @@ main.map {
 
 /* The clock and this row are the only ones that cannot reflow on their own. Both may wrap, so a
    panel narrower than its content grows taller instead of scrolling sideways. */
-.speeds {
+.speeds,
+.views__group {
   display: inline-flex;
   flex-wrap: wrap;
   border: 1px solid var(--panel-border);
@@ -285,7 +286,8 @@ main.map {
   overflow: hidden;
 }
 
-.speeds__button {
+.speeds__button,
+.views__button {
   padding: 0.4rem 0.65rem;
   border: 0;
   border-right: 1px solid var(--panel-border);
@@ -297,20 +299,24 @@ main.map {
   cursor: pointer;
 }
 
-.speeds__button:last-child {
+.speeds__button:last-child,
+.views__button:last-child {
   border-right: 0;
 }
 
-.speeds__button:hover {
+.speeds__button:hover,
+.views__button:hover {
   color: var(--ink);
 }
 
-.speeds__button[aria-pressed="true"] {
+.speeds__button[aria-pressed="true"],
+.views__button[aria-pressed="true"] {
   background: rgb(255 232 196 / 0.14);
   color: var(--accent);
 }
 
 .speeds__button:focus-visible,
+.views__button:focus-visible,
 .filters input:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
@@ -513,7 +519,20 @@ main.map {
   color: var(--accent);
 }
 
-/* --- Version 2: the speed view of the network --- */
+/* --- Version 2: the readings of the network and their scale --- */
+
+/* Laid out like the line picker above it: a word, then the control it names. */
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+}
+
+.views__label {
+  color: var(--ink-muted);
+}
 
 /* The slot is transparent to the layout: the legend is the grid item, and its hidden attribute
    takes it out of the panel entirely, gap included, rather than leaving an empty row behind. */
@@ -552,6 +571,7 @@ main.map {
   position: absolute;
   top: 0;
   transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .legend__tick:last-child {
@@ -1211,6 +1231,7 @@ main.map {
   .toggle,
   .days__day,
   .speeds__button,
+  .views__button,
   .filters__mode,
   .lines__trigger,
   .lines__clear,
@@ -1228,7 +1249,8 @@ main.map {
 
   /* Narrower than a desktop panel, so the five speeds give back some padding rather than push
      a horizontal scrollbar. */
-  .speeds__button {
+  .speeds__button,
+  .views__button {
     padding: 0.4rem 0.55rem;
     font-size: 0.78rem;
   }

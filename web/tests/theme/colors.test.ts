@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEVIATION_SCALE,
+  DEVIATION_USUAL,
   MODE_COLORS,
   NETWORK_ALPHA_BY_CLASS,
   SPEED_SCALE_KMH,
   UNKNOWN_SPEED_COLOR,
+  deviationColor,
   networkColor,
   parseHexColor,
   routeColor,
@@ -148,5 +151,65 @@ describe("networkColor in the speed view", () => {
   it("is the runs view when asked for it, whatever the speed", () => {
     const paint = { class: 3, underground: false, speed: 40 };
     expect(networkColor(paint, "runs")).toEqual(networkColor(paint));
+  });
+});
+
+describe("deviationColor", () => {
+  const [slowest, fastest] = DEVIATION_SCALE;
+
+  it("puts the usual speed at the bottom of the ramp, and both departures above it", () => {
+    // A diverging scale on a night ground: an ordinary hour sinks into it, and a segment that
+    // leaves its habit in either direction lights up. Direction is carried by hue, not by
+    // brightness, so the two arms must climb away from a neutral that is dimmer than both.
+    expect(deviationColor(1)).toEqual(DEVIATION_USUAL);
+    expect(luminance(deviationColor(1))).toBeLessThan(luminance(deviationColor(slowest)));
+    expect(luminance(deviationColor(1))).toBeLessThan(luminance(deviationColor(fastest)));
+  });
+
+  it("tells the two directions apart by hue, which blue against orange does for every eye", () => {
+    const slow = deviationColor(slowest);
+    const fast = deviationColor(fastest);
+    // Blue against orange survives every common kind of colour blindness, where red against
+    // green would not: the slow arm is bluest, the fast arm reddest.
+    expect(slow[2]).toBeGreaterThan(slow[0]);
+    expect(fast[0]).toBeGreaterThan(fast[2]);
+  });
+
+  it("climbs away from the usual speed without a step at the middle", () => {
+    const around = [0.98, 0.99, 1, 1.01, 1.02].map(deviationColor);
+    for (const colour of around) {
+      for (let channel = 0; channel < 3; channel += 1) {
+        expect(Math.abs((colour[channel] ?? 0) - (DEVIATION_USUAL[channel] ?? 0))).toBeLessThan(20);
+      }
+    }
+  });
+
+  it("holds its ends beyond the scale rather than inventing colours", () => {
+    expect(deviationColor(0.1)).toEqual(deviationColor(slowest));
+    expect(deviationColor(9)).toEqual(deviationColor(fastest));
+    expect(slowest).toBeLessThan(1);
+    expect(fastest).toBeGreaterThan(1);
+  });
+});
+
+describe("networkColor in the deviation view", () => {
+  const paint = { class: 3, underground: false, speed: 16 };
+
+  it("paints how far the hour is from the habit of the segment, not how fast it is", () => {
+    expect(networkColor({ ...paint, deviation: 0.8 }, "relative").slice(0, 3)).toEqual(
+      deviationColor(0.8),
+    );
+    expect(networkColor({ ...paint, deviation: 1.3 }, "relative").slice(0, 3)).toEqual(
+      deviationColor(1.3),
+    );
+    // The speed of the segment says nothing here: two segments that keep their habit match.
+    const slow = networkColor({ ...paint, speed: 9, deviation: 1 }, "relative");
+    const quick = networkColor({ ...paint, speed: 34, deviation: 1 }, "relative");
+    expect(slow).toEqual(quick);
+  });
+
+  it("shows an hour it cannot compare as unknown, the way the speed view does", () => {
+    expect(networkColor({ ...paint, deviation: null }, "relative")).toEqual(UNKNOWN_SPEED_COLOR);
+    expect(networkColor(paint, "relative")).toEqual(UNKNOWN_SPEED_COLOR);
   });
 });

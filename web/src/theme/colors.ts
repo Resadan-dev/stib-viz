@@ -52,6 +52,49 @@ export const SPEED_RAMP: readonly Rgb[] = [
   [246, 140, 55],
   [255, 246, 205],
 ];
+/**
+ * The scale of the deviation view: this hour's speed over the segment's own speed for the day.
+ *
+ * The absolute speed of a segment is mostly its stop spacing, which no hour changes: measured on
+ * the Wednesday of 9 September 2026, the spread across the city within one hour is two to three
+ * times the swing between the slowest hour and the fastest. Dividing by the segment's own habit
+ * cancels that geography exactly and leaves the clock alone.
+ *
+ * Cut close, because the departures are small: on the same day the median segment is only 9%
+ * under its habit at the morning peak and a quarter over it at midnight. Ends any wider left
+ * most of the network sitting near the middle of the ramp, where a diverging scale is at its
+ * dimmest, and the map went dark instead of blue.
+ */
+export const DEVIATION_SCALE: readonly [number, number] = [0.8, 1.3];
+/** Where the legend puts its numbers, as a share of the usual speed. */
+export const DEVIATION_TICKS: readonly number[] = [0.8, 1, 1.3];
+/**
+ * Slower than usual, as usual, faster than usual. Diverging rather than climbing: the neutral is
+ * the dimmest of the three, so a segment that leaves its habit in either direction lights up.
+ * It is a grey that still reads as a network rather than a near-black, because at any hour most
+ * of the city is near its habit and the map would otherwise all but disappear. Blue against
+ * orange carries the direction, which every common kind of colour blindness tells apart, where
+ * red against green would not.
+ */
+export const DEVIATION_SLOWER: Rgb = [70, 165, 255];
+export const DEVIATION_USUAL: Rgb = [118, 124, 145];
+export const DEVIATION_FASTER: Rgb = [255, 195, 105];
+
+/** The colour of a deviation on the diverging ramp, held at the ends of the scale. */
+export function deviationColor(ratio: number): Rgb {
+  const [slowest, fastest] = DEVIATION_SCALE;
+  const held = Math.min(fastest, Math.max(slowest, ratio));
+  // Each arm is interpolated on its own, so the neutral sits exactly on the usual speed rather
+  // than at the middle of the bar, which the two arms have no reason to share.
+  const [from, to, part] =
+    held < 1
+      ? [DEVIATION_SLOWER, DEVIATION_USUAL, (held - slowest) / (1 - slowest)]
+      : [DEVIATION_USUAL, DEVIATION_FASTER, (held - 1) / (fastest - 1)];
+  const mix = (channel: 0 | 1 | 2): number =>
+    Math.round(from[channel] + (to[channel] - from[channel]) * part);
+  return [mix(0), mix(1), mix(2)];
+}
+
 /** A segment no run of the day could time: a neutral, dimmer than any speed. */
 export const UNKNOWN_SPEED_COLOR: Rgba = [110, 118, 140, 90];
 /** In the speed view the network is the picture rather than the background. */
@@ -119,7 +162,10 @@ export function routeColor(
   return parseHexColor(route.color) ?? MODE_COLORS[route.mode];
 }
 
-export type NetworkPaint = Pick<NetworkProperties, "class" | "underground" | "speed">;
+export type NetworkPaint = Pick<NetworkProperties, "class" | "underground" | "speed"> & {
+  /** This hour's speed over the segment's own speed for the day; null when either is unknown. */
+  deviation?: number | null;
+};
 
 /**
  * The colour of a network segment. In the runs view, the blue-grey of the network at an alpha
@@ -128,6 +174,14 @@ export type NetworkPaint = Pick<NetworkProperties, "class" | "underground" | "sp
  * what it has to show, and a neutral for a segment the day could not time.
  */
 export function networkColor(properties: NetworkPaint, view: NetworkView = "runs"): Rgba {
+  if (view === "relative") {
+    const deviation = properties.deviation ?? null;
+    if (deviation === null) {
+      return [...UNKNOWN_SPEED_COLOR];
+    }
+    const [r, g, b] = deviationColor(deviation);
+    return [r, g, b, SPEED_ALPHA];
+  }
   if (view === "speed") {
     if (properties.speed === null) {
       return [...UNKNOWN_SPEED_COLOR];

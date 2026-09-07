@@ -54,13 +54,13 @@ import { createPlayer } from "./time/player";
 import { createAbout } from "./ui/about";
 import { createActivity } from "./ui/activity";
 import { createClockView } from "./ui/clock";
-import { createColourToggle, createNetworkToggle } from "./ui/colours";
+import { createColourToggle, createNetworkViews } from "./ui/colours";
 import { createPlayButton } from "./ui/controls";
 import { createCounters } from "./ui/counters";
 import { createDaySelector } from "./ui/days";
 import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
-import { createSpeedLegend } from "./ui/legend";
+import { createNetworkLegend } from "./ui/legend";
 import { createLinePicker } from "./ui/lines";
 import { createResetButton } from "./ui/reset";
 import { closeTopmost, createSheet } from "./ui/sheet";
@@ -153,7 +153,9 @@ interface Shell {
   counters: HTMLElement;
   filters: HTMLElement;
   appearance: HTMLElement;
-  /** The scale of the speed view, shown only while that view is on. */
+  /** The three readings of the network layer. */
+  views: HTMLElement;
+  /** The scale of whichever reading is drawn by colour, shown only while one of them is on. */
   legend: HTMLElement;
   status: HTMLElement;
   attribution: HTMLElement;
@@ -188,6 +190,7 @@ function buildShell(root: HTMLElement): Shell {
   const counters = element("div", "panel__counters", panel);
   const filters = element("div", "panel__filters", panel);
   const appearance = element("div", "panel__appearance", panel);
+  const views = element("div", "panel__views", panel);
   const legend = element("div", "panel__legend", panel);
   const status = element("div", "panel__status", panel);
   const activity = element("div", "panel__activity", panel);
@@ -212,6 +215,7 @@ function buildShell(root: HTMLElement): Shell {
     counters,
     filters,
     appearance,
+    views,
     legend,
     status,
     attribution,
@@ -301,10 +305,10 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const colourToggle = createColourToggle(shell.appearance, (colours) => {
     store.set({ colours });
   });
-  const networkToggle = createNetworkToggle(shell.appearance, (network) => {
+  const networkViews = createNetworkViews(shell.views, (network) => {
     store.set({ network });
   });
-  const legend = createSpeedLegend(shell.legend);
+  const legend = createNetworkLegend(shell.legend);
   const activity = createActivity(shell.activity, day.manifest, (time) => {
     player.seek(time);
   });
@@ -364,7 +368,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   }
 
   function ensureHourlySpeeds(state: AppState): void {
-    if (state.network !== "speed" || hourlyAsked) {
+    if (state.network === "runs" || hourlyAsked) {
       return;
     }
     hourlyAsked = true;
@@ -608,12 +612,12 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     filters.update(state.modes);
     linePicker.update(state.line);
     colourToggle.update(state.colours);
-    networkToggle.update(state.network);
+    networkViews.update(state.network);
     legend.update(state.network);
     activity.update(state.time, state.modes);
     if (
       state.network !== previous.network ||
-      (state.network === "speed" && hourOf(state.time) !== networkHour)
+      (state.network !== "runs" && hourOf(state.time) !== networkHour)
     ) {
       repaintNetwork(state);
     }

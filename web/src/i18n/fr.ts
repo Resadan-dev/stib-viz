@@ -40,8 +40,13 @@ export const fr = {
   kindSunday: "dimanche",
   daysLabel: "Journées disponibles",
   officialColours: "Couleurs officielles des lignes",
-  networkSpeeds: "Vitesses du réseau",
+  networkLabel: "Réseau",
+  networkRuns: "Passages",
+  networkSpeed: "Vitesse",
+  networkDeviation: "Écart à l’habitude",
   legendSpeed: "Vitesse à cette heure, en km/h",
+  legendDeviation: "Écart à la vitesse habituelle du tronçon",
+  legendUsual: "habituel",
   lineLabel: "Ligne",
   allLines: "Toutes les lignes",
   showAllLines: "Réafficher toutes les lignes",
@@ -83,7 +88,11 @@ export const fr = {
     "Par défaut, un blanc chaud pour le métro, un bleu pour les bus, un violet pour les Noctis et la couleur officielle pour les trams. Les couleurs officielles de la STIB sont partagées entre plusieurs lignes : deux lignes sans rapport peuvent se ressembler.",
   aboutSpeeds: "Vitesses",
   speedsNote:
-    "La carte des vitesses colore chaque tronçon d’arrêt à arrêt selon la vitesse de l’horaire théorique à l’heure affichée : la distance parcourue divisée par le temps prévu, sur toutes les courses de cette heure-là. Elle suit donc l’horloge, et la ville rougit aux heures de pointe. Les horaires sont donnés à la minute, alors une heure desservie moins de trois fois ne dit rien de fiable : sa fenêtre s’élargit d’une heure puis de deux à la recherche de courses, et reste grise si elle n’en trouve pas assez. Un tronçon gris n’est donc pas lent, il est muet.",
+    "Le réseau se lit de trois façons. « Passages » l’éclaire selon le nombre de courses de la journée. « Vitesse » colore chaque tronçon d’arrêt à arrêt selon la vitesse de l’horaire théorique à l’heure affichée : la distance divisée par le temps prévu, sur toutes les courses de cette heure-là. « Écart à l’habitude » rapporte cette vitesse à celle du même tronçon sur la journée entière.",
+  speedsNoteWhy:
+    "Les deux dernières ne répondent pas à la même question. La vitesse absolue dépend surtout de l’espacement des arrêts, pas de la circulation : un bus qui s’arrête tous les 300 mètres reste lent à 2 h du matin, et la carte change donc peu d’une heure à l’autre. L’écart divise cette part géographique et ne laisse que l’heure : la ville bleuit aux deux pointes et se réchauffe la nuit.",
+  speedsNoteGrey:
+    "Les horaires sont donnés à la minute, alors une heure desservie moins de trois fois ne dit rien de fiable : sa fenêtre s’élargit d’une heure puis de deux à la recherche de courses, et reste grise si elle n’en trouve pas assez. Un tronçon gris n’est donc pas lent, il est muet.",
   shortcutsTitle: "Raccourcis clavier",
   keySpace: "Espace",
   keySpaceMeaning: "lecture ou pause",

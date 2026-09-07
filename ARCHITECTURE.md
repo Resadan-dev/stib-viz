@@ -437,9 +437,21 @@ slices at most 2.5 MB; at most 4 MB in total, excluding basemap tiles.
   the segments of a weekday sit between 14 and 20 km/h and nine in ten below 25, so a wider
   scale spends most of its ramp on the tail of the metro and paints the rest one flat shade.
   The speed shown is that of the hour on the clock, from the companion file of section 5.8, so
-  the view follows playback: Brussels turns violet through both peaks and warms through the
-  evening. The layer keeps one id across every view and every hour, and declares both as update
-  triggers of its accessors; the legend samples the same ramp function, so the two never drift.
+  the view follows playback.
+- A third view, the deviation, divides that hourly speed by the segment's own speed for the day.
+  The absolute speed of a segment is mostly its stop spacing, which no hour changes: measured on
+  the Wednesday of 9 September 2026, the spread across the city within one hour is two to three
+  times the swing between the slowest hour and the fastest, so the speed view reads as geography
+  and barely moves with the clock. The ratio cancels that geography exactly and leaves the hour
+  alone. Its ramp diverges from a grey at the usual speed, blue for slower and orange for faster,
+  which every common kind of colour blindness tells apart; the grey still reads as a network
+  rather than a near-black, because at any hour most of the city is near its habit. The scale is
+  cut close, 0.8 to 1.3, since the departures are small: the median segment is 9% under its habit
+  at the morning peak and a quarter over it at midnight. Brussels comes out blue at both peaks,
+  grey in the middle of the day and orange after ten in the evening.
+- The layer keeps one id across every view and every hour, and declares both as update triggers
+  of its accessors; the legend samples the very ramp function the map paints with, so the two
+  never drift, and it samples a diverging ramp at the point it turns rather than across it.
 - Follow mode: while it is on and the selected vehicle has a head, every frame recentres the map
   on it with `jumpTo`; at ×300 the vehicle moves under a pixel per frame at zoom 14, so the camera
   glides. A `dragstart` from the person turns it off; stepping to a vehicle turns it on and eases
@@ -660,6 +672,7 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Vertex times at least 0.05 s apart, Float32 pushed to the next representable value when equal | 1 ms nudge | Float32 resolution near 86,400 s is 0.008 s; a 1 ms nudge collapsed and the check on written files caught it |
 | GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
 | Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
+| A deviation view beside the absolute speed, not instead of it | Only the absolute speed; only the deviation | They answer different questions and both are worth asking. The absolute speed says where the network is slow, which is mostly stop spacing; the deviation says when it leaves its habit, which is the congestion. Keeping both costs one more button and no data at all, since the site already holds the two numbers |
 | Hourly speeds in a file of their own, fetched when the view is first opened | A field of the network layer; a per-hour field in the manifest | Twenty-four numbers per segment is 272 KB, a third of the network layer again, for a view most sessions never open. The pattern is the one the stops of an hour already use |
 | An hour with fewer than three runs widens its window, then gives up | Showing it raw; falling back to the speed of the day | Whole-minute timetables make one run worth ±25% on a two-minute leg, which would make the quiet hours flicker. Falling back to the day would state an average as if it were the hour: an unknown hour is drawn as unknown |
 | Network file named by a digest of its content | The feed version alone; the version plus a format suffix; the version plus the day | Named by version, the seven days of a window wrote the file in turn and the last one won, so every day showed another day's runs and speeds. A digest gives each timetable its own file and lets the weekdays of a window share one, where a per-day name would have deployed five copies of the same megabyte |
@@ -733,3 +746,6 @@ To settle during implementation, each with a test behind it:
 - 7 September 2026, v1.9: the speed map follows the clock. The pipeline measures every segment
   hour by hour and writes them beside the network; the site fetches them when the view is first
   opened and repaints on the hour (sections 5.8, 6.3).
+- 7 September 2026, v1.10: a third reading of the network, the deviation from the habit of each
+  segment, which is what makes the clock legible where the absolute speed showed geography
+  (section 6.3).

@@ -356,6 +356,22 @@ Brussels turns violet through both peaks and warms through the evening: at 23:00
 runs a scale and a half faster than at 08:00. An hour a segment is served too rarely stays grey,
 so a grey segment is silent rather than slow.
 
+**V2-3 The deviation from the habit** (7 September 2026)
+
+- [x] A third reading of the network beside the runs and the absolute speed: this hour's speed
+      over the segment's own speed for the day
+- [x] A diverging ramp, blue for slower than usual and orange for faster, cut close at 0.8 and
+      1.3 since the departures are small; the legend names the middle rather than numbering it
+- [x] The three readings offered as one group of buttons, the view carried in the URL, the
+      method spelled out in the about dialog
+- [x] No new data at all: the site already holds the hourly speed and the day's speed
+
+The absolute speed answers "where is the network slow", which is mostly the spacing of the stops
+and barely moves with the clock: within one hour the spread across the city is two to three times
+the swing between the slowest hour and the fastest. Dividing by the habit of each segment cancels
+that geography and leaves only the hour. Brussels then comes out blue at both peaks, grey in the
+middle of the day and orange after ten in the evening.
+
 ## 8. Quality and method
 
 - Test-driven development: every behaviour starts with a failing test.
