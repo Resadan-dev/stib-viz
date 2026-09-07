@@ -27,9 +27,6 @@ from stibviz.stats import RouteInfo
 # Daily runs above each break move a segment up one intensity class (1 to 5).
 INTENSITY_BREAKS = (20, 60, 120, 240)
 NETWORK_TOLERANCE_M = 5.0
-# Part of the network file name. The file is named by feed version and cached as immutable for a
-# year, so a field added to it can only reach browsers under a new name: bump this with the format.
-NETWORK_FORMAT = "v2"
 
 
 def intensity_class(runs: int) -> int:

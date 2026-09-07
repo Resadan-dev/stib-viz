@@ -25,6 +25,7 @@ without copying it.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import shutil
 from collections.abc import Mapping, Sequence
@@ -36,7 +37,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from stibviz.gtfs import FeedInfo
-from stibviz.network import INTENSITY_BREAKS, NETWORK_FORMAT, NetworkSegment
+from stibviz.network import INTENSITY_BREAKS, NetworkSegment
 from stibviz.service_day import SERVICE_DAY_START_S
 from stibviz.slicing import FIRST_HOUR, Slice, window
 from stibviz.stats import DayStats, RouteInfo
@@ -176,11 +177,23 @@ def safe_path(root: Path, *parts: str) -> Path:
     return candidate
 
 
-def _write_json(path: Path, payload: Any) -> int:
+def _json_text(payload: Any) -> str:
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def _write_text(path: Path, text: str) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     path.write_text(text, encoding="utf-8")
     return len(text.encode("utf-8"))
+
+
+def _write_json(path: Path, payload: Any) -> int:
+    return _write_text(path, _json_text(payload))
+
+
+def _digest(text: str) -> str:
+    """Enough of a SHA-256 to name a file by what is in it; collisions are not a concern here."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
 def _round_coordinates(lon: NDArray[np.float64], lat: NDArray[np.float64]) -> list[list[float]]:
@@ -275,10 +288,13 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
         stop_entries.append({"hour": hour, "path": f"stops/{name}", "bytes": size})
 
     version = bundle.feed_info.version
-    # Named by feed version and format: the file is cached as immutable for a year, so a field
-    # added to it reaches browsers only under a name they have never seen.
-    network_name = f"{version}-{NETWORK_FORMAT}.json"
-    _write_json(safe_path(data_dir, "network", network_name), _network_payload(bundle))
+    # Named by a digest of what is in it. The runs and the speeds it carries are those of this
+    # day, so the seven days of a window can no longer overwrite one another's file; days that
+    # share a timetable land on the same name and therefore on one file; and the year of
+    # immutable caching becomes literally true, since a changed content is a changed name.
+    network_text = _json_text(_network_payload(bundle))
+    network_name = f"{version}-{_digest(network_text)}.json"
+    _write_text(safe_path(data_dir, "network", network_name), network_text)
     _write_json(safe_path(data_dir, "lookup", f"{version}.json"), bundle.lookup)
 
     route_index = {route.route_id: i for i, route in enumerate(bundle.routes)}

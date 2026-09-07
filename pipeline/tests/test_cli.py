@@ -180,6 +180,24 @@ def test_week_builds_the_window_and_indexes_only_the_window(
     assert "built: 7" in capsys.readouterr().out
 
 
+def test_week_gives_each_day_the_network_of_its_own_timetable(
+    sample_gtfs_zip: Path, tmp_path: Path
+) -> None:
+    """A day shows its own runs and its own speeds, not those of the last day of the window."""
+    out = tmp_path / "data"
+    args = [*WEEK, str(sample_gtfs_zip), "--out", str(out), "--today", "2026-09-09"]
+    assert main([*args]) == 0
+    named = {}
+    for day in ("2026-09-09", "2026-09-11"):
+        manifest = json.loads((out / day / "manifest.json").read_text(encoding="utf-8"))
+        named[day] = manifest["network"]
+        assert (out / manifest["network"]).is_file()
+    # The Wednesday runs no Noctis and the Friday does: each reads its own network.
+    assert named["2026-09-09"] != named["2026-09-11"]
+    # Seven days, but only as many files as there are distinct timetables among them.
+    assert len(list((out / "network").iterdir())) < 7
+
+
 def test_week_is_a_no_op_when_the_site_is_up_to_date(
     sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

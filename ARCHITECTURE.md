@@ -317,16 +317,19 @@ positions to 16 bits relative to the bounding box (see SCOPE.md section 6).
 
 ### 5.5 Network layer `network/<version>.json`
 
-GeoJSON of simplified stop-to-stop segments, with `mode`, `runs` (runs on a typical weekday),
-`class` (1 to 5), `underground` (true for metro) and `speed` (the scheduled speed over the
-segment across the day in km/h, distance covered over time spent across every run of the day,
-stop time included; `null` when no run of the day separates the two stops in time), plus a
-`stops` dictionary giving each `stop_id` its position and French name. Around 1 MB, long cache.
+GeoJSON of simplified stop-to-stop segments, with `mode`, `runs`, `class` (1 to 5),
+`underground` (true for metro) and `speed`, plus a `stops` dictionary giving each `stop_id` its
+position and French name. Around 1 MB, long cache. The runs and the speed are those of the day
+whose manifest names the file: `runs` counts the runs of that service day over the segment, and
+`speed` is the scheduled speed over it in km/h, distance covered over time spent across every
+run of the day, stop time included, `null` when no run of the day separates the two stops in
+time.
 
-One file per feed version *and* network format, `network/<version>-v2.json`: the file is cached
-as immutable for a year, so a field added to it can only reach browsers under a name they have
-never seen. The site reads a file without `speed` as a network whose speeds are all unknown, so
-the hour during which a cached manifest may still name the older file costs nothing.
+The name is `network/<version>-<digest>.json`, a twelve-character digest of the file's own
+content. A day names its network in its manifest, so the seven days of a window no longer
+overwrite one another's file, days that share a timetable land on the same name and therefore on
+one file, and the year of immutable caching is literally true: a changed content is a changed
+name. The site reads a file without `speed` as a network whose speeds are all unknown.
 
 ### 5.6 Stops of one hour `stops/HH.json`
 
@@ -629,6 +632,7 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Vertex times at least 0.05 s apart, Float32 pushed to the next representable value when equal | 1 ms nudge | Float32 resolution near 86,400 s is 0.008 s; a 1 ms nudge collapsed and the check on written files caught it |
 | GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
 | Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
+| Network file named by a digest of its content | The feed version alone; the version plus a format suffix; the version plus the day | Named by version, the seven days of a window wrote the file in turn and the last one won, so every day showed another day's runs and speeds. A digest gives each timetable its own file and lets the weekdays of a window share one, where a per-day name would have deployed five copies of the same megabyte |
 | Speed scale cut to the measured spread of the network, 10 to 28 km/h | A round 8 to 40, covering every segment | Half the segments of a weekday sit between 14 and 20 km/h: the wider scale spent two thirds of its ramp on the tenth of the network that is metro and painted the whole surface network one shade of rose. Clipping the metro at the bright end is the true reading, since it is not on the same scale as the rest |
 | Speed of a segment as distance over time summed across the day | Mean or median of the per-run speeds | Scheduled times are whole minutes: one run over a 700 m segment reads as 21 or 42 km/h and nothing between, and only the ratio of sums lets that rounding average out. A run whose stops share a second is left out rather than counted as infinite or as zero |
 | Network file named by feed version and format | The same name with an optional field | The file is cached as immutable for a year; under the same name a returning visitor would have seen no speeds until the feed changed |
@@ -693,3 +697,6 @@ To settle during implementation, each with a test behind it:
 - 6 September 2026, v1.7: version 2 begins with the speed map of the network. The pipeline
   measures the scheduled speed of every segment across the day, the network file carries it under
   a versioned name, and the site paints it on a fixed ramp with a legend (sections 5.5, 6.3, 6.4).
+- 7 September 2026, v1.8: each published day carries its own network. The file is named by a
+  digest of its content, so the days of a window no longer overwrite one another's runs and
+  speeds, and days that share a timetable still share one file (section 5.5).

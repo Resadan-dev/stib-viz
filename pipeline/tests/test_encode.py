@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -106,10 +107,7 @@ def test_write_day_produces_the_documented_files(
     assert json.loads((day_dir / "manifest.json").read_text(encoding="utf-8")) == manifest
     slice_files = sorted(p.name for p in (day_dir / "slices").iterdir())
     assert slice_files == sorted(f"{s.hour:02d}-{s.mode}.bin" for s in bundle.slices)
-    # The network file carries its format in its name: it is cached as immutable for a year, so a
-    # new field can only reach browsers under a new name.
-    assert (tmp_path / "network" / "test_2026-v2.json").is_file()
-    assert not (tmp_path / "network" / "test_2026.json").exists()
+    assert (tmp_path / manifest["network"]).is_file()
     assert (tmp_path / "lookup" / "test_2026.json").is_file()
     stop_files = sorted(p.name for p in (day_dir / "stops").iterdir())
     assert stop_files == sorted({f"{s.hour:02d}.json" for s in bundle.slices})
@@ -122,7 +120,7 @@ def test_manifest_content(wednesday_state: PipelineState, tmp_path: Path) -> Non
     assert manifest["source"] == "schedule"
     assert manifest["feed_version"] == "test_2026"
     assert manifest["attribution"] == "Source: STIB-MIVB – Open Data – 2026-09-09"
-    assert manifest["network"] == "network/test_2026-v2.json"
+    assert re.fullmatch(r"network/test_2026-[0-9a-f]{12}\.json", manifest["network"])
     assert manifest["totals"] == {"trips": 9, "vehicles": 6, "km": pytest.approx(20.85, abs=0.1)}
     assert manifest["peak"] == {"vehicles": 2, "minute": 185}
     for series in ("vehicles", "departures", "km"):
@@ -174,8 +172,8 @@ def test_network_file_is_geojson_with_stop_dictionary(
     wednesday_state: PipelineState, tmp_path: Path
 ) -> None:
     bundle = _bundle(wednesday_state)
-    write_day(bundle, tmp_path)
-    network = json.loads((tmp_path / "network" / "test_2026-v2.json").read_text(encoding="utf-8"))
+    manifest = write_day(bundle, tmp_path)
+    network = json.loads((tmp_path / manifest["network"]).read_text(encoding="utf-8"))
     assert network["type"] == "FeatureCollection"
     assert len(network["features"]) == 7
     feature = network["features"][0]
@@ -196,6 +194,38 @@ def test_network_file_is_geojson_with_stop_dictionary(
     assert lon == round(lon, 5) and lat == round(lat, 5)
     assert network["stops"]["S1"] == [4.35, 50.85, "Gare"]
     assert network["intensity_breaks"] == [20, 60, 120, 240]
+
+
+def test_the_network_file_is_named_by_what_is_in_it(
+    wednesday_state: PipelineState, friday_state: PipelineState, tmp_path: Path
+) -> None:
+    """Days no longer share one network file, and identical timetables still share one.
+
+    The file used to be named by feed version alone, so the seven days of a window wrote it in
+    turn and the last one won: whatever day you opened, you read the runs and the speeds of
+    another one. Naming it by a digest of its content gives each timetable its own file, lets
+    the weekdays of a window share one, and makes the year of immutable caching literally true.
+    """
+    wednesday = write_day(_bundle(wednesday_state), tmp_path)
+    friday = write_day(_bundle(friday_state), tmp_path)
+    # The Friday runs Noctis and the Wednesday does not: two timetables, two networks, two files.
+    assert wednesday["network"] != friday["network"]
+    for manifest in (wednesday, friday):
+        assert (tmp_path / manifest["network"]).is_file()
+
+    # The same day written again lands on the same name rather than on a second file.
+    assert write_day(_bundle(wednesday_state), tmp_path)["network"] == wednesday["network"]
+    assert len(list((tmp_path / "network").iterdir())) == 2
+
+    def segments(name: str) -> set[tuple[str, str, str]]:
+        content = json.loads((tmp_path / name).read_text(encoding="utf-8"))
+        return {
+            (f["properties"]["mode"], f["properties"]["from"], f["properties"]["to"])
+            for f in content["features"]
+        }
+
+    assert ("noctis", "S1", "S2") in segments(friday["network"])
+    assert ("noctis", "S1", "S2") not in segments(wednesday["network"])
 
 
 def test_index_lists_the_written_days(wednesday_state: PipelineState, tmp_path: Path) -> None:

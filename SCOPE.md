@@ -328,6 +328,9 @@ work, one delivery at a time, each one documented here when it lands.
 - [x] Site: a second view of the network layer on a fixed ramp from 10 to 28 km/h, cut to the
       measured spread of the network rather than to round numbers, a legend that samples the same
       ramp, a toggle beside the colour scheme, the view in the URL, a note in the about dialog
+- [x] Each day carries its own network: the file is named by a digest of its content, so the
+      seven days of a window no longer overwrite one another and a Sunday shows Sunday speeds,
+      while the weekdays of a window still share one file
 - [x] Tests: the formula and the synthetic day in pytest; the contract, the ramp, the layer, the
       URL, the toggle and the legend in vitest; the toggle and an axe audit of the legend in
       Playwright
@@ -336,6 +339,13 @@ What the speed map shows is not where vehicles pass, which the runs view already
 fast the timetable expects them to: the centre in deep violet where everything crawls, the outer
 radials warming through red and orange, and the metro tunnels glowing straight across the city on
 a scale of their own.
+
+The speed is one number per segment for a whole service day, and it leans towards the busy hours
+rather than averaging them evenly: it is the distance of every run over the time of every run, so
+the hours with the most runs weigh the most and the slow runs within them weigh more still. A
+speed that follows the clock is the next step and a chantier of its own; it needs the sums kept
+per hour, about 140 KB a day in sixteen-bit integers, and a rule for the hours a segment is
+served too few times for whole-minute timetables to say anything.
 
 ## 8. Quality and method
 
