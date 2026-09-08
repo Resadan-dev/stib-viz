@@ -32,8 +32,15 @@ are read and taken seriously.
 
 ## Known accepted risk
 
-- `image-size` (transitive dependency of `@deck.gl/geo-layers`, via its glTF and texture
-  loaders) has an open denial-of-service advisory with no patched version available as of
-  September 2026. stib-viz never loads glTF models, 3D tiles or texture images — only trip
-  positions and the network GeoJSON reach deck.gl — so this code path is never invoked. Tracked
-  via Dependabot; will be bumped once a fix is published.
+- `image-size` 0.7.5 carries two open denial-of-service advisories, GHSA-w3rx-r6r6-pgpr and
+  GHSA-5p2g-fcmc-qvqq, both rated high and both without a patched release: every published
+  version up to the current 2.0.2 is affected, so there is no upgrade to take. It enters the tree
+  five levels down, through `@deck.gl/geo-layers`, `@luma.gl/gltf`, `@loaders.gl/textures` and
+  `texture-compressor`, the last being a Node command-line tool for offline texture compression
+  that has had no real release since 2019.
+
+  It never reaches a browser. stib-viz loads no glTF model, no 3D tile and no texture image, only
+  trip positions and the network GeoJSON reach deck.gl, and the built bundles were searched to
+  confirm it: `texture-compressor`, `image-size` and the vulnerable parsers appear nowhere in
+  `web/dist`, the bundler having dropped the branch entirely. It is a lockfile entry rather than
+  shipped code. Tracked via Dependabot; it goes when loaders.gl stops depending on it.
