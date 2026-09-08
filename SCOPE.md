@@ -28,7 +28,7 @@ chain their trips, and a service day that crosses midnight.
 | Trajectories | Pre-computed by the pipeline, simplified shapes, cut into hour slices | Simple, proven by the reference; the browser stays light |
 | Animated unit | The vehicle, obtained by chaining trips through `block_id` | Visible layover at termini, exact vehicle count, and the follow mode comes for free |
 | Basemap | OpenFreeMap, custom dark style, no key | Free, no quota; a self-hosted alternative is documented for v2 |
-| Hosting | Cloudflare Pages, deployed by GitHub Actions | Static, free, same as the reference |
+| Hosting | Any static host; the window is built by GitHub Actions and published from there | Static and portable: the build depends on no host, and publishing is left to whoever runs an instance |
 | Web stack | Vite and strict TypeScript, no UI framework | Small, typed, testable |
 | Pipeline stack | Python 3.12 and uv | Already used for the feasibility analysis |
 | Quality | Mandatory unit tests, test-driven development, 80% minimum coverage | Single developer: the tests are the only review |
@@ -157,8 +157,8 @@ largest slice being 1.29 MB.
 
 ### 4.6 Operations
 
-- Automatic nightly rebuild by GitHub Actions after the GTFS feed is published, then deployment to
-  Cloudflare Pages. A day that fails is excluded and the run reports it.
+- Automatic nightly rebuild by GitHub Actions after the GTFS feed is published, then publication of
+  the built directory. A day that fails is excluded and the run reports it.
 - Continuous integration budget: under ten minutes per run, around five expected.
 
 ## 5. What version 1 does not do
@@ -197,7 +197,7 @@ Every milestone ends with green tests, a code review and a demonstration.
 | M1 One day | Full pipeline for a single Wednesday: download, day selection, stop projection, simplification, per-vehicle trajectories, hour slices, manifest, checks; a versioned three-route GTFS extract for tests | The checks pass; a manual verification confirms that manifest counters reproduce the section 3 figures (18,784 trips, 1,299 vehicles, peak of 752 at 17:03 under the instantaneous definition of section 3) trip for trip; CI itself validates the versioned extract |
 | M2 See it move | Minimal site: map, network layer, animated vehicles of the M1 day, clock, play and pause | A tram 7 and a metro 1 visibly follow their route; 60 frames per second at peak on desktop |
 | M3 Interface | Activity curve and scrubber, speeds, counters, filters, vehicle click, URL, about panel, keyboard, centralised copy | Every flow in section 4 works; Playwright smoke test green |
-| M4 Seven days and production | Rolling window, day selector, nightly rebuild, Cloudflare Pages deployment, budgets verified | The public site updates itself for a week with no intervention |
+| M4 Seven days and production | Rolling window, day selector, nightly rebuild, publication of the built directory, budgets verified | A published site updates itself for a week with no intervention |
 | M5 Polish | Refined night-time style, performance, accessibility, documentation, README | Final review, v2 list up to date |
 
 ### 7.1 Tasks per milestone
@@ -277,11 +277,12 @@ GTFS route id of tram 7 is 8; the stops of an hour are fetched on the first sele
 - [x] Pipeline: seven-day rolling window, `plan` against the published index, index of valid
       days only
 - [x] `ui/`: day selector
-- [x] `nightly.yml`: ETag fetch, early exit, per-day build and check, index, site build, wrangler
-      deployment, deferred exit code, report kept fourteen days
-- [x] Cloudflare Pages `_headers`: cache rules and security headers, the Content-Security-Policy
-      exercised by a Playwright test
-- [x] Cloudflare Pages project, GitHub secrets and variables created (by hand, see README)
+- [x] `nightly.yml`: ETag fetch, early exit, per-day build and check, index, site build,
+      publication, deferred exit code, report kept fourteen days
+- [x] `_headers` travelling with the build: cache rules and security headers, the
+      Content-Security-Policy exercised by a Playwright test
+- [x] Host, secrets and variables of the published instance created by hand, outside this
+      repository
 - [x] Budgets verified on a real week: size, pipeline duration, CI minutes
 
 **M5 Polish**
@@ -378,7 +379,8 @@ middle of the day and orange after ten in the evening.
 - 80% minimum coverage on logic (pipeline and non-graphical TypeScript modules). WebGL rendering
   code is covered by the smoke test and by visual verification.
 - Systematic review before merging, even alone: the tooled review is the only review there is.
-- No key and no secret in the repository; Cloudflare credentials live in GitHub secrets.
+- No key and no secret in the repository; the credentials a published instance needs live in
+  GitHub secrets, scoped to the environment that uses them.
 - Pipeline checks separate global anomalies, which block the day, from per-object anomalies,
   tolerated under 0.1% of trips, logged and summarised in the manifest. A blocked day is never
   published; the other days are.

@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
 /**
- * The production headers live in public/_headers and only apply on Cloudflare Pages. This test
- * reads the Content-Security-Policy written there and applies it to the page served by the
- * preview server, so a policy that would break the site is caught before a deployment.
+ * The production headers live in public/_headers and take effect only once a host serves them.
+ * This test reads the Content-Security-Policy written there and applies it to the page served by
+ * the preview server, so a policy that would break the site is caught here rather than live.
  */
 
 function contentSecurityPolicy(): string {

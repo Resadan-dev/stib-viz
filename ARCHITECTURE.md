@@ -27,7 +27,7 @@ flowchart LR
   B -->|days: manifest + binary slices + network| C[(dist/data)]
   D[Vite + TypeScript site<br/>MapLibre + deck.gl] -->|build| E[(dist)]
   C --> E
-  E -->|wrangler pages deploy| F[Cloudflare Pages]
+  E -->|published as static files| F[Static host]
   G[OpenFreeMap<br/>dark tiles] -.->|at runtime| H[Browser]
   F --> H
   I[GitHub Actions<br/>nightly cron + push] --> B
@@ -93,7 +93,7 @@ stib-viz/
 │   ├── dependabot.yml            monthly updates: actions, npm, uv
 │   └── workflows/
 │       ├── ci.yml                lint, types, unit tests, contract, Playwright, on push and PR
-│       └── nightly.yml           seven-day pipeline + build + Cloudflare Pages deployment
+│       └── nightly.yml           seven-day pipeline, site build, then publication
 └── dist/                         generated, git-ignored
 ```
 
@@ -543,7 +543,7 @@ takes focus with a visible ring. Route badges keep the text colour of the feed o
 reaches 4.5:1 on the route colour, and take black or white otherwise. Mode filters are pills rather than bare checkboxes so their pointer targets keep the
 24 pixels of clearance success criterion 2.5.8 asks for.
 
-## 7. Integration and deployment
+## 7. Integration
 
 ### 7.1 `ci.yml` (every push and pull request)
 
@@ -575,31 +575,26 @@ window, the second catches a feed published late. A run that has nothing to do s
 1. `stibviz fetch` with the ETag cache kept between runs by `actions/cache`; then the published
    `index.json` is read from the live site.
 2. `stibviz week` plans the window (yesterday to five days ahead, within the feed validity):
-   nothing when the site already publishes every covered day for this feed version, the whole
-   window otherwise, because a deployment replaces the site and a partial build would lose the
-   other days. A manual run can tick a box that passes `--force`, which ignores the published
-   index: without it a run that builds nothing also deploys nothing, so a code fix would wait
-   for the window to slide the next morning.
+   nothing when the published index already lists every covered day for this feed version, the
+   whole window otherwise, because publishing replaces the whole directory and a partial build
+   would lose the other days. A manual run can tick a box that passes `--force`, which ignores
+   the published index, for a day when the data has not changed but the code has.
 3. The same command then builds each day independently, checking what it wrote: a failing day is
    set aside and reported, the others are still written; stale days outside the window are
    removed and `index.json` lists the valid days only. Its exit code says whether a day failed.
    `stibviz plan` still exists to see the window without building it.
 4. `pnpm build` with the data in `web/public/data`, so `dist/` holds the site and its data.
-5. `wrangler pages deploy` to the Cloudflare Pages project, production branch `main`, only when
-   the Cloudflare secrets exist and at least one day was built: a fork builds without deploying,
-   and a night where every day fails never replaces the live site with an empty one.
-6. Only then, a non-zero exit code if at least one day failed, so failures are visible without
-   depriving the site of the valid days. The per-day report is kept fourteen days as an artifact.
+5. Only then, a non-zero exit code if at least one day failed, so failures are visible without
+   depriving the run of the valid days. The per-day report is kept fourteen days as an artifact.
 
-GitHub secrets: `CLOUDFLARE_API_TOKEN` (scoped to Pages edits on this account), `CLOUDFLARE_ACCOUNT_ID`.
-Variables: `CLOUDFLARE_PAGES_PROJECT` (the Pages project name) and `SITE_URL` (where the published
-index is read from). None of them exist in a fresh clone; README.md says how to create them.
+The last step of the workflow publishes that directory. Where it goes, and the credentials it
+needs, belong to whoever runs the instance rather than to this repository: the step is skipped
+when those secrets are absent, so a fork builds and checks the whole window without them.
 
-### 7.3 Cloudflare Pages
+### 7.3 Served headers
 
-- Known limits: 20,000 files and 25 MB per file per deployment. Seven days come to fewer than 900
-  files under 3 MB each: ample margin.
-- Headers, in `web/public/_headers`: `index.json` uncached; everything else under `data/` on a
+- Headers, in `web/public/_headers`, which travels with `dist/`: `index.json` uncached; everything
+  else under `data/` on a
   one-hour cache; network layer, lookup table and hashed assets immutable for a year. Security
   headers on every response: `nosniff`, a strict referrer policy, a permissions policy denying
   camera, microphone and geolocation, HSTS, and a Content-Security-Policy that allows scripts,
@@ -673,12 +668,12 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | pandas + numpy only, local equirectangular projection | shapely, pyproj, Belgian Lambert 72, polars, GeoPandas | Exact to the centimetre at Brussels scale, two fewer dependencies, a Wednesday builds in about fifteen seconds |
 | Vehicles in `vehicles.json`, outside the manifest | Vehicles inside the manifest | The list weighs 1.7 MB and is read on click; the manifest stays at 103 KB, under its 300 KB budget |
 | Vertex times at least 0.05 s apart, Float32 pushed to the next representable value when equal | 1 ms nudge | Float32 resolution near 86,400 s is 0.008 s; a 1 ms nudge collapsed and the check on written files caught it |
-| GitHub Actions + wrangler | Cloudflare Pages built-in build | Native nightly scheduling, same pattern as the reference |
+| The window built in GitHub Actions, publication left to one last step | A host that builds the site itself from the repository | Native nightly scheduling, and the build stays reproducible anywhere instead of depending on one host's build image |
 | Fixture day produced in CI | Versioned fixture | It cannot drift from the pipeline code |
 | A deviation view beside the absolute speed, not instead of it | Only the absolute speed; only the deviation | They answer different questions and both are worth asking. The absolute speed says where the network is slow, which is mostly stop spacing; the deviation says when it leaves its habit, which is the congestion. Keeping both costs one more button and no data at all, since the site already holds the two numbers |
 | Hourly speeds in a file of their own, fetched when the view is first opened | A field of the network layer; a per-hour field in the manifest | Twenty-four numbers per segment is 272 KB, a third of the network layer again, for a view most sessions never open. The pattern is the one the stops of an hour already use |
 | An hour with fewer than three runs widens its window, then gives up | Showing it raw; falling back to the speed of the day | Whole-minute timetables make one run worth ±25% on a two-minute leg, which would make the quiet hours flicker. Falling back to the day would state an average as if it were the hour: an unknown hour is drawn as unknown |
-| Network file named by a digest of its content | The feed version alone; the version plus a format suffix; the version plus the day | Named by version, the seven days of a window wrote the file in turn and the last one won, so every day showed another day's runs and speeds. A digest gives each timetable its own file and lets the weekdays of a window share one, where a per-day name would have deployed five copies of the same megabyte |
+| Network file named by a digest of its content | The feed version alone; the version plus a format suffix; the version plus the day | Named by version, the seven days of a window wrote the file in turn and the last one won, so every day showed another day's runs and speeds. A digest gives each timetable its own file and lets the weekdays of a window share one, where a per-day name would have published five copies of the same megabyte |
 | Speed scale cut to the measured spread of the network, 10 to 28 km/h | A round 8 to 40, covering every segment | Half the segments of a weekday sit between 14 and 20 km/h: the wider scale spent two thirds of its ramp on the tenth of the network that is metro and painted the whole surface network one shade of rose. Clipping the metro at the bright end is the true reading, since it is not on the same scale as the rest |
 | Speed of a segment as distance over time summed across the day | Mean or median of the per-run speeds | Scheduled times are whole minutes: one run over a 700 m segment reads as 21 or 42 km/h and nothing between, and only the ratio of sums lets that rounding average out. A run whose stops share a second is left out rather than counted as infinite or as zero |
 | Network file named by feed version and format | The same name with an optional field | The file is cached as immutable for a year; under the same name a returning visitor would have seen no speeds until the feed changed |
@@ -698,7 +693,7 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Control panel folded into a two-position sheet under 600 px, opening folded every time | A panel that scrolls the whole screen (M3 to M5); a full-screen drawer; remembering the position between visits | On a 412 px phone the panel filled the screen and the map could not be touched. Folded, the bar keeps the clock, playback and the scrubber, which is what a phone visitor watches, and gives the map six sevenths of the screen. It never remembers being open: the map is what the link promises, and a sheet restored over it would hide it before a word is read |
 | Day change reloads the page with the new URL | Swapping the day in place | The URL already carries the whole scene; a reload is a two-line restart with no state to invalidate, for a one-second blink |
 | `stibviz plan` against the published index | Rebuilding the week every night | A run with nothing to do ends in a minute; a new feed still rebuilds every day |
-| Deployment gated on the presence of the secrets | Failing without them | A fork or a fresh clone builds and tests the nightly run without a Cloudflare account |
+| Publication gated on the presence of the secrets | Failing without them | A fork or a fresh clone builds and tests the whole nightly run without any hosting account |
 
 ## 10. Open technical points
 
@@ -755,3 +750,8 @@ To settle during implementation, each with a test behind it:
 - 7 September 2026, v1.11: the place names read. Held at 2:1 on the ground they were present
   without being legible; a test now holds them to WCAG AA, and they stay well under the vehicle
   ceiling the basemap has always answered to (section 6.5).
+- 8 September 2026, v1.12: publishing left out of the documentation, ahead of the repository going
+  public. Where the built directory is served, and the credentials that takes, belong to whoever
+  runs an instance rather than to this project; the workflow still carries a last step for it,
+  skipped when its secrets are absent. Section 7 is now Integration, 7.3 describes the headers
+  that travel with the build, and the runbook covers the pipeline alone.

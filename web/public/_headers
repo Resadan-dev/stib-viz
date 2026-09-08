@@ -1,4 +1,5 @@
-# Cloudflare Pages headers (ARCHITECTURE.md, section 7.3).
+# Headers served with the site (ARCHITECTURE.md, section 7.3), in the `_headers` format static
+# hosts read from the root of the published directory.
 # index.json changes every night and must not be cached; the files of a day change when the
 # feed does, one hour of cache is enough; network and lookup files are named by feed version.
 

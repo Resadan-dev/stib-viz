@@ -13,9 +13,9 @@ rolling week of service days and the site replays any of them: night map, networ
 selector, speeds, per-mode counters and filters, line selection, official colours, a speed map
 of the network, vehicle panel
 with stepping and follow mode, activity curve doubling as the scrubber, about panel, keyboard
-shortcuts and a shareable URL. A nightly workflow rebuilds the week and deploys it to Cloudflare
-Pages once the project and its secrets exist (see Deployment). On a phone the control panel is a
-sheet folded at the bottom of the screen, so the map keeps most of it.
+shortcuts and a shareable URL. A nightly workflow rebuilds the rolling week from the feed. On a
+phone the control panel is a sheet folded at the bottom of the screen, so the map keeps most of
+it.
 
 ## Documents
 
@@ -24,7 +24,7 @@ sheet folded at the bottom of the screen, so the map keeps most of it.
 - [docs/01-exploration.md](docs/01-exploration.md) — initial exploration of the data and of the
   technical options (historical record).
 - [docs/02-operations.md](docs/02-operations.md) — runbook: reading a nightly run, what to do when
-  a day fails or the deployment breaks, rotating the token, the budgets to watch.
+  a day fails, building the window by hand, the budgets to watch.
 - [SECURITY.md](SECURITY.md) — how to report a vulnerability.
 
 ## Layout
@@ -124,35 +124,16 @@ uv run stibviz build --gtfs tests/fixtures/gtfs-extract/gtfs.zip --date 2026-09-
 
 Once, `pnpm e2e:install` downloads the browser; then `pnpm build` and `pnpm e2e` from `web/`.
 
-## Deployment
+## Publishing
 
-The `Nightly` workflow (`.github/workflows/nightly.yml`) runs twice a day: it downloads the feed,
-compares the rolling week with what the site publishes and rebuilds the whole window when
-anything is missing, since a deployment replaces the site, then builds and deploys it with
-wrangler. Without Cloudflare credentials it builds and tests but skips the
-deployment, so a fork works out of the box. To publish, once:
+`pnpm build` writes a self-contained static directory to `web/dist`: the site, its assets and the
+data it was built with. Nothing else is needed to serve it, and nothing in the repository assumes
+a particular host. How the public instance is hosted is the maintainer's own setup and is not
+documented here.
 
-1. Create a Cloudflare Pages project with direct upload, for example named `stib-viz`, with `main`
-   as its production branch (Workers & Pages, Create, Pages, Upload assets), or from a terminal:
-
-   ```bash
-   npx wrangler pages project create stib-viz --production-branch main
-   ```
-
-2. Create an API token limited to Cloudflare Pages edits on the account (My Profile, API Tokens,
-   Create Token, a custom token with the permission Account, Cloudflare Pages, Edit).
-3. In the GitHub repository, add the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`,
-   and the variables `CLOUDFLARE_PAGES_PROJECT` (the project name) and `SITE_URL` (the site
-   address, `https://stib-viz.pages.dev` for the example above).
-4. Run the `Nightly` workflow by hand once from the Actions tab; the following runs are scheduled.
-
-A scheduled run only deploys when it built a day, which it does every morning as the window
-slides. To push a fix out on a day when the data has not changed, run the workflow by hand and
-tick "Rebuild and deploy even if the site already publishes the whole week"; see
-[docs/02-operations.md](docs/02-operations.md), section 5.
-
-The headers Cloudflare Pages serves, cache rules and security headers including the
-Content-Security-Policy, live in `web/public/_headers`.
+`web/public/_headers` travels with that directory. It carries the cache rules and the security
+headers, including the Content-Security-Policy that
+[SECURITY.md](SECURITY.md) describes.
 
 ### A note on toolchain versions
 
