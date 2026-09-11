@@ -609,6 +609,39 @@ takes focus with a visible ring. Route badges keep the text colour of the feed o
 reaches 4.5:1 on the route colour, and take black or white otherwise. Mode filters are pills rather than bare checkboxes so their pointer targets keep the
 24 pixels of clearance success criterion 2.5.8 asks for.
 
+### 6.7 The coverage view
+
+The fourth reading of the network, "Desserte", in the URL as `network=coverage`. It is offered
+only when the day's manifest names a coverage (section 5.9); a URL asking for it on a day without
+one falls back to the runs. docs/03-commune-coverage.md records every choice behind it.
+
+**Loading.** `data/coverage.ts` fetches the four files the first time the view is opened, never
+before, and inflates the two grids with `DecompressionStream`. A failure is said in the status
+line and tried again the next time the view is opened, never on every frame. Only
+`isSpeedView` views fetch the hourly speeds, so this one does not.
+
+**On the map** (`render/coverage.ts`):
+
+- The network layer is not drawn.
+- The grid of the displayed hour is one `BitmapLayer` over the grid's bounds, sampled nearest.
+  Drawn cells take the colour of their class, and every other cell stays transparent.
+- Borders are a `PathLayer`; names are a `TextLayer`, the six longest of them shortened.
+- The vehicles keep drawing on top.
+- The grid is redrawn when the hour changes, and the outline when the municipality pointed at
+  changes, never per frame.
+
+**Colours.** One teal ramp of five steps (`COVERAGE_RAMP` in `theme/colors.ts`), checked with an
+ordinal validator on the night ground.
+
+**Pointer.** The tooltip, set through the overlay's `getTooltip` in plain text, names the
+municipality, the departures per direction within reach and the class. The same call outlines the
+municipality under the pointer.
+
+**Panel.** The legend shows five swatches. `ui/communes.ts` lists the 19 municipalities under it:
+a stacked bar of the class shares at the hour, the share well served and the hours per day at
+that level, sorted by those hours, with the Region last. Pointing at a row, or focusing it,
+outlines the municipality. On a phone the table lives in the unfolded sheet only.
+
 ## 7. Integration and deployment
 
 ### 7.1 `ci.yml` (every push and pull request)

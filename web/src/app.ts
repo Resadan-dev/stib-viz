@@ -484,7 +484,10 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
         }
         coverage = loaded;
         status.hide();
-        repaintCoverage(store.get());
+        const current = store.get();
+        repaintCoverage(current);
+        // Paused, nothing else would run the table until the next change of state.
+        communes.update(coverage, coverageRow, current.network === "coverage");
       })
       .catch((error: unknown) => {
         coverageFailed = true;

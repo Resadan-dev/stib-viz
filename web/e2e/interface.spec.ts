@@ -39,6 +39,11 @@ test("writes speed, filters, colours, line and instant back to the URL", async (
   await views.getByRole("button", { name: "Écart à l’habitude" }).click();
   await expect.poll(() => param(page, "network")).toBe("relative");
   await expect(legend).toContainText("habituel");
+  // The coverage of the residents: its swatches, and the 19 municipalities with the Region.
+  await views.getByRole("button", { name: "Desserte" }).click();
+  await expect.poll(() => param(page, "network")).toBe("coverage");
+  await expect(legend).toContainText("Départs par sens");
+  await expect(page.locator("section.communes tbody tr")).toHaveCount(20);
   await views.getByRole("button", { name: "Passages" }).click();
   await expect.poll(() => param(page, "network")).toBeNull();
   await expect(legend).toBeHidden();

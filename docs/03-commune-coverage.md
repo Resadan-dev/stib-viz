@@ -924,6 +924,36 @@ Playwright overheats the user's machine: ask before running it.
 5. **Local checks and commit.** Run vitest, tsc, eslint and prettier locally, then commit. The
    end-to-end specs are updated but run only if the user agrees.
 
+### 10.5 The site, built on 11 September (resumed at the user's request, "on reprend avec le site")
+
+D32, D33, D35, D36, D37, D38 and D39 are built as planned in 10.2. Two changes and one addition:
+
+- **D34 changed: teal, not blue.** The buses are drawn in blue, and a blue ramp would have
+  swallowed them; orange would have swallowed the trams. Teal is the one hue the vehicles leave
+  free.
+  - The five steps, in OKLCH lightness 0.40 to 0.66 at hue 170: `#2a5143`, `#2f6554`, `#347b65`,
+    `#3e9076`, `#48a689`.
+  - They pass the ordinal validator on the night ground `#04060c`: monotone lightness, steps at
+    least 0.06 apart, one hue, the darkest at 2.27:1.
+  - A first try, lightness 0.30 to 0.62, failed: its darkest step reached only 1.52:1.
+  - Known cost: on the top class a bus keeps only 1.2:1 and a Noctis 1.0:1, a tram 1.8:1 and the
+    metro 2.5:1. On screen the vehicles still read, by their saturation and their movement; the
+    user is to judge.
+- **D36 addition.** When the view first opens with playback paused, the table is filled as soon
+  as the files arrive. Otherwise nothing would run it before the next change of state. The
+  visual check found this; it is now fixed.
+- **Tooltip.** The outline follows the pointer through the same `getTooltip` call, which deck.gl
+  makes on every move over the map.
+
+**Checks on 11 September**
+
+- vitest: 285 tests, 97 % coverage; tsc, eslint and prettier clean.
+- On the real Wednesday in the browser pane, the figures in the table match the pipeline's:
+  - at 08:00, 98.9 % in Saint-Josse, 65.8 % in Woluwe-Saint-Pierre, 93.5 % for the Region;
+  - A from 19.8 h to 10.8 h.
+- The end-to-end specs are updated (`interface`, `a11y`) but have not been run: Playwright
+  overheats the user's machine, and CI will run them at the next push.
+
 ## 11. Sources
 
 - IBSA, Monitoring des Quartiers, indicator for 2018:
