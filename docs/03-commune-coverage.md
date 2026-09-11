@@ -494,6 +494,36 @@ Two files that only change with the reference, both named by a digest of their c
 
 A cell is drawn when it holds at least 0.5 residents (D20). Only drawn cells carry hourly data.
 
+**Checked against the prototype, 11 September 2026**
+
+The pipeline built the real Wednesday of 9 September 2026 (`stibviz build`, feed
+`2_20_20260831_010702`). The only difference with the prototype is the grid, Mercator here and
+Lambert there, and the figures agree:
+
+| Region | Prototype (5.1) | Pipeline |
+|---|---|---|
+| S at 08:00 | 93.6 | 93.5 |
+| S at 13:00 | 90.4 | 90.4 |
+| S at 21:00 | 77.3 | 77.4 |
+| S at 23:00 | 72.3 | 72.4 |
+| M at 08:00 / 21:00 | 31 / 16 | 31 / 16 |
+| A | 17.2 h | 17.2 h |
+
+Each municipality lands within half a point of its prototype figure; Ganshoren at 21:00, for
+instance, is at 19.8 % against 19.3 %.
+
+**Files and cost**
+
+| File | Size |
+|---|---|
+| Figures | 14 KB |
+| Hours | 233 KB |
+| Cells | 5.5 KB |
+| Municipalities | 68 KB |
+
+The coverage steps take about 4 seconds of the day's build. The largest is the reach from 63,034
+inhabited cells, at 2.2 s.
+
 ## 3. Definitions
 
 **For each resident point**

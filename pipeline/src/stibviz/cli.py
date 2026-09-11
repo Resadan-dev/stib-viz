@@ -25,8 +25,10 @@ from stibviz.fetch import FetchError, fetch_gtfs
 from stibviz.gtfs import Feed, GtfsError, load_feed
 from stibviz.residents import (
     DEFAULT_REFERENCE,
+    Reference,
     ReferenceError,
     build_reference,
+    load_reference,
     read_statbel_population,
     read_statbel_sectors,
     write_reference,
@@ -39,6 +41,7 @@ DEFAULT_GTFS_URL = (
     "https://opendata-discovery-gtfs-static.api.production.belgianmobility.io"
     "/api/gtfs/feed/stibmivb/static"
 )
+REFERENCE_HELP = "the reference of residents the coverage is measured on"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -67,6 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--out", type=Path, required=True, help="data directory to write into")
     build.add_argument("--tolerance", type=float, default=SIMPLIFICATION_TOLERANCE_M)
     build.add_argument("--anomaly-tolerance", type=float, default=ANOMALY_TOLERANCE)
+    build.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE, help=REFERENCE_HELP)
 
     week = commands.add_parser("week", help="build the rolling window of days, then the index")
     week.add_argument("--gtfs", type=Path, required=True, help="GTFS zip or directory")
@@ -83,6 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     week.add_argument("--report", type=Path, help="write one line per day and a summary here")
     week.add_argument("--tolerance", type=float, default=SIMPLIFICATION_TOLERANCE_M)
     week.add_argument("--anomaly-tolerance", type=float, default=ANOMALY_TOLERANCE)
+    week.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE, help=REFERENCE_HELP)
 
     check = commands.add_parser("check", help="check a written day directory")
     check.add_argument("--day", type=Path, required=True)
@@ -137,12 +142,24 @@ class DayOutcome:
 
 
 def _write_checked_day(
-    feed: Feed, date: dt.date, out: Path, *, tolerance_m: float, anomaly_tolerance: float
+    feed: Feed,
+    date: dt.date,
+    out: Path,
+    *,
+    tolerance_m: float,
+    anomaly_tolerance: float,
+    reference: Reference,
 ) -> DayOutcome:
     """Build one day, write it and check the written files; a failed day leaves nothing behind."""
     day_dir = out / date.isoformat()
     try:
-        result = build_day(feed, date, tolerance_m=tolerance_m, anomaly_tolerance=anomaly_tolerance)
+        result = build_day(
+            feed,
+            date,
+            tolerance_m=tolerance_m,
+            anomaly_tolerance=anomaly_tolerance,
+            reference=reference,
+        )
         if not result.report.ok:
             return DayOutcome(False, "blocked: " + "; ".join(result.report.blocking), result.report)
         write_day(result.bundle, out)
@@ -195,7 +212,8 @@ def _plan(args: argparse.Namespace) -> int:
 def _build(args: argparse.Namespace) -> int:
     try:
         feed = load_feed(args.gtfs)
-    except GtfsError as exc:
+        reference = load_reference(args.reference)
+    except (GtfsError, ReferenceError) as exc:
         print(f"build failed: {exc}", file=sys.stderr)
         return 1
     outcome = _write_checked_day(
@@ -204,6 +222,7 @@ def _build(args: argparse.Namespace) -> int:
         args.out,
         tolerance_m=args.tolerance,
         anomaly_tolerance=args.anomaly_tolerance,
+        reference=reference,
     )
     if outcome.report is not None:
         print(outcome.report.render())
@@ -218,7 +237,8 @@ def _build(args: argparse.Namespace) -> int:
 def _week(args: argparse.Namespace) -> int:
     try:
         feed = load_feed(args.gtfs)
-    except GtfsError as exc:
+        reference = load_reference(args.reference)
+    except (GtfsError, ReferenceError) as exc:
         print(f"week failed: {exc}", file=sys.stderr)
         return 1
     window = rolling_window(args.today, args.days_before, args.days_after)
@@ -241,6 +261,7 @@ def _week(args: argparse.Namespace) -> int:
             args.out,
             tolerance_m=args.tolerance,
             anomaly_tolerance=args.anomaly_tolerance,
+            reference=reference,
         )
         if outcome.ok:
             built += 1

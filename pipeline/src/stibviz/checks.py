@@ -13,6 +13,7 @@ counts with a direct count. ``check_day_dir`` runs on the written files alone, w
 
 from __future__ import annotations
 
+import gzip
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -21,7 +22,15 @@ from typing import Any
 
 import numpy as np
 
-from stibviz.encode import HEADER_WORDS, DayBundle, decode_slice
+from stibviz.coverage import CLASSES, HOURS, DayCoverage
+from stibviz.encode import (
+    HEADER_WORDS,
+    DayBundle,
+    decode_coverage_cells,
+    decode_coverage_hours,
+    decode_slice,
+)
+from stibviz.residents import Reference
 from stibviz.service_day import DayTrips
 from stibviz.shapes import PatternKey, Shape, StopProjection
 from stibviz.slicing import Slice
@@ -185,7 +194,67 @@ def check_build(
         "slices": len(bundle.slices),
         "slice_bytes": total_bytes,
     }
+    if bundle.coverage is not None and bundle.reference is not None:
+        blocking += _coverage_problems(bundle.coverage, bundle.reference)
+        info["coverage_cells"] = int(bundle.coverage.classes.shape[1])
     return CheckReport(blocking=blocking, anomalies=anomalies, info=info)
+
+
+def _coverage_problems(coverage: DayCoverage, reference: Reference) -> list[str]:
+    """Every resident of the reference counted once, and every hour adding up.
+
+    Whole residents are rounded per class, so an hour may differ from the total by up to one
+    resident per class, and the municipalities from the Region by one per municipality.
+    """
+    problems = []
+    located = int(reference.sector_population.sum())
+    if abs(coverage.region.residents - located) > 1:
+        problems.append(
+            f"coverage: the Region counts {coverage.region.residents} residents, "
+            f"the reference {located}"
+        )
+    parts = sum(area.residents for area in coverage.municipalities)
+    if abs(parts - coverage.region.residents) > len(coverage.municipalities):
+        problems.append(
+            f"coverage: the municipalities add up to {parts} residents, "
+            f"the Region counts {coverage.region.residents}"
+        )
+    for area in (coverage.region, *coverage.municipalities):
+        if np.any(np.abs(area.classes.sum(axis=1) - area.residents) > CLASSES):
+            problems.append("coverage: the classes of an hour do not add up to the residents")
+            break
+        if not 0 <= area.resident_hours <= HOURS * area.residents:
+            problems.append(f"coverage: {area.resident_hours} resident-hours is out of range")
+            break
+    return problems
+
+
+def _check_coverage(data_dir: Path, name: str) -> list[str]:
+    """The coverage a manifest names: its figures, and the three files they point to."""
+    path = data_dir / name
+    if not path.is_file():
+        return [f"{name}: named in the manifest but missing"]
+    try:
+        stats = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        return [f"{name}: not valid JSON: {exc}"]
+    keys = ("municipalities_file", "cells_file", "hours_file")
+    missing = [key for key in keys if not (data_dir / str(stats.get(key, ""))).is_file()]
+    if missing:
+        return [f"coverage: {key} {stats.get(key)!r} is missing" for key in missing]
+    try:
+        _, _, _, drawn = decode_coverage_cells((data_dir / stats["cells_file"]).read_bytes())
+        classes, _ = decode_coverage_hours((data_dir / stats["hours_file"]).read_bytes())
+    except (ValueError, OSError, EOFError, gzip.BadGzipFile) as exc:
+        return [f"coverage: {exc}"]
+    problems = []
+    if classes.shape[1] != int(drawn.sum()):
+        problems.append(
+            f"coverage: hours for {classes.shape[1]} cells, {int(drawn.sum())} drawn cells"
+        )
+    if classes.shape[0] != stats.get("hours") or len(stats.get("municipalities", [])) == 0:
+        problems.append("coverage: the figures do not match the hours file")
+    return problems
 
 
 def _check_slice_file(path: Path, expected_bytes: int) -> list[str]:
@@ -260,6 +329,8 @@ def check_day_dir(
             blocking.append(f"{entry['path']}: listed in the manifest but missing")
     if not (day_dir / manifest["vehicles_file"]).is_file():
         blocking.append(f"{manifest['vehicles_file']}: listed in the manifest but missing")
+    if "coverage" in manifest:
+        blocking += _check_coverage(day_dir.parent, str(manifest["coverage"]))
 
     anomalies = {key: int(value) for key, value in manifest["anomalies"].items()}
     info = {"slices": len(manifest["slices"]), "slice_bytes": total_bytes}

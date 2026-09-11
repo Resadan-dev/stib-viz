@@ -18,9 +18,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pytest
 
+from stibviz.geometry import to_mercator
 from stibviz.gtfs import Feed, load_feed
+from stibviz.residents import CELL_MERCATOR_M, Grid, Municipality, Reference
 from stibviz.service_day import DayTrips, select_day
 from stibviz.shapes import Shape, build_shapes, project_patterns, trip_patterns
 from stibviz.trajectories import TripTrajectory, build_trajectories
@@ -238,6 +241,33 @@ def build_state(zip_path: Path, date: dt.date) -> PipelineState:
     assembly = assemble_vehicles(day, feed.stops)
     trajectories = build_trajectories(day, patterns, projections, shapes, assembly, ROUTE_INDEX)
     return PipelineState(feed, day, shapes, assembly, trajectories)
+
+
+def synthetic_reference() -> Reference:
+    """A reference of residents over the synthetic network: a Mercator grid from 4.345 to 4.375 E
+    and 50.845 to 50.865 N, its western half one municipality of 1,000 residents, its eastern
+    half another of 2,000."""
+    c = CELL_MERCATOR_M
+    west, south = to_mercator([4.345], [50.845])
+    east, north = to_mercator([4.375], [50.865])
+    x0, y0 = float(np.floor(west[0] / c) * c), float(np.floor(south[0] / c) * c)
+    nx, ny = int((east[0] - x0) // c) + 1, int((north[0] - y0) // c) + 1
+    index = np.arange(nx * ny, dtype=np.int64)
+    return Reference(
+        grid=Grid(x0=x0, y0=y0, cell_m=c, nx=nx, ny=ny),
+        municipalities=(
+            Municipality("21001", "Ouest", "West", 1000, (4.35, 50.855)),
+            Municipality("21002", "Est", "Oost", 2000, (4.37, 50.855)),
+        ),
+        sector_codes=("21001W", "21002E"),
+        sector_municipality=np.array([0, 1], dtype=np.int64),
+        sector_population=np.array([1000, 2000], dtype=np.int64),
+        cell_index=index,
+        cell_sector=(index % nx >= nx // 2).astype(np.int64),
+        borders=(),
+        unlocated=0,
+        sources={"test": "synthetic"},
+    )
 
 
 @pytest.fixture

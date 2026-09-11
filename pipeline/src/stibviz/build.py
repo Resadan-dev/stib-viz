@@ -1,6 +1,6 @@
 """Building one day: from a loaded feed to a checked, ready-to-write bundle.
 
-This is the pipeline of ARCHITECTURE.md section 4.2 in one function, steps 3 to 13. Each step
+This is the pipeline of ARCHITECTURE.md section 4.2 in one function, steps 3 to 14. Each step
 lives in its own module; this one only wires them in order and runs the checks at the end.
 """
 
@@ -11,9 +11,11 @@ import time
 from dataclasses import dataclass, replace
 
 from stibviz.checks import ANOMALY_TOLERANCE, CheckReport, check_build
+from stibviz.coverage import compute_coverage
 from stibviz.encode import DayBundle
 from stibviz.gtfs import Feed
 from stibviz.network import build_network, lookup_table, stop_dictionary
+from stibviz.residents import Reference
 from stibviz.service_day import select_day
 from stibviz.shapes import Shape, build_shapes, project_patterns, trip_patterns
 from stibviz.slicing import slice_trajectories
@@ -39,8 +41,10 @@ def build_day(
     anomaly_tolerance: float = ANOMALY_TOLERANCE,
     generated_at: dt.datetime | None = None,
     shapes: dict[str, Shape] | None = None,
+    reference: Reference | None = None,
 ) -> BuildResult:
-    """Run every step for ``date``. Pass ``shapes`` to reuse them across several days."""
+    """Run every step for ``date``. Pass ``shapes`` to reuse them across several days, and a
+    reference of residents to measure how well the day serves them."""
     started = time.perf_counter()
     day = select_day(feed, date)
     shapes = shapes if shapes is not None else build_shapes(feed, tolerance_m)
@@ -65,6 +69,10 @@ def build_day(
         lookup=lookup_table(day, patterns, projections, routes),
         anomalies={},
         generated_at=generated_at or dt.datetime.now(dt.UTC),
+        coverage=None
+        if reference is None
+        else compute_coverage(day, feed.stops, routes, reference),
+        reference=reference,
     )
     report = check_build(
         bundle, day, patterns, projections, shapes, anomaly_tolerance=anomaly_tolerance

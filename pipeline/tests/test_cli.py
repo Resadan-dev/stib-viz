@@ -46,6 +46,27 @@ def test_build_writes_a_day_and_reports_ok(
     assert "OK" in capsys.readouterr().out
 
 
+def test_a_built_day_carries_its_coverage_of_the_residents(
+    sample_gtfs_zip: Path, tmp_path: Path
+) -> None:
+    out = tmp_path / "data"
+    assert _build(sample_gtfs_zip, out, "--anomaly-tolerance", "1") == 0
+    manifest = json.loads((out / "2026-09-09" / "manifest.json").read_text(encoding="utf-8"))
+    stats = json.loads((out / manifest["coverage"]).read_text(encoding="utf-8"))
+    # The committed reference: the whole Region, whatever the synthetic network reaches.
+    assert stats["region"]["residents"] > 1_000_000
+    assert len(stats["municipalities"]) == 19
+
+
+def test_build_fails_without_its_reference_of_residents(
+    sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing = tmp_path / "nowhere.json"
+    assert _build(sample_gtfs_zip, tmp_path / "data", "--reference", str(missing)) == 1
+    assert "nowhere.json" in capsys.readouterr().err
+    assert not (tmp_path / "data").exists()
+
+
 def test_blocked_day_is_not_written_and_fails(
     sample_gtfs_zip: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

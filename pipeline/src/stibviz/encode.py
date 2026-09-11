@@ -25,6 +25,7 @@ without copying it.
 from __future__ import annotations
 
 import datetime as dt
+import gzip
 import hashlib
 import json
 import shutil
@@ -36,8 +37,19 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from stibviz.coverage import (
+    DRAWN_MIN_RESIDENTS,
+    PLACE_M,
+    REACH_M,
+    THRESHOLDS,
+    AreaCoverage,
+    DayCoverage,
+    coverage_rasters,
+)
+from stibviz.geometry import from_mercator
 from stibviz.gtfs import FeedInfo
 from stibviz.network import HOURLY_MIN_RUNS, HOURS_PER_DAY, INTENSITY_BREAKS, NetworkSegment
+from stibviz.residents import CELL_GROUND_M, Reference
 from stibviz.service_day import SERVICE_DAY_START_S
 from stibviz.slicing import FIRST_HOUR, Slice, window
 from stibviz.stats import DayStats, RouteInfo
@@ -49,6 +61,12 @@ STV1_VERSION = 1
 HEADER_WORDS = 6
 SOURCE_SCHEDULE = "schedule"
 COORDINATE_DECIMALS = 5
+# The coverage grid (docs/03-commune-coverage.md, D31), both files gzip-compressed inside:
+# "SCC1", the municipality of every cell and the drawn mask; "SCH1", the hours of one day.
+SCC1_MAGIC = 0x53434331
+SCH1_MAGIC = 0x53434831
+COVERAGE_VERSION = 1
+BOUNDS_DECIMALS = 7
 
 
 @dataclass(frozen=True)
@@ -67,6 +85,10 @@ class DayBundle:
     lookup: Mapping[str, Any]
     anomalies: Mapping[str, int]
     generated_at: dt.datetime
+    # How well the day serves the residents, and the reference it was measured on; a day built
+    # without a reference of residents publishes no coverage.
+    coverage: DayCoverage | None = None
+    reference: Reference | None = None
 
 
 @dataclass(frozen=True)
@@ -256,6 +278,154 @@ def _hourly_payload(bundle: DayBundle) -> dict[str, Any]:
     }
 
 
+def _gzip(data: bytes) -> bytes:
+    """Compressed without a timestamp, so the same content gives the same bytes and name.
+
+    Cloudflare does not compress ``application/octet-stream``, so the grid travels compressed
+    inside the file and the browser inflates it (docs/03-commune-coverage.md, D31).
+    """
+    return gzip.compress(data, compresslevel=9, mtime=0)
+
+
+def _digest_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()[:12]
+
+
+def encode_coverage_cells(reference: Reference) -> bytes:
+    """``SCC1``: 4 x Uint32 header (magic, version, nx, ny), the municipality of every cell (0
+    outside, then 1 to 19) and the drawn mask, one byte per cell each, rows from the north."""
+    municipality, drawn = coverage_rasters(reference)
+    grid = reference.grid
+    header = np.array([SCC1_MAGIC, COVERAGE_VERSION, grid.nx, grid.ny], dtype="<u4")
+    return _gzip(header.tobytes() + municipality.tobytes() + drawn.tobytes())
+
+
+def decode_coverage_cells(data: bytes) -> tuple[int, int, NDArray[np.uint8], NDArray[np.uint8]]:
+    """(nx, ny, municipality, drawn) from an ``SCC1`` file; raises ValueError on any mismatch."""
+    raw = gzip.decompress(data)
+    header = np.frombuffer(raw[:16], dtype="<u4")
+    if len(header) < 4 or header[0] != SCC1_MAGIC or header[1] != COVERAGE_VERSION:
+        raise ValueError("not an SCC1 coverage cells file of the expected version")
+    nx, ny = int(header[2]), int(header[3])
+    if len(raw) != 16 + 2 * nx * ny:
+        raise ValueError(f"SCC1: {len(raw)} bytes for a {nx} x {ny} grid")
+    body = np.frombuffer(raw, dtype=np.uint8, offset=16)
+    return nx, ny, body[: nx * ny].copy(), body[nx * ny :].copy()
+
+
+def encode_coverage_hours(coverage: DayCoverage) -> bytes:
+    """``SCH1``: 6 x Uint32 header (magic, version, drawn cells N, hours, first hour, 0), then the
+    class of every drawn cell hour by hour (Uint8 x hours x N), then its departures per direction
+    within reach, capped at 255, in the same order."""
+    hours, drawn = coverage.classes.shape
+    header = np.array([SCH1_MAGIC, COVERAGE_VERSION, drawn, hours, FIRST_HOUR, 0], dtype="<u4")
+    classes = np.ascontiguousarray(coverage.classes, dtype=np.uint8)
+    departures = np.ascontiguousarray(coverage.departures, dtype=np.uint8)
+    return _gzip(header.tobytes() + classes.tobytes() + departures.tobytes())
+
+
+def decode_coverage_hours(data: bytes) -> tuple[NDArray[np.uint8], NDArray[np.uint8]]:
+    """(classes, departures), each hours x N, from an ``SCH1`` file."""
+    raw = gzip.decompress(data)
+    header = np.frombuffer(raw[:24], dtype="<u4")
+    if len(header) < 6 or header[0] != SCH1_MAGIC or header[1] != COVERAGE_VERSION:
+        raise ValueError("not an SCH1 coverage hours file of the expected version")
+    drawn, hours = int(header[2]), int(header[3])
+    if len(raw) != 24 + 2 * hours * drawn:
+        raise ValueError(f"SCH1: {len(raw)} bytes for {hours} hours of {drawn} cells")
+    body = np.frombuffer(raw, dtype=np.uint8, offset=24)
+    size = hours * drawn
+    return body[:size].reshape(hours, drawn).copy(), body[size:].reshape(hours, drawn).copy()
+
+
+def _area_payload(area: AreaCoverage) -> dict[str, Any]:
+    return {
+        "residents": area.residents,
+        "classes": area.classes.tolist(),
+        "median": area.median.tolist(),
+        "resident_hours": area.resident_hours,
+    }
+
+
+def _municipalities_payload(reference: Reference) -> dict[str, Any]:
+    grid = reference.grid
+    lon, lat = from_mercator(
+        [grid.x0, grid.x0 + grid.nx * grid.cell_m], [grid.y0, grid.y0 + grid.ny * grid.cell_m]
+    )
+    return {
+        "sources": dict(reference.sources),
+        "grid": {
+            "nx": grid.nx,
+            "ny": grid.ny,
+            "ground_m": CELL_GROUND_M,
+            # West, south, east, north: where the site lays the grid image over the map.
+            "bounds": [
+                round(float(value), BOUNDS_DECIMALS) for value in (lon[0], lat[0], lon[1], lat[1])
+            ],
+        },
+        "municipalities": [
+            {
+                "code": m.code,
+                "name": m.name_fr,
+                "name_nl": m.name_nl,
+                "residents": m.residents,
+                "label": list(m.label),
+            }
+            for m in reference.municipalities
+        ],
+        "borders": [
+            {
+                "municipalities": list(border.municipalities),
+                "coordinates": _round_coordinates(border.lon, border.lat),
+            }
+            for border in reference.borders
+        ],
+    }
+
+
+def _write_bytes(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+
+
+def _write_coverage(
+    coverage: DayCoverage, reference: Reference, version: str, data_dir: Path
+) -> str:
+    """Write the day's coverage and the two files of its reference; return the day's file.
+
+    Every name is a digest of the content, like the network's: the reference files stay the
+    same from one day to the next, and the day files change only when the timetable does.
+    """
+    municipalities_text = _json_text(_municipalities_payload(reference))
+    municipalities = f"municipalities-{_digest(municipalities_text)}.json"
+    _write_text(safe_path(data_dir, "coverage", municipalities), municipalities_text)
+    cells_data = encode_coverage_cells(reference)
+    cells = f"cells-{_digest_bytes(cells_data)}.bin"
+    _write_bytes(safe_path(data_dir, "coverage", cells), cells_data)
+    hours_data = encode_coverage_hours(coverage)
+    hours = f"{version}-{_digest_bytes(hours_data)}-hours.bin"
+    _write_bytes(safe_path(data_dir, "coverage", hours), hours_data)
+    stats_text = _json_text(
+        {
+            "feed_version": version,
+            "first_hour": FIRST_HOUR,
+            "hours": int(coverage.classes.shape[0]),
+            "thresholds": list(THRESHOLDS),
+            "reach_m": [round(radius) for radius in REACH_M],
+            "place_m": round(PLACE_M),
+            "drawn_min_residents": DRAWN_MIN_RESIDENTS,
+            "municipalities_file": f"coverage/{municipalities}",
+            "cells_file": f"coverage/{cells}",
+            "hours_file": f"coverage/{hours}",
+            "region": _area_payload(coverage.region),
+            "municipalities": [_area_payload(area) for area in coverage.municipalities],
+        }
+    )
+    stats = f"{version}-{_digest(stats_text)}.json"
+    _write_text(safe_path(data_dir, "coverage", stats), stats_text)
+    return f"coverage/{stats}"
+
+
 def _stops_by_hour(
     bundle: DayBundle, hours: Sequence[int]
 ) -> dict[int, dict[str, list[list[Any]]]]:
@@ -377,6 +547,8 @@ def write_day(bundle: DayBundle, data_dir: Path) -> dict[str, Any]:
         "stops_files": stop_entries,
         "anomalies": dict(bundle.anomalies),
     }
+    if bundle.coverage is not None and bundle.reference is not None:
+        manifest["coverage"] = _write_coverage(bundle.coverage, bundle.reference, version, data_dir)
     _write_json(day_dir / "manifest.json", manifest)
     return manifest
 

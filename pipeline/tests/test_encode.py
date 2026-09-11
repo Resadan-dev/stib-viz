@@ -3,19 +3,27 @@
 from __future__ import annotations
 
 import datetime as dt
+import gzip
 import json
 import re
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 import pytest
-from tests.conftest import MODE_OF_ROUTE, PipelineState
+from tests.conftest import MODE_OF_ROUTE, PipelineState, synthetic_reference
 
+from stibviz.coverage import compute_coverage, coverage_rasters
 from stibviz.encode import (
+    COVERAGE_VERSION,
     HEADER_WORDS,
+    SCC1_MAGIC,
+    SCH1_MAGIC,
     STV1_MAGIC,
     STV1_VERSION,
     DayBundle,
+    decode_coverage_cells,
+    decode_coverage_hours,
     decode_slice,
     encode_slice,
     safe_path,
@@ -335,3 +343,97 @@ def test_safe_path_refuses_a_name_that_would_leave_the_data_directory(tmp_path: 
     for escape in ["../../escape.json", "../../../../etc/passwd", absolute]:
         with pytest.raises(ValueError, match="refusing to write outside"):
             safe_path(tmp_path, "network", escape)
+
+
+# --- Coverage (docs/03-commune-coverage.md, D31) -------------------------------------------------
+
+
+def _bundle_with_coverage(state: PipelineState) -> DayBundle:
+    bundle = _bundle(state)
+    reference = synthetic_reference()
+    coverage = compute_coverage(state.day, state.feed.stops, bundle.routes, reference)
+    return replace(bundle, coverage=coverage, reference=reference)
+
+
+def _coverage_stats(manifest: dict, data_dir: Path) -> dict:
+    return json.loads((data_dir / manifest["coverage"]).read_text(encoding="utf-8"))
+
+
+def test_a_day_without_coverage_names_none(wednesday_state: PipelineState, tmp_path: Path) -> None:
+    manifest = write_day(_bundle(wednesday_state), tmp_path)
+    assert "coverage" not in manifest
+    assert not (tmp_path / "coverage").exists()
+
+
+def test_the_coverage_figures_are_whole_numbers_named_in_the_manifest(
+    wednesday_state: PipelineState, tmp_path: Path
+) -> None:
+    manifest = write_day(_bundle_with_coverage(wednesday_state), tmp_path)
+    assert re.fullmatch(r"coverage/[^/]+-[0-9a-f]{12}\.json", manifest["coverage"])
+    stats = _coverage_stats(manifest, tmp_path)
+    assert (stats["first_hour"], stats["hours"]) == (4, 24)
+    assert stats["thresholds"] == [4, 10, 20]
+    assert stats["reach_m"] == [400, 800]
+    for key in ("municipalities_file", "cells_file", "hours_file"):
+        assert (tmp_path / stats[key]).is_file()
+    region = stats["region"]
+    assert region["residents"] == 3000
+    assert len(region["classes"]) == 24
+    assert all(len(row) == 5 and all(isinstance(v, int) for v in row) for row in region["classes"])
+    assert len(region["median"]) == 24 and isinstance(region["resident_hours"], int)
+    assert [m["residents"] for m in stats["municipalities"]] == [1000, 2000]
+
+
+def test_the_hours_file_round_trips(wednesday_state: PipelineState, tmp_path: Path) -> None:
+    bundle = _bundle_with_coverage(wednesday_state)
+    stats = _coverage_stats(write_day(bundle, tmp_path), tmp_path)
+    data = (tmp_path / stats["hours_file"]).read_bytes()
+    assert bundle.coverage is not None
+    classes, departures = decode_coverage_hours(data)
+    assert np.array_equal(classes, bundle.coverage.classes)
+    assert np.array_equal(departures, bundle.coverage.departures)
+    header = np.frombuffer(gzip.decompress(data)[:24], dtype="<u4")
+    assert list(header) == [SCH1_MAGIC, COVERAGE_VERSION, classes.shape[1], 24, 4, 0]
+
+
+def test_the_cells_file_holds_the_rasters_of_the_reference(
+    wednesday_state: PipelineState, tmp_path: Path
+) -> None:
+    bundle = _bundle_with_coverage(wednesday_state)
+    stats = _coverage_stats(write_day(bundle, tmp_path), tmp_path)
+    data = (tmp_path / stats["cells_file"]).read_bytes()
+    nx, ny, municipality, drawn = decode_coverage_cells(data)
+    assert bundle.reference is not None
+    assert (nx, ny) == (bundle.reference.grid.nx, bundle.reference.grid.ny)
+    expected_municipality, expected_drawn = coverage_rasters(bundle.reference)
+    assert np.array_equal(municipality, expected_municipality)
+    assert np.array_equal(drawn, expected_drawn)
+    header = np.frombuffer(gzip.decompress(data)[:16], dtype="<u4")
+    assert list(header) == [SCC1_MAGIC, COVERAGE_VERSION, nx, ny]
+    hours, _ = decode_coverage_hours((tmp_path / stats["hours_file"]).read_bytes())
+    assert hours.shape[1] == int(drawn.sum())
+
+
+def test_the_municipalities_file_gives_the_grid_bounds_names_and_sources(
+    wednesday_state: PipelineState, tmp_path: Path
+) -> None:
+    stats = _coverage_stats(write_day(_bundle_with_coverage(wednesday_state), tmp_path), tmp_path)
+    payload = json.loads((tmp_path / stats["municipalities_file"]).read_text(encoding="utf-8"))
+    west, south, east, north = payload["grid"]["bounds"]
+    assert west < 4.345 < 4.375 < east
+    assert south < 50.845 < 50.865 < north
+    assert [m["name"] for m in payload["municipalities"]] == ["Ouest", "Est"]
+    assert payload["municipalities"][1]["label"] == [4.37, 50.855]
+    assert payload["sources"] == {"test": "synthetic"}
+    assert payload["borders"] == []
+
+
+def test_coverage_files_are_named_by_what_is_in_them(
+    wednesday_state: PipelineState, tmp_path: Path
+) -> None:
+    bundle = _bundle_with_coverage(wednesday_state)
+    first = _coverage_stats(write_day(bundle, tmp_path / "a"), tmp_path / "a")
+    second = _coverage_stats(write_day(bundle, tmp_path / "b"), tmp_path / "b")
+    assert first == second  # gzip without a timestamp: the same day, the same bytes, the same names
+    for key in ("municipalities_file", "cells_file", "hours_file"):
+        assert re.search(r"-[0-9a-f]{12}(-hours)?\.(json|bin)$", first[key])
