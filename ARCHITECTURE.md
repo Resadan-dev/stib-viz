@@ -50,7 +50,7 @@ stib-viz/
 ├── pipeline/                     Python 3.12, uv, ruff, pytest
 │   ├── pyproject.toml
 │   ├── src/stibviz/
-│   │   ├── cli.py                stibviz fetch | plan | build | week | check | index
+│   │   ├── cli.py                stibviz fetch | plan | build | week | check | index | residents
 │   │   ├── fetch.py              GTFS download with ETag and digest
 │   │   ├── gtfs.py               table reading and validation
 │   │   ├── service_day.py        date → active services → trips of the 04:00-04:00 day
@@ -64,7 +64,11 @@ stib-viz/
 │   │   ├── stats.py              per-minute series, kilometres, routes
 │   │   ├── encode.py             binary slices, stop files, vehicles and manifest writing
 │   │   ├── checks.py             quality checks, thresholds, per-object anomalies
-│   │   └── build.py              one day from feed to checked bundle, steps 3 to 13 in order
+│   │   ├── build.py              one day from feed to checked bundle, steps 3 to 13 in order
+│   │   ├── lambert2008.py        Belgian Lambert 2008 to and from longitude and latitude
+│   │   ├── residents.py          Statbel sectors and population to the reference of residents
+│   │   └── reference/brussels.json   the reference: 50 m grid, residents, municipalities and
+│   │                                 their borders, rebuilt once a year (docs/03, D27)
 │   ├── tools/make_extract.py     cuts the test extract out of the full feed
 │   └── tests/
 │       ├── fixtures/gtfs-extract/   real three-route extract (metro 1, tram 7, Noctis N06 on
@@ -184,7 +188,16 @@ stibviz build  --gtfs cache/gtfs.zip --date 2026-09-09 --out dist/data/
 stibviz week   --gtfs cache/gtfs.zip --out dist/data/ --published published.json --report r.txt
 stibviz check  --day dist/data/2026-09-09/
 stibviz index  --data dist/data/                 writes dist/data/index.json
+stibviz residents --sectors <Statbel sectors zip> --population <Statbel population zip>
+                                                 writes src/stibviz/reference/brussels.json
 ```
+
+`residents` runs once a year, by hand, when Statbel publishes a new population by statistical
+sector (in the autumn, for 1 January of that year). It needs the statistical sectors as a GeoJSON
+zip in Belgian Lambert 2008 (EPSG:3812) and the population by sector, "NEW" division, both CC BY
+4.0 from statbel.fgov.be. The result is committed; no other command downloads anything from
+Statbel. `--population-date` gives the reference date when the file name carries no year.
+docs/03-commune-coverage.md records how the reference is built and why (D27 to D31).
 
 `week` is what the nightly run calls: plan, one build and check per day, removal of the days
 that left the window, index. `--today` moves the window, `--days-before` and `--days-after`

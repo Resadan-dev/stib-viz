@@ -7,10 +7,13 @@ import pytest
 from tests.conftest import SHAPE_A
 
 from stibviz.geometry import (
+    WEB_MERCATOR_RADIUS_M,
     cumulative_distance,
     douglas_peucker_mask,
+    from_mercator,
     point_at_distance,
     project_point,
+    to_mercator,
     to_metres,
 )
 
@@ -114,3 +117,25 @@ def test_project_point_beyond_the_last_segment_lands_on_the_end() -> None:
         150.0, 30.0, x, y, cumulative_distance(x, y), start_segment=5
     )
     assert (along, offset, segment) == (200.0, pytest.approx(58.31, abs=0.01), 1)
+
+
+def test_mercator_puts_the_equator_and_greenwich_at_zero() -> None:
+    x, y = to_mercator(np.array([0.0]), np.array([0.0]))
+    # tan(pi/4) is one ulp short of 1 in floating point, which leaves a nanometre.
+    assert (x[0], y[0]) == (pytest.approx(0.0, abs=1e-6), pytest.approx(0.0, abs=1e-6))
+
+
+def test_mercator_longitude_is_linear_and_latitude_stretches_by_its_secant() -> None:
+    x, y = to_mercator(np.array([4.35, 4.36, 4.35]), np.array([50.85, 50.85, 50.8501]))
+    assert x[1] - x[0] == pytest.approx(WEB_MERCATOR_RADIUS_M * np.radians(0.01))
+    # One ten-thousandth of a degree north: the secant of 50.85 degrees times the arc.
+    stretch = WEB_MERCATOR_RADIUS_M * np.radians(0.0001) / np.cos(np.radians(50.85005))
+    assert y[2] - y[0] == pytest.approx(stretch, rel=1e-6)
+
+
+def test_mercator_round_trip_is_exact() -> None:
+    lon = np.array([4.24, 4.35, 4.49])
+    lat = np.array([50.76, 50.85, 50.92])
+    back_lon, back_lat = from_mercator(*to_mercator(lon, lat))
+    assert np.allclose(back_lon, lon, atol=1e-12)
+    assert np.allclose(back_lat, lat, atol=1e-12)

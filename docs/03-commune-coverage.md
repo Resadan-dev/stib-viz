@@ -364,7 +364,135 @@ as a validation check only.
 
 ### D25. Commit this record, then build the feature into the pipeline and the site (11 September, user)
 
-"et commite, et on passe à l'intégration dans le pipeline et site".
+"et commite, et on passe à l'intégration dans le pipeline et site". Committed as `9505bf3` on the
+branch `feat/commune-coverage`.
+
+### D26. The site reads the hour that contains the displayed time (11 September, Claude, answers Q2)
+
+This is what the speed views already do, through `hourOf` in `web/src/time/clock.ts`. The day then
+carries 24 grids, one per hour of the service day, and no sliding window needs computing.
+
+Set aside: a window of 60 minutes centred on the displayed time. It would move smoothly, but it
+needs one grid per step of the clock, and the hourly speeds would no longer agree with it.
+
+### D27. The reference data are prepared once a year and committed (11 September, Claude, answers Q6)
+
+**How**
+
+- A command, `stibviz residents`, turns the two Statbel files into a reference file that lives
+  inside the package: `pipeline/src/stibviz/reference/`.
+- The file holds the grid, the residents of each cell (through its sector), the municipalities,
+  their borders and the points where their names go.
+- The daily build reads this file and never downloads Statbel.
+
+**Why**
+
+- The data change once a year.
+- The nightly remains a function of the GTFS feed alone.
+- CI builds the fixture day offline, as today.
+
+**Set aside**
+
+Downloading Statbel in the nightly: two more network dependencies, and 60 MB fetched every
+night for data that do not change.
+
+**First build, 11 September 2026**
+
+Built from the sectors of 1 January 2026 and the 2025 population ("NEW" division), in 3 seconds:
+
+| Item | Count |
+|---|---|
+| Municipalities | 19 |
+| Sectors | 749 |
+| Cells | 64,852 (162.1 km²) |
+| Residents located | 1,252,352 |
+| Residents not located | 3,443 |
+| Border stretches | 60 |
+| File size | 227,044 bytes |
+
+The file stores cells as runs of one sector, `[first flat index, count, sector]`. Each cell's
+residents are its sector's population divided by the sector's number of cells; the division is
+done on loading, so no rounded share is ever stored.
+
+### D28. The grid is aligned on Web Mercator (11 September, Claude)
+
+**The grid**
+
+- Cells are 50 / cos(50.85°) ≈ 79.2 Mercator metres wide, which is 50 m on the ground at the
+  latitude of Brussels.
+- Across the Region the ground size varies by ±0.15 %.
+- The grid's corner sits on a whole multiple of the cell size, so the cells do not move when the
+  reference is rebuilt.
+
+**Why**
+
+The site draws the grid as a single image over the map, and deck.gl stretches an image linearly in
+Mercator. A Mercator grid lands exactly. A grid in Lambert or in even steps of latitude would drift
+by up to 8 m in the middle rows.
+
+**Distances**
+
+Reach is still measured with the pipeline's local projection (`geometry.to_metres`), between cell
+centres and quays.
+
+**Set aside**
+
+The prototype's Lambert 2008 grid, which the site would have had to reproject.
+
+### D29. Municipal borders come from the sector polygons themselves (11 September, Claude)
+
+**Verified on the 2026 sectors: the sectors share their vertices exactly**
+
+- Every edge appears either once, on the edge of the Region (4,437 edges), or twice, between two
+  sectors (24,044 edges).
+- For each of the 19 municipalities, the edges it does not share inside itself close into rings,
+  with no vertex of odd degree.
+
+**How the borders are built**
+
+- Borders are the edges not shared inside a municipality.
+- They are chained into polylines between junctions. Each polyline is stored once, with the one or
+  two municipalities it separates.
+- Each polyline is simplified by Douglas–Peucker at 1 m with its ends fixed, so neighbouring
+  borders stay joined.
+
+**Why**
+
+No GIS library (ARCHITECTURE.md, section 9), an exact topology, and one line per border on the
+map.
+
+### D30. Where the names go (11 September, Claude)
+
+Each municipality's name sits at the cell farthest from its border, measured on the grid, as in the
+prototype (D20).
+
+### D31. What a day publishes for the view (11 September, Claude)
+
+**Figures: integers only**
+
+- For each municipality and for the Region, per hour: the residents in each class, rounded to whole
+  residents, and the median departures per direction within reach.
+- For the day: the resident-hours at more than 10.
+- The site divides and rounds, once (D19).
+
+**Grid per day**
+
+- For each drawn cell and each hour: the class, and the departures, capped at 255.
+- The file is compressed with gzip inside itself and inflated in the browser with
+  `DecompressionStream`. Cloudflare does not compress `application/octet-stream` (checked in its
+  documentation on 11 September), so compression inside the file makes the size independent of
+  the host.
+
+**Shared files**
+
+Two files that only change with the reference, both named by a digest of their content:
+
+- the municipality of each cell and the drawn mask;
+- the municipalities themselves: names, residents, borders, label points.
+
+**Drawn cells**
+
+A cell is drawn when it holds at least 0.5 residents (D20). Only drawn cells carry hourly data.
 
 ## 3. Definitions
 

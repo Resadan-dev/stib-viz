@@ -16,6 +16,7 @@ BoolArray = NDArray[np.bool_]
 EARTH_RADIUS_M = 6_371_008.8
 ORIGIN_LON = 4.35
 ORIGIN_LAT = 50.85
+WEB_MERCATOR_RADIUS_M = 6_378_137.0
 
 
 def to_metres(
@@ -30,6 +31,30 @@ def to_metres(
     x = (lon_arr - origin[0]) * metres_per_degree * np.cos(np.radians(origin[1]))
     y = (lat_arr - origin[1]) * metres_per_degree
     return x, y
+
+
+def to_mercator(
+    lon: NDArray[np.floating] | list[float], lat: NDArray[np.floating] | list[float]
+) -> tuple[FloatArray, FloatArray]:
+    """Web Mercator (EPSG:3857) metres: the plane the site's map is drawn in.
+
+    Only the grid of residents lives there (docs/03-commune-coverage.md, D28): an image laid over
+    the map is stretched linearly in this plane, so a grid aligned on it lands exactly.
+    """
+    lon_arr = np.radians(np.asarray(lon, dtype=np.float64))
+    lat_arr = np.radians(np.asarray(lat, dtype=np.float64))
+    return WEB_MERCATOR_RADIUS_M * lon_arr, WEB_MERCATOR_RADIUS_M * np.log(
+        np.tan(np.pi / 4 + lat_arr / 2)
+    )
+
+
+def from_mercator(
+    x: NDArray[np.floating] | list[float], y: NDArray[np.floating] | list[float]
+) -> tuple[FloatArray, FloatArray]:
+    """Longitudes and latitudes in degrees from Web Mercator metres."""
+    x_arr = np.asarray(x, dtype=np.float64) / WEB_MERCATOR_RADIUS_M
+    y_arr = np.asarray(y, dtype=np.float64) / WEB_MERCATOR_RADIUS_M
+    return np.degrees(x_arr), np.degrees(2 * np.arctan(np.exp(y_arr)) - np.pi / 2)
 
 
 def cumulative_distance(x: FloatArray, y: FloatArray) -> FloatArray:

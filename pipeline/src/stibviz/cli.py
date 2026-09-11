@@ -1,4 +1,4 @@
-"""Command line entry point: ``stibviz fetch | plan | build | week | check | index``.
+"""Command line entry point: ``stibviz fetch | plan | build | week | check | index | residents``.
 
 Every command prints a readable summary, writes errors to stderr and returns a non-zero exit
 code on failure (ARCHITECTURE.md, section 4.4).
@@ -11,6 +11,7 @@ import datetime as dt
 import json
 import shutil
 import sys
+import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,14 @@ from stibviz.checks import ANOMALY_TOLERANCE, CheckReport, check_day_dir
 from stibviz.encode import write_day, write_index
 from stibviz.fetch import FetchError, fetch_gtfs
 from stibviz.gtfs import Feed, GtfsError, load_feed
+from stibviz.residents import (
+    DEFAULT_REFERENCE,
+    ReferenceError,
+    build_reference,
+    read_statbel_population,
+    read_statbel_sectors,
+    write_reference,
+)
 from stibviz.service_day import DateNotCoveredError
 from stibviz.shapes import ShapeError
 from stibviz.window import DAYS_AFTER, DAYS_BEFORE, plan_days, rolling_window
@@ -81,6 +90,20 @@ def build_parser() -> argparse.ArgumentParser:
     index = commands.add_parser("index", help="write index.json for a data directory")
     index.add_argument("--data", type=Path, required=True)
     index.add_argument("--gtfs", type=Path, required=True, help="the feed the days came from")
+
+    residents = commands.add_parser(
+        "residents", help="build the reference of residents from two Statbel files, once a year"
+    )
+    residents.add_argument(
+        "--sectors", type=Path, required=True, help="statistical sectors, GeoJSON zip, EPSG:3812"
+    )
+    residents.add_argument(
+        "--population", type=Path, required=True, help="population by statistical sector, zip"
+    )
+    residents.add_argument("--out", type=Path, default=DEFAULT_REFERENCE)
+    residents.add_argument(
+        "--population-date", help="YYYY-MM-DD, when the population file name carries no year"
+    )
     return parser
 
 
@@ -276,6 +299,36 @@ def _index(args: argparse.Namespace) -> int:
     return 0
 
 
+def _residents(args: argparse.Namespace) -> int:
+    try:
+        sectors = read_statbel_sectors(args.sectors)
+        population = read_statbel_population(args.population, reference_date=args.population_date)
+        reference = build_reference(
+            sectors,
+            population,
+            sources={
+                "sectors": args.sectors.name,
+                "sectors_situation": sectors[0].situation if sectors else "",
+                "population": args.population.name,
+                "population_date": population.reference_date,
+                "licence": "CC BY 4.0",
+                "attribution": "Source: Statbel (modified)",
+            },
+        )
+        size = write_reference(reference, args.out)
+    except (ReferenceError, OSError, zipfile.BadZipFile) as exc:
+        print(f"residents failed: {exc}", file=sys.stderr)
+        return 1
+    located = int(reference.sector_population.sum())
+    print(
+        f"{args.out}: {len(reference.municipalities)} municipalities, "
+        f"{len(reference.sector_codes)} sectors, {len(reference.cell_index)} cells, "
+        f"{located} residents located, {reference.unlocated} not, "
+        f"{len(reference.borders)} border stretches, {size} bytes"
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the command and return its exit code."""
     parser = build_parser()
@@ -287,6 +340,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "week": _week,
         "check": _check,
         "index": _index,
+        "residents": _residents,
     }
     handler = handlers.get(args.command)
     if handler is None:
