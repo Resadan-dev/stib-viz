@@ -813,7 +813,118 @@ Outputs:
 - `grid-<date>.json`, per cell;
 - `desserte-prototype.html`, the page (D20).
 
-## 10. Sources
+## 10. Where the work stands, and the plan for the site
+
+Paused on 11 September 2026 at the user's request, between the pipeline and the site.
+
+### 10.1 Done, on the branch `feat/commune-coverage` (not pushed)
+
+| Commit | Content |
+|---|---|
+| `9505bf3` | This record |
+| `10dc7ec` | The reference of residents: `stibviz residents`, `lambert2008.py`, `residents.py`, `reference/brussels.json` |
+| `144faed` | The daily coverage: `coverage.py`, the `coverage/` files, their checks, `--reference` on `build` and `week` |
+
+The pipeline suite passes: 269 tests, 94.6 % coverage, ruff clean. Nothing on the site uses the
+new files yet.
+
+### 10.2 The site: the planned design
+
+These are Claude's proposals, D32 to D39. None is built; each will be confirmed or changed here
+when it is built.
+
+- **D32. A fourth reading of the network, "Desserte"**, beside Passages, Vitesse and Écart à
+  l'habitude, in the URL as `network=coverage`. The group is where readings are already switched,
+  one at a time.
+- **D33. Map layers when the view is on:**
+  - the network layer is hidden;
+  - the grid is a deck.gl `BitmapLayer` over the grid's bounds, sampled nearest (not linear), so
+    the 50 m cells stay sharp; drawn cells take the colour of their class, and every other cell
+    stays transparent over the night basemap;
+  - the borders are a `PathLayer`, the names a `TextLayer`;
+  - the vehicles keep moving on top.
+- **D34. Colours:** a one-hue ordinal ramp, blue, stepped for the night ground (`#04060c`) and
+  checked with the ordinal validator before use. The prototype's dark steps, `#184f95` to
+  `#b7d3f6`, are the starting point.
+- **D35. Legend:** five swatches with their thresholds (none, under 4, 4 to 10, 11 to 20, over 20
+  departures per direction in the hour). The existing legend only draws continuous bars.
+- **D36. The 19 municipalities in the panel, under the legend, only while the view is on:**
+  - a stacked bar of the class shares at the hour, S and A;
+  - sorted by A, so rows do not move while the clock runs;
+  - hovering a row outlines the municipality on the map;
+  - the table is also the text version of the map.
+- **D37. Tooltip over the grid:** the municipality, the class, and the departures per direction
+  within reach in the hour, through the overlay's `getTooltip`, in plain text only.
+- **D38. Loading:** the four files, fetched the first time the view opens.
+  - A failure is said in the status line and retried on the next opening, as the stops store does.
+  - The binary files are inflated with `DecompressionStream("gzip")`.
+  - The hour index is `hourOf(t) - first_hour`.
+- **D39. Attribution and cache:**
+  - the "À propos" dialog gains "Habitants : Source : Statbel, données modifiées (CC BY 4.0)";
+  - `web/public/_headers` caches `/data/coverage/*` for a year, since every name there is a digest.
+
+### 10.3 What the code already imposes (read on 11 September)
+
+**Views**
+
+- Every view other than `runs` is treated as a speed view in three places. The fix is one
+  predicate, `isSpeedView`:
+  - `web/src/app.ts` fetches the hourly speeds (`ensureHourlySpeeds`);
+  - it repaints the network every hour (`reflect`);
+  - `ui/legend.ts` chooses the deviation scale.
+- `NetworkView` and `NETWORK_VIEWS` live in `web/src/state/app-state.ts`; the buttons are built
+  by `createNetworkViews` in `web/src/ui/colours.ts`.
+- `tests/ui/appearance.test.ts` expects exactly three view buttons.
+
+**Rendering**
+
+- The deck overlay is not interleaved (`render/map.ts`), so every deck layer draws above the
+  basemap labels.
+- Layers are set in `render()` in `app.ts`, only once a slice hour is mounted, and only when
+  `renderedKey` changes.
+- `reflect()` runs on every frame, so coverage work must wait for a change of hour, as
+  `networkHour` does.
+
+**Loading**
+
+The lazy-loading model to copy is `data/stops.ts` (it retries after an error), not
+`data/hourly.ts` (it never does).
+
+**Constraints**
+
+- The CSP allows styles set through CSSOM (`element.style`) but not `style` attributes.
+- `tests/i18n.test.ts` refuses ASCII apostrophes and empty strings.
+- The phone layout has a single 600 px breakpoint, enforced by `tests/theme/phone.test.ts`.
+- TypeScript runs with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
+- `pnpm` is broken on this machine: call `web/node_modules/.bin/<tool>` (vitest, tsc, eslint,
+  prettier).
+
+**End-to-end tests**
+
+Specs to update:
+
+- `e2e/interface.spec.ts` (the three views);
+- `e2e/a11y.spec.ts` (the views it audits, focus rings);
+- `e2e/phone.spec.ts` (overflow, drawers);
+- `e2e/headers.spec.ts`, the only CSP guard, which should also open the new view.
+
+Playwright overheats the user's machine: ask before running it.
+
+### 10.4 Order of the remaining work
+
+1. **Data layer.** Write `web/src/data/coverage.ts`: parsers for the two JSON files, decoders for
+   `SCC1` and `SCH1` with `DecompressionStream`, and `loadCoverage`. Add the manifest key
+   `coverage` (nullable). Tests use a second encoder in `tests/helpers/`, as `stv1.ts` does.
+2. **Map layers and colours.** Write `render/coverage.ts` (the image of an hour, the three
+   layers, the cell under the pointer), then `theme/colors.ts` (the ramp) and `isSpeedView`.
+3. **Interface.** The legend swatches, the table of municipalities, the tooltip, the i18n copy,
+   the about paragraph and `_headers`.
+4. **Wiring in `app.ts`, then documentation.** Update ARCHITECTURE.md section 6 and this record,
+   then run `/code-review`.
+5. **Local checks and commit.** Run vitest, tsc, eslint and prettier locally, then commit. The
+   end-to-end specs are updated but run only if the user agrees.
+
+## 11. Sources
 
 - IBSA, Monitoring des Quartiers, indicator for 2018:
   <https://geodata.perspective.brussels/api/geodata/mdq/dataset/23254>. Identifiers 2851 to 2869
