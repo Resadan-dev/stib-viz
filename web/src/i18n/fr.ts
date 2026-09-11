@@ -44,6 +44,31 @@ export const fr = {
   networkRuns: "Passages",
   networkSpeed: "Vitesse",
   networkDeviation: "Écart à l’habitude",
+  networkCoverage: "Desserte",
+  legendCoverage: "Départs par sens à portée de marche, dans l’heure",
+  coverageBand0: "aucun",
+  coverageBand1: "moins de 4",
+  coverageBand2: "4 à 10",
+  coverageBand3: "11 à 20",
+  coverageBand4: "plus de 20",
+  coverageClass0: "Desserte nulle",
+  coverageClass1: "Desserte faible",
+  coverageClass2: "Desserte moyenne",
+  coverageClass3: "Desserte élevée",
+  coverageClass4: "Desserte très élevée",
+  coverageFew: "Peu ou pas d’habitants",
+  coverageAtLeast: "au moins",
+  coverageDepartureOne: "départ par sens à portée dans l’heure",
+  coverageDepartureMany: "départs par sens à portée dans l’heure",
+  coverageLoading: "Chargement de la desserte…",
+  coverageUnavailable: "La desserte des habitants n’a pas pu être chargée.",
+  communesTitle: "Les 19 communes",
+  communesNote:
+    "Part des habitants avec plus de 10 départs par sens à portée à l’heure affichée, et heures par jour à ce niveau.",
+  communesName: "Commune",
+  communesShare: "Bien desservis",
+  communesHours: "Heures",
+  communesRegion: "Région",
   legendSpeed: "Vitesse à cette heure, en km/h",
   legendDeviation: "Écart à la vitesse habituelle du tronçon",
   legendUsual: "habituel",
@@ -88,11 +113,20 @@ export const fr = {
     "Par défaut, une couleur par mode : un blanc chaud pour le métro, un jaune doré pour les trams, un bleu pour les bus, un violet pour les Noctis. Avec les couleurs officielles, chaque ligne prend la sienne ; la STIB les partage entre plusieurs lignes, et deux lignes sans rapport peuvent se ressembler.",
   aboutSpeeds: "Vitesses",
   speedsNote:
-    "Le réseau se lit de trois façons. « Passages » l’éclaire selon le nombre de courses de la journée. « Vitesse » colore chaque tronçon d’arrêt à arrêt selon la vitesse de l’horaire théorique à l’heure affichée : la distance divisée par le temps prévu, sur toutes les courses de cette heure-là. « Écart à l’habitude » rapporte cette vitesse à celle du même tronçon sur la journée entière.",
+    "Le réseau se lit de quatre façons ; la dernière, « Desserte », est décrite plus bas. « Passages » l’éclaire selon le nombre de courses de la journée. « Vitesse » colore chaque tronçon d’arrêt à arrêt selon la vitesse de l’horaire théorique à l’heure affichée : la distance divisée par le temps prévu, sur toutes les courses de cette heure-là. « Écart à l’habitude » rapporte cette vitesse à celle du même tronçon sur la journée entière.",
   speedsNoteWhy:
     "Les deux dernières ne répondent pas à la même question. La vitesse absolue dépend surtout de l’espacement des arrêts, pas de la circulation : un bus qui s’arrête tous les 300 mètres reste lent à 2 h du matin, et la carte change donc peu d’une heure à l’autre. L’écart divise cette part géographique et ne laisse que l’heure : la ville bleuit aux deux pointes et se réchauffe la nuit.",
   speedsNoteGrey:
     "Les horaires sont donnés à la minute, alors une heure desservie moins de trois fois ne dit rien de fiable : sa fenêtre s’élargit d’une heure puis de deux à la recherche de courses, et reste grise si elle n’en trouve pas assez. Un tronçon gris n’est donc pas lent, il est muet.",
+  aboutCoverage: "Desserte",
+  coverageNote:
+    "« Desserte » montre, pour chaque carré de 50 mètres où vivent des Bruxellois, combien de départs STIB partent dans l’heure à portée de marche : les arrêts de bus et de tram à moins de 400 mètres, les stations de métro à moins de 800 mètres, à vol d’oiseau. Chaque ligne compte dans son sens le plus fréquent, puisqu’on ne voyage que dans un sens. Cinq classes : aucun départ, moins de 4, de 4 à 10, de 11 à 20, plus de 20.",
+  coverageNoteCommunes:
+    "Chaque commune se résume par la part de ses habitants qui dépassent 10 départs à l’heure affichée, et par le nombre d’heures par jour où, en moyenne, ils les dépassent.",
+  coverageNoteLimits:
+    "Seule la STIB est comptée : ni les gares SNCB, ni De Lijn, ni le TEC. Les habitants de chaque secteur statistique sont répartis uniformément sur ses carrés, et les carrés où vit moins d’un demi-habitant restent transparents.",
+  aboutResidents:
+    "Habitants : Source : Statbel, secteurs statistiques et population par secteur, données modifiées.",
   shortcutsTitle: "Raccourcis clavier",
   keySpace: "Espace",
   keySpaceMeaning: "lecture ou pause",

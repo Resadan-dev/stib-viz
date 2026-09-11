@@ -1,6 +1,7 @@
 import { fr } from "../i18n/fr";
 import type { NetworkView } from "../state/app-state";
 import {
+  COVERAGE_RAMP,
   DEVIATION_SCALE,
   DEVIATION_TICKS,
   SPEED_SCALE_KMH,
@@ -92,11 +93,34 @@ function deviationScale(): Scale {
   };
 }
 
+const COVERAGE_BANDS: readonly string[] = [
+  fr.coverageBand0,
+  fr.coverageBand1,
+  fr.coverageBand2,
+  fr.coverageBand3,
+  fr.coverageBand4,
+];
+
+/**
+ * The five classes of the coverage view as swatches, darkest first, each with the departures it
+ * stands for. The colour reaches the stylesheet as a custom property, as the gradient does.
+ */
+function coverageSwatches(): HTMLLIElement[] {
+  return COVERAGE_RAMP.map(([r, g, b], k) => {
+    const item = document.createElement("li");
+    item.className = "legend__swatch";
+    item.style.setProperty("--swatch", `rgb(${String(r)}, ${String(g)}, ${String(b)})`);
+    item.textContent = COVERAGE_BANDS[k] ?? "";
+    return item;
+  });
+}
+
 /**
  * The scale of whichever view reads the network by colour: a bar painted with its ramp and the
- * values written under it at the place their colour falls. Colour is the whole meaning of those
- * views, so the legend stays in sight wherever they are on, in the folded phone bar included;
- * it is hidden while the network shows its runs, where the intensity speaks for itself.
+ * values written under it at the place their colour falls, or, for the coverage view, one
+ * swatch per class. Colour is the whole meaning of those views, so the legend stays in sight
+ * wherever they are on, in the folded phone bar included; it is hidden while the network shows
+ * its runs, where the intensity speaks for itself.
  */
 export function createNetworkLegend(parent: HTMLElement): NetworkLegend {
   const figure = document.createElement("figure");
@@ -109,7 +133,10 @@ export function createNetworkLegend(parent: HTMLElement): NetworkLegend {
   bar.setAttribute("aria-hidden", "true");
   const ticks = document.createElement("div");
   ticks.className = "legend__ticks";
-  figure.append(caption, bar, ticks);
+  const swatches = document.createElement("ul");
+  swatches.className = "legend__swatches";
+  swatches.hidden = true;
+  figure.append(caption, bar, ticks, swatches);
   parent.append(figure);
 
   let shown: NetworkView | null = null;
@@ -120,7 +147,18 @@ export function createNetworkLegend(parent: HTMLElement): NetworkLegend {
       }
       shown = view;
       figure.hidden = view === "runs";
+      const classes = view === "coverage";
+      bar.hidden = classes;
+      ticks.hidden = classes;
+      swatches.hidden = !classes;
       if (view === "runs") {
+        return;
+      }
+      if (classes) {
+        caption.textContent = fr.legendCoverage;
+        if (swatches.childElementCount === 0) {
+          swatches.append(...coverageSwatches());
+        }
         return;
       }
       const scale = view === "speed" ? speedScale() : deviationScale();

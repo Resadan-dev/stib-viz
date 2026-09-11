@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { fr } from "../../src/i18n/fr";
 import {
+  COVERAGE_RAMP,
   DEVIATION_SCALE,
   SPEED_SCALE_KMH,
   SPEED_TICKS_KMH,
@@ -76,5 +77,37 @@ describe("createNetworkLegend", () => {
     expect(gradient()).not.toBe(speeds);
     // Decoration only: the caption and the ticks carry the meaning for a screen reader.
     expect(bar()?.getAttribute("aria-hidden")).toBe("true");
+  });
+});
+
+describe("the legend of the coverage view", () => {
+  it("shows one swatch per class, in the colour the grid paints it, with its departures", () => {
+    const { legend, figure, caption, bar } = mount();
+    legend.update("coverage");
+    expect(figure.hidden).toBe(false);
+    expect(caption()).toBe(fr.legendCoverage);
+    expect(bar()?.hidden).toBe(true);
+    const swatches = [...figure.querySelectorAll<HTMLElement>(".legend__swatch")];
+    expect(swatches.map((swatch) => swatch.textContent)).toEqual([
+      fr.coverageBand0,
+      fr.coverageBand1,
+      fr.coverageBand2,
+      fr.coverageBand3,
+      fr.coverageBand4,
+    ]);
+    expect(swatches.map((swatch) => swatch.style.getPropertyValue("--swatch"))).toEqual(
+      COVERAGE_RAMP.map(rgb),
+    );
+  });
+
+  it("gives the bar back to the speed views, and hides the swatches", () => {
+    const { legend, figure, bar } = mount();
+    legend.update("coverage");
+    legend.update("speed");
+    expect(bar()?.hidden).toBe(false);
+    expect(figure.querySelector<HTMLElement>(".legend__swatches")?.hidden).toBe(true);
+    legend.update("coverage");
+    // Built once: coming back to the view does not stack a second set.
+    expect(figure.querySelectorAll(".legend__swatch")).toHaveLength(5);
   });
 });

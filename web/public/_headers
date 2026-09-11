@@ -11,6 +11,10 @@
 /data/lookup/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Every coverage file is named by a digest of its content: a changed file is a new name.
+/data/coverage/*
+  Cache-Control: public, max-age=31536000, immutable
+
 /data/:day/manifest.json
   Cache-Control: public, max-age=3600
 

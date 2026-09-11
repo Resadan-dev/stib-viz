@@ -72,6 +72,7 @@ export const MANIFEST: Manifest = {
   ],
   stops_files: [{ hour: 8, path: "stops/08.json", bytes: 100 }],
   anomalies: { stop_offset: 0, truncated_after_28h: 0 },
+  coverage: null,
 };
 
 export const NETWORK: Network = {

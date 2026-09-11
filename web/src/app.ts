@@ -5,6 +5,9 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
+import type { Layer } from "@deck.gl/core";
+import type { BitmapLayerPickingInfo } from "@deck.gl/layers";
+
 import { DataError, MODES, type Mode, type RouteInfo, type Vehicle } from "./data/contract";
 import { chooseDay } from "./data/days";
 import {
@@ -16,11 +19,19 @@ import {
   loadVehicles,
   type Day,
 } from "./data/loader";
+import { hourIndex, loadCoverage, type Coverage } from "./data/coverage";
 import { loadHourlySpeeds, type HourlySpeeds } from "./data/hourly";
 import { createSliceStore } from "./data/slices";
 import { createStopsStore, parseStops } from "./data/stops";
 import { dayKindLabel, fr } from "./i18n/fr";
 import type { ColourOptions } from "./render/colors";
+import {
+  COVERAGE_GRID_ID,
+  cellAt,
+  coverageRgba,
+  coverageTooltip,
+  createCoverageLayers,
+} from "./render/coverage";
 import {
   computeHeads,
   createHeadBuffers,
@@ -40,7 +51,9 @@ import { createMapView } from "./render/map";
 import { describeVehicle, headAt, stepVehicle, vehiclesOnLine } from "./render/selection";
 import {
   DAY_START_TIME_S,
+  NETWORK_VIEWS,
   initialState,
+  isSpeedView,
   type AppState,
   type ModeVisibility,
 } from "./state/app-state";
@@ -55,6 +68,7 @@ import { createAbout } from "./ui/about";
 import { createActivity } from "./ui/activity";
 import { createClockView } from "./ui/clock";
 import { createColourToggle, createNetworkViews } from "./ui/colours";
+import { createCommuneTable } from "./ui/communes";
 import { createPlayButton } from "./ui/controls";
 import { createCounters } from "./ui/counters";
 import { createDaySelector } from "./ui/days";
@@ -111,6 +125,8 @@ export interface DebugApi {
   pause(): void;
   /** Selects a vehicle by its index in vehicles.json, or clears the selection. */
   select(vehicle: number | null): void;
+  /** Whether the coverage of the residents has been fetched and decoded. */
+  coverage(): boolean;
 }
 
 function localDate(now = new Date()): string {
@@ -153,10 +169,12 @@ interface Shell {
   counters: HTMLElement;
   filters: HTMLElement;
   appearance: HTMLElement;
-  /** The three readings of the network layer. */
+  /** The readings of the network layer, the coverage of the residents among them. */
   views: HTMLElement;
   /** The scale of whichever reading is drawn by colour, shown only while one of them is on. */
   legend: HTMLElement;
+  /** The 19 municipalities, shown only while the coverage reading is on. */
+  communes: HTMLElement;
   status: HTMLElement;
   attribution: HTMLElement;
   about: HTMLElement;
@@ -166,6 +184,19 @@ interface Shell {
 }
 
 export const REPOSITORY_URL = "https://github.com/Resadan-dev/stib-viz";
+
+/** The coverage tooltip, in the panel's own tokens: deck.gl sets it through the CSSOM. */
+const TOOLTIP_STYLE: Partial<CSSStyleDeclaration> = {
+  backgroundColor: "var(--panel)",
+  color: "var(--ink)",
+  border: "1px solid var(--panel-border)",
+  borderRadius: "8px",
+  fontFamily: "var(--font)",
+  fontSize: "0.8rem",
+  lineHeight: "1.4",
+  padding: "0.45rem 0.6rem",
+  whiteSpace: "pre-line",
+};
 
 function buildShell(root: HTMLElement): Shell {
   root.replaceChildren();
@@ -192,6 +223,7 @@ function buildShell(root: HTMLElement): Shell {
   const appearance = element("div", "panel__appearance", panel);
   const views = element("div", "panel__views", panel);
   const legend = element("div", "panel__legend", panel);
+  const communes = element("div", "panel__communes", panel);
   const status = element("div", "panel__status", panel);
   const activity = element("div", "panel__activity", panel);
   const about = element("div", "panel__about", panel);
@@ -217,6 +249,7 @@ function buildShell(root: HTMLElement): Shell {
     appearance,
     views,
     legend,
+    communes,
     status,
     attribution,
   };
@@ -305,10 +338,23 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   const colourToggle = createColourToggle(shell.appearance, (colours) => {
     store.set({ colours });
   });
-  const networkViews = createNetworkViews(shell.views, (network) => {
-    store.set({ network });
-  });
+  // A day built without a reference of residents has no coverage: no button for it, and a URL
+  // that asks for it falls back to the runs.
+  const hasCoverage = day.manifest.coverage !== null;
+  if (!hasCoverage && store.get().network === "coverage") {
+    store.set({ network: "runs" });
+  }
+  const networkViews = createNetworkViews(
+    shell.views,
+    (network) => {
+      store.set({ network });
+    },
+    NETWORK_VIEWS.filter((candidate) => hasCoverage || candidate !== "coverage"),
+  );
   const legend = createNetworkLegend(shell.legend);
+  const communes = createCommuneTable(shell.communes, (municipality) => {
+    outlineMunicipality(municipality);
+  });
   const activity = createActivity(shell.activity, day.manifest, (time) => {
     player.seek(time);
   });
@@ -368,7 +414,7 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   }
 
   function ensureHourlySpeeds(state: AppState): void {
-    if (state.network === "runs" || hourlyAsked) {
+    if (!isSpeedView(state.network) || hourlyAsked) {
       return;
     }
     hourlyAsked = true;
@@ -380,6 +426,73 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
       .catch((error: unknown) => {
         // The day's own speed is already on screen: say so and leave it there.
         console.warn("hourly speeds unavailable, the network keeps the speed of the day", error);
+      });
+  }
+
+  // The coverage of the residents, fetched the first time its view is opened and never before
+  // (docs/03-commune-coverage.md, D38). A failure is said in the status line and tried again the
+  // next time the view is opened, not on every frame. The grid is redrawn when the hour changes
+  // and the outline when the municipality pointed at does, never per frame either.
+  let coverage: Coverage | null = null;
+  let coverageLoading = false;
+  let coverageFailed = false;
+  let coverageRow = -1;
+  let coverageImage: ImageData | null = null;
+  let outlined: number | null = null;
+  let coverageLayers: Layer[] = [];
+
+  function coverageRowAt(state: AppState): number {
+    return coverage === null ? -1 : hourIndex(coverage.figures, hourOf(state.time));
+  }
+
+  function rebuildCoverageLayers(): void {
+    coverageLayers =
+      coverage === null || coverageImage === null
+        ? []
+        : createCoverageLayers(coverage, coverageImage, outlined);
+    renderedKey = "";
+  }
+
+  function repaintCoverage(state: AppState): void {
+    if (coverage === null) {
+      return;
+    }
+    coverageRow = coverageRowAt(state);
+    const pixels = coverageRgba(coverage, coverageRow);
+    coverageImage = new ImageData(pixels.data, pixels.width, pixels.height);
+    rebuildCoverageLayers();
+  }
+
+  function outlineMunicipality(municipality: number | null): void {
+    if (municipality === outlined) {
+      return;
+    }
+    outlined = municipality;
+    rebuildCoverageLayers();
+  }
+
+  function ensureCoverage(state: AppState): void {
+    if (state.network !== "coverage" || coverage !== null || coverageLoading || coverageFailed) {
+      return;
+    }
+    coverageLoading = true;
+    status.show(fr.coverageLoading);
+    loadCoverage(source, day)
+      .then((loaded) => {
+        if (loaded === null) {
+          throw new DataError(`${day.manifest.date}: no coverage for this day`);
+        }
+        coverage = loaded;
+        status.hide();
+        repaintCoverage(store.get());
+      })
+      .catch((error: unknown) => {
+        coverageFailed = true;
+        console.warn("coverage of the residents unavailable", error);
+        status.show(fr.coverageUnavailable);
+      })
+      .finally(() => {
+        coverageLoading = false;
       });
   }
   const stopsStore = createStopsStore(day.manifest.stops_files, (entry) =>
@@ -395,6 +508,19 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
   });
   view.onEmptyClick(() => {
     store.set({ vehicle: null, follow: false });
+  });
+  // Beside the pointer on the grid: the municipality, the departures within reach in the hour
+  // and their class, in plain text. The municipality under the pointer is outlined as well; the
+  // tooltip is asked on every move over the map, which is what keeps the outline in step.
+  view.setTooltip((info) => {
+    const bitmap = (info as Partial<BitmapLayerPickingInfo>).bitmap ?? null;
+    if (coverage === null || info.layer?.id !== COVERAGE_GRID_ID || bitmap === null) {
+      outlineMunicipality(null);
+      return null;
+    }
+    outlineMunicipality(cellAt(coverage, bitmap.pixel)?.municipality ?? null);
+    const text = coverageTooltip(coverage, bitmap.pixel, coverageRow);
+    return text === null ? null : { text, style: TOOLTIP_STYLE };
   });
   view.onUserDrag(() => {
     store.set({ follow: false });
@@ -516,8 +642,9 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
             position: selection.position,
             colour: routeColor(selection.route ?? { mode: "bus", color: "" }, store.get().colours),
           };
+    // The coverage reading takes the network's place beneath the vehicles.
     view.setLayers([
-      networkLayer,
+      ...(store.get().network === "coverage" ? coverageLayers : [networkLayer]),
       ...mounted.map((item) => createTripsLayer(tripsLayerProps(item, time))),
       createHeadsLayer(buffers, count, pick),
       createSelectionLayer(ring?.position ?? null, ring?.colour ?? MODE_COLORS.bus),
@@ -617,11 +744,24 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     activity.update(state.time, state.modes);
     if (
       state.network !== previous.network ||
-      (state.network !== "runs" && hourOf(state.time) !== networkHour)
+      (isSpeedView(state.network) && hourOf(state.time) !== networkHour)
     ) {
       repaintNetwork(state);
     }
+    if (state.network !== previous.network && state.network === "coverage") {
+      // Opening the view again is the moment to try a coverage that failed to load.
+      coverageFailed = false;
+    }
+    if (
+      state.network === "coverage" &&
+      coverage !== null &&
+      (state.network !== previous.network || coverageRowAt(state) !== coverageRow)
+    ) {
+      repaintCoverage(state);
+    }
     ensureHourlySpeeds(state);
+    ensureCoverage(state);
+    communes.update(coverage, coverageRow, state.network === "coverage");
     if (state.colours !== previous.colours || state.line !== previous.line) {
       const options = colourOptions(state);
       mounted = mounted.map((item) => recolour(item, routes, options));
@@ -684,5 +824,6 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     select(vehicle) {
       store.set({ vehicle });
     },
+    coverage: () => coverage !== null,
   };
 }

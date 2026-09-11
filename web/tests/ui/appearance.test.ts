@@ -31,12 +31,13 @@ describe("createNetworkViews", () => {
     return { parent, onChange, views, buttons };
   }
 
-  it("offers the three readings of the network, named and grouped", () => {
+  it("offers the four readings of the network, named and grouped", () => {
     const { parent, buttons } = mount();
     expect(buttons.map((button) => button.textContent)).toEqual([
       fr.networkRuns,
       fr.networkSpeed,
       fr.networkDeviation,
+      fr.networkCoverage,
     ]);
     expect(parent.querySelector("[role=group]")?.getAttribute("aria-label")).toBe(fr.networkLabel);
     expect(parent.querySelector(".views__label")?.textContent).toBe(fr.networkLabel);
@@ -50,6 +51,7 @@ describe("createNetworkViews", () => {
       "true",
       "false",
       "false",
+      "false",
     ]);
     buttons[2]?.click();
     expect(onChange).toHaveBeenCalledWith("relative");
@@ -58,8 +60,16 @@ describe("createNetworkViews", () => {
       "false",
       "false",
       "true",
+      "false",
     ]);
-    buttons[1]?.click();
-    expect(onChange).toHaveBeenLastCalledWith("speed");
+    buttons[3]?.click();
+    expect(onChange).toHaveBeenLastCalledWith("coverage");
+  });
+
+  it("offers only the readings it is given: a day without coverage has no button for it", () => {
+    const parent = document.body.appendChild(document.createElement("div"));
+    createNetworkViews(parent, vi.fn(), ["runs", "speed", "relative"]);
+    const labels = [...parent.querySelectorAll("button")].map((button) => button.textContent);
+    expect(labels).toEqual([fr.networkRuns, fr.networkSpeed, fr.networkDeviation]);
   });
 });

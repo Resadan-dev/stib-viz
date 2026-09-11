@@ -15,12 +15,18 @@ export const DAY_START_TIME_S = 0;
 
 export type ColourScheme = "palette" | "official";
 /**
- * What the network layer shows: the runs of the day, the scheduled speed over each segment, or
- * how far this hour is from that segment's own speed for the day.
+ * What the network layer shows: the runs of the day, the scheduled speed over each segment, how
+ * far this hour is from that segment's own speed for the day, or, in place of the network, how
+ * well this hour serves the residents of every municipality (docs/03-commune-coverage.md).
  */
-export type NetworkView = "runs" | "speed" | "relative";
+export type NetworkView = "runs" | "speed" | "relative" | "coverage";
 /** In the order the control offers them. */
-export const NETWORK_VIEWS: readonly NetworkView[] = ["runs", "speed", "relative"];
+export const NETWORK_VIEWS: readonly NetworkView[] = ["runs", "speed", "relative", "coverage"];
+
+/** The two views that colour the network by the hourly speeds, and so need that file. */
+export function isSpeedView(view: NetworkView): boolean {
+  return view === "speed" || view === "relative";
+}
 export type ModeVisibility = Readonly<Record<Mode, boolean>>;
 
 export interface Camera {

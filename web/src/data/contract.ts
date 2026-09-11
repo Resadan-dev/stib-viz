@@ -72,6 +72,11 @@ export interface Manifest {
   slices: SliceEntry[];
   stops_files: StopsFileEntry[];
   anomalies: Record<string, number>;
+  /**
+   * The day's coverage of the residents (section 5.9), or null for a day built without a
+   * reference of residents, or written before the coverage existed: the view is then not offered.
+   */
+  coverage: string | null;
 }
 
 export interface NetworkProperties {
@@ -125,16 +130,19 @@ export class DataError extends Error {
   }
 }
 
-type Fields = Record<string, unknown>;
+export type Fields = Record<string, unknown>;
 
-function object(value: unknown, where: string): Fields {
+// The readers below are shared with the other parsers of the contract (data/coverage.ts): each
+// checks one field and names it when it is wrong.
+
+export function object(value: unknown, where: string): Fields {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new DataError(`${where}: expected an object`);
   }
   return value as Fields;
 }
 
-function array(fields: Fields, key: string, where: string): unknown[] {
+export function array(fields: Fields, key: string, where: string): unknown[] {
   const value = fields[key];
   if (!Array.isArray(value)) {
     throw new DataError(`${where}: missing or invalid ${key} (expected an array)`);
@@ -142,7 +150,7 @@ function array(fields: Fields, key: string, where: string): unknown[] {
   return value;
 }
 
-function string(fields: Fields, key: string, where: string): string {
+export function string(fields: Fields, key: string, where: string): string {
   const value = fields[key];
   if (typeof value !== "string") {
     throw new DataError(`${where}: missing or invalid ${key}`);
@@ -150,7 +158,7 @@ function string(fields: Fields, key: string, where: string): string {
   return value;
 }
 
-function number(fields: Fields, key: string, where: string): number {
+export function number(fields: Fields, key: string, where: string): number {
   const value = fields[key];
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new DataError(`${where}: missing or invalid ${key}`);
@@ -198,7 +206,7 @@ function mode(fields: Fields, key: string, where: string): Mode {
   return value as Mode;
 }
 
-function numberList(value: unknown, where: string): number[] {
+export function numberList(value: unknown, where: string): number[] {
   if (!Array.isArray(value) || !value.every((item) => typeof item === "number")) {
     throw new DataError(`${where}: expected a list of numbers`);
   }
@@ -318,6 +326,7 @@ export function parseManifest(value: unknown): Manifest {
       };
     }),
     anomalies: parseAnomalies(fields.anomalies, `${where}: anomalies`),
+    coverage: nullableString(fields, "coverage", where),
   };
 }
 
