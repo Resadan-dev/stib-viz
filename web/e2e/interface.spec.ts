@@ -43,7 +43,16 @@ test("writes speed, filters, colours, line and instant back to the URL", async (
   await views.getByRole("button", { name: "Desserte" }).click();
   await expect.poll(() => param(page, "network")).toBe("coverage");
   await expect(legend).toContainText("Départs par sens");
+  await expect(legend).toContainText("peu ou pas d’habitants");
   await expect(page.locator("section.communes tbody tr")).toHaveCount(20);
+  // Its notice opens from the legend and closes with Escape, which does nothing else.
+  await legend.getByRole("button", { name: "Comment lire cette carte" }).click();
+  const guide = page.getByRole("dialog", { name: "Comment lire la desserte" });
+  await expect(guide).toBeVisible();
+  await expect(guide).toContainText("Ce qu’elle ne montre pas");
+  await page.keyboard.press("Escape");
+  await expect(guide).toBeHidden();
+  await expect.poll(() => param(page, "network")).toBe("coverage");
   await views.getByRole("button", { name: "Passages" }).click();
   await expect.poll(() => param(page, "network")).toBeNull();
   await expect(legend).toBeHidden();

@@ -38,6 +38,10 @@ test("the page passes an axe audit, in the speed view of the network too", async
     await expect(page.locator("figure.legend")).toBeVisible();
     await audit(page);
   }
+  // The notice of the coverage view is translucent: its words must hold over the grid.
+  await page.getByRole("button", { name: "Comment lire cette carte" }).click();
+  await expect(page.locator("dialog.guide")).toBeVisible();
+  await audit(page);
 });
 
 test("the vehicle panel and the about dialog pass an axe audit", async ({ page }) => {

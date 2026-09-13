@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { contrastRatio, parseHexColor } from "../../src/theme/colors";
+import {
+  COVERAGE_OPACITY,
+  COVERAGE_RAMP,
+  contrastRatio,
+  parseHexColor,
+} from "../../src/theme/colors";
 
 /**
  * The night palette must stay readable. Text tokens are checked against the panel background,
@@ -97,6 +102,44 @@ describe("the night palette", () => {
       expect(contrastRatio(colour, flattened), `--${name} on the picker`).toBeGreaterThanOrEqual(
         MINIMUM,
       );
+    }
+  });
+
+  it("keeps the notice of the coverage view readable over the brightest class of the grid", () => {
+    const ground = palette.get("ground");
+    const brightest = COVERAGE_RAMP[COVERAGE_RAMP.length - 1];
+    if (ground === undefined || brightest === undefined) {
+      throw new Error("missing ground or coverage ramp");
+    }
+    // The notice opens from the coverage view, so the grid is what shows through it. Its
+    // brightest class, laid at the grid's opacity over the night ground, is the worst case: the
+    // blur spreads the thin lines and the vehicles, not the broad fields of colour.
+    const [r, g, b] = brightest;
+    const map = over([r, g, b, COVERAGE_OPACITY], ground);
+    const glass = surfaceToken(stylesheet(), "glass");
+    // Translucent is the point: the map must still be there behind the words.
+    expect(glass[3]).toBeLessThanOrEqual(0.8);
+    const flattened = over(glass, map);
+    for (const name of ["ink", "accent"]) {
+      const colour = palette.get(name);
+      if (colour === undefined) {
+        throw new Error(`missing token ${name}`);
+      }
+      expect(contrastRatio(colour, flattened), `--${name} on the notice`).toBeGreaterThanOrEqual(
+        MINIMUM,
+      );
+    }
+  });
+
+  it("writes the notice in the full ink and the accent only", () => {
+    // The muted and faint inks fall under 4.5:1 on a surface this sheer over the brightest
+    // class. Top-level rules only; the one for reduced transparency is indented, and solid.
+    const rules = [...stylesheet().matchAll(/^\.guide[^{]*\{([^}]*)\}/gm)].map(
+      (match) => match[1] ?? "",
+    );
+    expect(rules.length, "no .guide rule").toBeGreaterThan(0);
+    for (const rule of rules) {
+      expect(rule).not.toMatch(/--ink-(muted|faint)/);
     }
   });
 

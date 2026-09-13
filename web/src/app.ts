@@ -71,6 +71,7 @@ import { createColourToggle, createNetworkViews } from "./ui/colours";
 import { createCommuneTable } from "./ui/communes";
 import { createPlayButton } from "./ui/controls";
 import { createCounters } from "./ui/counters";
+import { createCoverageGuide } from "./ui/coverage-guide";
 import { createDaySelector } from "./ui/days";
 import { createFilters } from "./ui/filters";
 import { bindKeyboard } from "./ui/keyboard";
@@ -180,6 +181,11 @@ interface Shell {
   about: HTMLElement;
   vehicle: HTMLElement;
   picker: HTMLElement;
+  /**
+   * The notice of the coverage view, outside the panel: a folded phone sheet hides what it
+   * holds, and a dialog inside a hidden box is never drawn, even as a modal.
+   */
+  guide: HTMLElement;
   activity: HTMLElement;
 }
 
@@ -230,10 +236,12 @@ function buildShell(root: HTMLElement): Shell {
   const attribution = element("footer", "panel__attribution", panel);
   const vehicle = element("div", "vehicle-slot", root);
   const picker = element("div", "picker-slot", root);
+  const guide = element("div", "guide-slot", root);
   return {
     about,
     vehicle,
     picker,
+    guide,
     activity,
     map,
     panel,
@@ -351,7 +359,10 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     },
     NETWORK_VIEWS.filter((candidate) => hasCoverage || candidate !== "coverage"),
   );
-  const legend = createNetworkLegend(shell.legend);
+  const guide = createCoverageGuide(shell.guide);
+  const legend = createNetworkLegend(shell.legend, () => {
+    guide.open();
+  });
   const communes = createCommuneTable(shell.communes, (municipality) => {
     outlineMunicipality(municipality);
   });
@@ -367,23 +378,28 @@ export async function startApp(root: HTMLElement, options: AppOptions = {}): Pro
     scheme: state.colours,
     line: state.line,
   });
-  bindKeyboard(document, {
-    toggle: () => {
-      player.toggle();
+  bindKeyboard(
+    document,
+    {
+      toggle: () => {
+        player.toggle();
+      },
+      step: (seconds) => {
+        player.step(seconds);
+      },
+      setSpeed: (speed) => {
+        player.setSpeed(speed);
+      },
+      escape: () => {
+        // The picker first, then the phone sheet, then the selected vehicle: one press, one thing.
+        closeTopmost(linePicker, sheet, () => {
+          store.set({ vehicle: null, follow: false });
+        });
+      },
     },
-    step: (seconds) => {
-      player.step(seconds);
-    },
-    setSpeed: (speed) => {
-      player.setSpeed(speed);
-    },
-    escape: () => {
-      // The picker first, then the phone sheet, then the selected vehicle: one press, one thing.
-      closeTopmost(linePicker, sheet, () => {
-        store.set({ vehicle: null, follow: false });
-      });
-    },
-  });
+    // The page's own dialogs, the about dialog and the notice, keep the keys while open.
+    root,
+  );
 
   const camera = store.get().camera;
   const view = createMapView(shell.map, nightStyle(), {

@@ -97,6 +97,39 @@ describe("bindKeyboard", () => {
     expect(h.step).toHaveBeenCalledTimes(1);
     expect(h.setSpeed).not.toHaveBeenCalled();
   });
+
+  it("leaves every key to an open dialog, Escape included, and takes them back once closed", () => {
+    const h = handlers();
+    const app = document.body.appendChild(document.createElement("div"));
+    unbind = bindKeyboard(document, h, app);
+    // A dialog some other script opens outside the page's own scope silences nothing.
+    const foreign = document.body.appendChild(document.createElement("dialog"));
+    foreign.open = true;
+    press("ArrowRight");
+    expect(h.step).toHaveBeenCalledTimes(1);
+    foreign.remove();
+    vi.mocked(h.step).mockClear();
+
+    const dialog = document.createElement("dialog");
+    const close = document.createElement("button");
+    dialog.append(close);
+    app.append(dialog);
+    dialog.open = true;
+    // Escape closes the dialog on its own; it must not also fold the sheet or drop the vehicle.
+    for (const key of ["Escape", " ", "ArrowRight", "3"]) {
+      close.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    }
+    // A click on the text of the dialog leaves the focus on the page itself: still its keys.
+    press("Escape");
+    press("ArrowLeft");
+    expect(h.escape).not.toHaveBeenCalled();
+    expect(h.toggle).not.toHaveBeenCalled();
+    expect(h.step).not.toHaveBeenCalled();
+    expect(h.setSpeed).not.toHaveBeenCalled();
+    dialog.open = false;
+    press("Escape");
+    expect(h.escape).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("createStatusView", () => {

@@ -1004,6 +1004,111 @@ remodeler stp".
     import of `/@vite/client`, and that client has no document to update inside a worker.
   - The production build carries no such client.
 
+### 10.7 The legend completed, and a notice for the view (13 September)
+
+**D41. A complete legend, and a translucent notice opened from it (13 September, user asked,
+Claude chose the form).** The user: "Il faudrait une légende et un bouton qui permet d'ouvrir une
+modale translucide, dans laquelle on a une explication de ce qu'on voit pour les dessertes, ce que
+ça montre et ce que ça montre pas (pas de tirets cadratins dans le texte). Ne pas oublier les
+traductions."
+
+**The legend.** It showed the five classes and nothing else. It now also names:
+
+- The dark ground, "peu ou pas d'habitants". Cells with fewer than 0.5 residents stay transparent
+  (D31). Nothing on the map said so, and the dark patches read as gaps in the network.
+- The borders, "limite de commune", in their map colour (`COVERAGE_BORDER`). The line is drawn
+  diagonally across its swatch: level, it looked like a dash before the words.
+- Under them, a button, "Comment lire cette carte". Its "i" is an SVG with no text, so the
+  button's accessible name is its words alone.
+
+**The notice** (`ui/coverage-guide.ts`) is a modal `<dialog>` in three sections, as asked:
+
+- **"Ce que vous voyez".**
+  - The class scale, with the rhythm each class means, taken from D24: fewer than one departure
+    per quarter of an hour, one every 6 to 15 minutes, one every 3 to 6, more than one every 3.
+  - Then the dark ground, the borders, the hour shown (D26) and the tooltip.
+- **"Ce que la carte montre".** A departure (D10, D23), the reach (D13), the best stop of each
+  group (D14), "bien desservi" (more than 10, so under 6 minutes between departures), and the
+  table (S and A, weighted by residents, D7).
+- **"Ce qu'elle ne montre pas".**
+  - The limits of section 8, in plain words.
+  - Two more that the record implies. The map says nothing of where the departures lead, nor of
+    the capacity of the vehicles. The threshold of 10 is inspired by the Commission's classes; it
+    is not a STIB target.
+- Each term sits beside its meaning in a definition list: two columns on a wide screen, stacked on
+  a phone.
+
+**Translucent**
+
+- The surface is `--glass: rgb(10 14 24 / 0.62)`, with a blur of 8 px and a backdrop dimmed to
+  0.3, so the grid stays recognisable behind the notice and around it.
+- The line picker taught the limit (section 6.6 of ARCHITECTURE.md, `panel.test.ts`): a wide blur
+  reads as opaque, whatever the alpha.
+- Contrast, at that alpha, over the brightest class (`#48a689` at 0.85 over the ground):
+  - the full ink and the accent keep more than 9:1;
+  - the muted ink falls to about 3.7:1.
+- So the notice is written in the full ink and the accent only. Two unit tests hold this: one
+  measures both inks, the other refuses the muted and faint inks in the `.guide` rules.
+- Visitors who set `prefers-reduced-transparency: reduce` get a solid ground.
+
+**Where it lives, and how it closes**
+
+- A slot of its own outside the panel (`guide-slot`). The folded phone sheet hides the panel's
+  children with `display: none`, and a dialog in a hidden box is not drawn, even as a modal.
+- It closes from its button, with Escape, or with a click beside it. The sheet fills the dialog,
+  so a click that reaches the dialog itself fell on the backdrop.
+- The close button sits outside the scrolling sheet, so it stays in reach however far the notice
+  is read.
+
+**Keyboard: a fix the notice needed**
+
+- `bindKeyboard` used to act on every key even while a dialog was open:
+  - Escape closed the dialog and also folded the sheet or dropped the vehicle;
+  - the arrows moved the clock behind the about dialog.
+- It now leaves every key to an open dialog, including when the focus has fallen back on the page.
+- Only the page's own dialogs count, those under the app's root. The review raised it: a dialog
+  that another script, an extension for instance, adds to the document would otherwise silence
+  the page's keys with nothing to show why.
+
+**Elsewhere**
+
+- **About dialog.** Its three coverage paragraphs are gone. It keeps the view's question and
+  points to the notice, so the method is written once.
+- **Phone.**
+  - Folded, the legend keeps its classes only; the two keys and the button come with the unfolded
+    sheet. The folded bar keeps the content it had, and measured 183 px on the phone preset.
+  - The button is 44 px tall there, like every control of the panel.
+- **Translations.** The site speaks French only: SCOPE.md defers Dutch and English. Every new
+  string is in `i18n/fr.ts`, with typographic apostrophes and no em dash. A new test refuses an
+  em dash anywhere in the dictionary.
+
+**Rejected**
+
+- A floating legend on the map: it would repeat the panel's legend and cover the grid.
+- An icon-only button: an "i" alone says less than words.
+- Keeping the explanation in the about dialog as well: two texts would drift apart.
+
+**Checks on 13 September**
+
+- A code review by an agent found nothing critical or high. Its three remarks are addressed:
+  - the keyboard now looks at the page's own dialogs only (above);
+  - the colour of the border key is tested as numbers, not against a copy of its formula;
+  - the two lists of the legend are each built on their own emptiness.
+- vitest: 298 tests pass, with 97.3 % coverage; the notice is covered at 100 % of its lines.
+  tsc, eslint and prettier are clean, and the production build passes.
+- In the browser pane, at 800 px wide and with the phone preset:
+  - the dialog is modal; the focus lands on its close button and returns to the legend button
+    when it closes;
+  - a click beside it closes it, a click inside does not;
+  - the arrows do not move the clock while it is open (08:00 held), and move it again once it is
+    closed (08:01);
+  - nothing overflows sideways; on the phone it measures 342 × 782 px, with the glossary stacked.
+- Escape could not be checked in the pane. Its synthetic key carries `keyCode` 0, which Chrome
+  does not take as a request to close.
+  - The keydown reaches the page, and nothing prevents it.
+  - The updated `interface` spec presses a real Escape. It has not been run: Playwright overheats
+    the user's machine.
+
 ## 11. Sources
 
 - IBSA, Monitoring des Quartiers, indicator for 2018:

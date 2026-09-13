@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { fr } from "../../src/i18n/fr";
 import {
+  COVERAGE_BORDER,
   COVERAGE_RAMP,
   DEVIATION_SCALE,
   SPEED_SCALE_KMH,
@@ -12,9 +13,9 @@ import {
 } from "../../src/theme/colors";
 import { createNetworkLegend } from "../../src/ui/legend";
 
-function mount() {
+function mount(onGuide?: () => void) {
   const parent = document.body.appendChild(document.createElement("div"));
-  const legend = createNetworkLegend(parent);
+  const legend = createNetworkLegend(parent, onGuide);
   const figure = parent.querySelector<HTMLElement>("figure.legend");
   if (figure === null) {
     throw new Error("no legend");
@@ -109,5 +110,47 @@ describe("the legend of the coverage view", () => {
     legend.update("coverage");
     // Built once: coming back to the view does not stack a second set.
     expect(figure.querySelectorAll(".legend__swatch")).toHaveLength(5);
+  });
+
+  it("names the empty ground and the borders under the classes, as the map draws them", () => {
+    const { legend, figure } = mount();
+    legend.update("coverage");
+    const keys = [...figure.querySelectorAll<HTMLElement>(".legend__key")];
+    expect(keys.map((key) => key.textContent)).toEqual([fr.legendFew, fr.legendBorder]);
+    // Read back as numbers: the colour of the map's borders, its alpha out of 255 turned to 0-1.
+    const [r, g, b, a] = COVERAGE_BORDER;
+    const colour = /^rgba\((\d+), (\d+), (\d+), ([0-9.]+)\)$/.exec(
+      keys[1]?.style.getPropertyValue("--swatch") ?? "",
+    );
+    expect(colour?.slice(1, 4).map(Number)).toEqual([r, g, b]);
+    expect(Number(colour?.[4])).toBeCloseTo(a / 255, 2);
+    legend.update("speed");
+    expect(figure.querySelector<HTMLElement>(".legend__keys")?.hidden).toBe(true);
+    legend.update("coverage");
+    expect(figure.querySelectorAll(".legend__key")).toHaveLength(2);
+  });
+
+  it("opens the notice from the coverage legend, and from no other", () => {
+    const onGuide = vi.fn();
+    const { legend, figure } = mount(onGuide);
+    const button = (): HTMLButtonElement | null =>
+      figure.querySelector<HTMLButtonElement>("button.legend__guide");
+    legend.update("speed");
+    expect(button()?.hidden).toBe(true);
+    legend.update("coverage");
+    expect(button()?.hidden).toBe(false);
+    // The icon is drawn, not written: the name of the button is its words alone.
+    expect(button()?.textContent).toBe(fr.guideOpen);
+    expect(button()?.getAttribute("type")).toBe("button");
+    button()?.click();
+    expect(onGuide).toHaveBeenCalledTimes(1);
+    legend.update("relative");
+    expect(button()?.hidden).toBe(true);
+  });
+
+  it("offers no notice when there is none to open", () => {
+    const { legend, figure } = mount();
+    legend.update("coverage");
+    expect(figure.querySelector(".legend__guide")).toBeNull();
   });
 });

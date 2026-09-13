@@ -604,10 +604,11 @@ and heights are measured in `dvh` so the phone address bar cannot cut the sheet 
 
 The palette is held to WCAG 2.2 AA by a unit test that reads the tokens out of `style.css` and
 measures each against the panel background; the smoke suite runs an axe audit of the page, of the
-vehicle panel, of the about dialog and of the line picker, and walks every control to check it
-takes focus with a visible ring. Route badges keep the text colour of the feed only when it
-reaches 4.5:1 on the route colour, and take black or white otherwise. Mode filters are pills rather than bare checkboxes so their pointer targets keep the
-24 pixels of clearance success criterion 2.5.8 asks for.
+vehicle panel, of the about dialog, of the coverage notice and of the line picker, and walks
+every control to check it takes focus with a visible ring. Route badges keep the text colour of
+the feed only when it reaches 4.5:1 on the route colour, and take black or white otherwise. Mode
+filters are pills rather than bare checkboxes so their pointer targets keep the 24 pixels of
+clearance success criterion 2.5.8 asks for.
 
 ### 6.7 The coverage view
 
@@ -637,10 +638,23 @@ ordinal validator on the night ground.
 municipality, the departures per direction within reach and the class. The same call outlines the
 municipality under the pointer.
 
-**Panel.** The legend shows five swatches. `ui/communes.ts` lists the 19 municipalities under it:
-a stacked bar of the class shares at the hour, the share well served and the hours per day at
-that level, sorted by those hours, with the Region last. Pointing at a row, or focusing it,
-outlines the municipality. On a phone the table lives in the unfolded sheet only.
+**Panel.** The legend shows five swatches, then the dark ground where almost nobody lives and the
+borders, and a button that opens the view's notice. `ui/communes.ts` lists the 19 municipalities
+under it: a stacked bar of the class shares at the hour, the share well served and the hours per
+day at that level, sorted by those hours, with the Region last. Pointing at a row, or focusing
+it, outlines the municipality. On a phone the table, the two extra keys and the button live in
+the unfolded sheet only.
+
+**Notice.** `ui/coverage-guide.ts` is a modal `<dialog>` in a slot of its own outside the panel,
+since a folded phone sheet hides what the panel holds: what is on the map, the rhythm each class
+means, what the figures measure and what they leave out. It is translucent (`--glass`, a light
+blur), so only the full ink and the accent are written on it; a unit test measures both over the
+brightest class of the grid, and visitors who ask for reduced transparency get a solid ground.
+It closes from its button, with Escape, or with a click beside it. While one of the page's own
+dialogs is open (those under the app's root), `ui/keyboard.ts` leaves every key to it, so Escape
+closes the dialog and does nothing else; a dialog another script adds to the document silences
+nothing. The about dialog keeps the view's question and points to the notice, which holds the
+method once.
 
 ## 7. Integration and deployment
 

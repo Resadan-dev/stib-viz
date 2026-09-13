@@ -96,10 +96,10 @@ export function createAbout(parent: HTMLElement, info: AboutInfo): About {
     paragraph(fr.speedsNote),
     paragraph(fr.speedsNoteWhy),
     paragraph(fr.speedsNoteGrey),
+    // The question the view answers, then the way to its notice: the method lives there once.
     heading(fr.aboutCoverage),
-    paragraph(fr.coverageNote),
-    paragraph(fr.coverageNoteCommunes),
-    paragraph(fr.coverageNoteLimits),
+    paragraph(fr.guideLead),
+    paragraph(fr.aboutCoverageGuide),
     heading(fr.shortcutsTitle),
     shortcuts,
     sourceLine,

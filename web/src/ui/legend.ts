@@ -1,6 +1,7 @@
 import { fr } from "../i18n/fr";
 import type { NetworkView } from "../state/app-state";
 import {
+  COVERAGE_BORDER,
   COVERAGE_RAMP,
   DEVIATION_SCALE,
   DEVIATION_TICKS,
@@ -116,13 +117,67 @@ function coverageSwatches(): HTMLLIElement[] {
 }
 
 /**
+ * What else the coverage view draws: the ground left dark where almost nobody lives, and the
+ * borders of the municipalities, in the colour the map gives them.
+ */
+function coverageKeys(): HTMLLIElement[] {
+  const empty = document.createElement("li");
+  empty.className = "legend__key legend__key--empty";
+  empty.textContent = fr.legendFew;
+  const border = document.createElement("li");
+  border.className = "legend__key legend__key--border";
+  const [r, g, b, a] = COVERAGE_BORDER;
+  border.style.setProperty(
+    "--swatch",
+    `rgba(${String(r)}, ${String(g)}, ${String(b)}, ${(a / 255).toFixed(2)})`,
+  );
+  border.textContent = fr.legendBorder;
+  return [empty, border];
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** An "i" in a ring, drawn rather than written, so the button is named by its words alone. */
+function infoIcon(): SVGSVGElement {
+  const icon = document.createElementNS(SVG_NS, "svg");
+  icon.setAttribute("viewBox", "0 0 16 16");
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("focusable", "false");
+  icon.classList.add("legend__guide-icon");
+  const ring = document.createElementNS(SVG_NS, "circle");
+  ring.setAttribute("cx", "8");
+  ring.setAttribute("cy", "8");
+  ring.setAttribute("r", "7");
+  const stem = document.createElementNS(SVG_NS, "path");
+  stem.setAttribute("d", "M8 7.2v4.3");
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("cx", "8");
+  dot.setAttribute("cy", "4.7");
+  dot.setAttribute("r", "1");
+  dot.classList.add("legend__guide-dot");
+  icon.append(ring, stem, dot);
+  return icon;
+}
+
+function guideButton(onGuide: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "legend__guide";
+  button.hidden = true;
+  button.append(infoIcon(), fr.guideOpen);
+  button.addEventListener("click", onGuide);
+  return button;
+}
+
+/**
  * The scale of whichever view reads the network by colour: a bar painted with its ramp and the
  * values written under it at the place their colour falls, or, for the coverage view, one
- * swatch per class. Colour is the whole meaning of those views, so the legend stays in sight
+ * swatch per class, then the dark ground and the borders, and the button that opens its notice
+ * when there is one. Colour is the whole meaning of those views, so the legend stays in sight
  * wherever they are on, in the folded phone bar included; it is hidden while the network shows
  * its runs, where the intensity speaks for itself.
  */
-export function createNetworkLegend(parent: HTMLElement): NetworkLegend {
+export function createNetworkLegend(parent: HTMLElement, onGuide?: () => void): NetworkLegend {
   const figure = document.createElement("figure");
   figure.className = "legend";
   figure.hidden = true;
@@ -136,7 +191,14 @@ export function createNetworkLegend(parent: HTMLElement): NetworkLegend {
   const swatches = document.createElement("ul");
   swatches.className = "legend__swatches";
   swatches.hidden = true;
-  figure.append(caption, bar, ticks, swatches);
+  const keys = document.createElement("ul");
+  keys.className = "legend__swatches legend__keys";
+  keys.hidden = true;
+  figure.append(caption, bar, ticks, swatches, keys);
+  const guide = onGuide === undefined ? null : guideButton(onGuide);
+  if (guide !== null) {
+    figure.append(guide);
+  }
   parent.append(figure);
 
   let shown: NetworkView | null = null;
@@ -151,6 +213,10 @@ export function createNetworkLegend(parent: HTMLElement): NetworkLegend {
       bar.hidden = classes;
       ticks.hidden = classes;
       swatches.hidden = !classes;
+      keys.hidden = !classes;
+      if (guide !== null) {
+        guide.hidden = !classes;
+      }
       if (view === "runs") {
         return;
       }
@@ -158,6 +224,9 @@ export function createNetworkLegend(parent: HTMLElement): NetworkLegend {
         caption.textContent = fr.legendCoverage;
         if (swatches.childElementCount === 0) {
           swatches.append(...coverageSwatches());
+        }
+        if (keys.childElementCount === 0) {
+          keys.append(...coverageKeys());
         }
         return;
       }

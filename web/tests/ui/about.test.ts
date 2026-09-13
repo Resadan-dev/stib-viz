@@ -40,6 +40,10 @@ describe("createAbout", () => {
     expect(text).toContain(fr.speedsNote);
     expect(text).toContain(fr.speedsNoteWhy);
     expect(text).toContain(fr.speedsNoteGrey);
+    // The coverage view keeps its question here and leaves the rest to its own notice.
+    expect(text).toContain(fr.guideLead);
+    expect(text).toContain(fr.aboutCoverageGuide);
+    expect(text).not.toContain(fr.guideLimitsOthers);
     expect(text).toContain(fr.shortcutsTitle);
     const links = [...(dialog?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"));
     expect(links).toContain(INFO.repositoryUrl);
