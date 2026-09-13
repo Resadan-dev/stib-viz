@@ -954,6 +954,56 @@ D32, D33, D35, D36, D37, D38 and D39 are built as planned in 10.2. Two changes a
 - The end-to-end specs are updated (`interface`, `a11y`) but have not been run: Playwright
   overheats the user's machine, and CI will run them at the next push.
 
+### 10.6 The group of readings, reshaped on 13 September
+
+**D40. The four readings sit two by two in a rounded box, under a title (13 September, user
+asked, Claude chose the form).** The user, on a screenshot of the group: "C'est pas très joli, à
+remodeler stp".
+
+- **The problem.** The fourth button, added by D32, no longer fits the pill the three used to
+  share with the speed row.
+  - On the desktop panel the group has 276 px, measured in the browser pane with its scrollbar.
+  - The four buttons need 327 px: 54.5, 41.7, 98.2 and 50.8 px of text, 19.5 px of padding each,
+    and the rules between them.
+  - The pill wrapped and left "Desserte" alone on a second line, still inside the rounded border.
+- **The form.**
+  - Two equal columns (`minmax(0, 1fr)`) in a box with a 0.75rem radius. Thin rules part the
+    cells: one right of the first cell of a row, one above every cell of the second row.
+  - The order is unchanged: Passages and Vitesse on the first row, Écart à l'habitude and
+    Desserte on the second.
+  - A day without coverage has three buttons. The third takes the whole second row
+    (`:last-child:nth-child(odd)`) rather than leave an empty cell.
+  - The word "Réseau" moves above the grid and takes the style of the other section titles of
+    the panel: uppercase, 0.72rem, like "Modes affichés". Beside the grid it would leave each
+    cell 112 px, less than the 118 px "Écart à l'habitude" needs with its padding.
+  - The speed row keeps its pill: its five buttons fit on one line.
+- **Rejected.**
+  - Shorter wording, such as "Écart" alone: a button must say what it shows without the about
+    dialog.
+  - A smaller font: 51 px cannot be won back without going under the phone size (0.78rem), and
+    the next reading added would break the line again.
+  - A `<select>`: it hides the choices behind one more click, and drops the pressed-state
+    buttons the accessibility specs audit.
+- **Unchanged.**
+  - The markup (`createNetworkViews`), the group's accessible name and the pressed states.
+  - The focus ring: it is drawn inside the button, so the box's `overflow: hidden` does not clip
+    it.
+  - The phone rule that makes every button at least 44 px tall.
+
+**Checks on 13 September**
+
+- In the browser pane, at 800 px wide and with the phone preset (375 px):
+  - the four cells have the same width, with "Desserte" pressed in its corner;
+  - nothing overflows sideways.
+- With one button removed from a copy of the group, made in the page only, the third button spans
+  275 px, the width of both columns.
+- vitest: 285 tests pass; prettier is clean. No CSS test constrains the group.
+- The console shows `ReferenceError: document is not defined` once per hot reload of
+  `style.css`, and never on a full reload.
+  - The cause is in development only. Vite serves the MapLibre worker (`?worker&url`) with an
+    import of `/@vite/client`, and that client has no document to update inside a worker.
+  - The production build carries no such client.
+
 ## 11. Sources
 
 - IBSA, Monitoring des Quartiers, indicator for 2018:

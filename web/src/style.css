@@ -275,14 +275,25 @@ main.map {
   gap: 0.6rem;
 }
 
-/* The clock and this row are the only ones that cannot reflow on their own. Both may wrap, so a
-   panel narrower than its content grows taller instead of scrolling sideways. */
-.speeds,
-.views__group {
+/* The clock and this row are the only ones that cannot reflow on their own. The row may wrap, so
+   a panel narrower than its content grows taller instead of scrolling sideways. */
+.speeds {
   display: inline-flex;
   flex-wrap: wrap;
   border: 1px solid var(--panel-border);
   border-radius: 999px;
+  overflow: hidden;
+}
+
+/* The readings of the network: four of them, too many for one pill, which broke into a second
+   line with a single button on it. So two by two in a rounded box, every cell the same width,
+   thin rules between them. A day without coverage has three, and the last one alone takes the
+   whole row rather than leave a hole. */
+.views__group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--panel-border);
+  border-radius: 0.75rem;
   overflow: hidden;
 }
 
@@ -302,6 +313,24 @@ main.map {
 .speeds__button:last-child,
 .views__button:last-child {
   border-right: 0;
+}
+
+/* In the grid, a rule right of the first cell of a row and above every cell of the second row. */
+.views__button {
+  border-right: 0;
+  text-align: center;
+}
+
+.views__button:nth-child(odd):not(:last-child) {
+  border-right: 1px solid var(--panel-border);
+}
+
+.views__button:nth-child(n + 3) {
+  border-top: 1px solid var(--panel-border);
+}
+
+.views__button:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .speeds__button:hover,
@@ -521,16 +550,17 @@ main.map {
 
 /* --- Version 2: the readings of the network and their scale --- */
 
-/* Laid out like the line picker above it: a word, then the control it names. */
+/* A title over the grid of readings, like the modes over their boxes: the grid takes the whole
+   width of the panel, so the word beside it would only squeeze it. */
 .views {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.85rem;
+  display: grid;
+  gap: 0.35rem;
 }
 
 .views__label {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-muted);
 }
 
