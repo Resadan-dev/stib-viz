@@ -156,20 +156,23 @@ Blocking checks:
 7. The manifest carries every key the site needs and per-minute series of 1,440 values; every
    listed slice exists and no unlisted slice exists.
 8. Read-back of the written binaries: decoding and verification of a sample of trajectories.
-9. Recomputed cumulative distance consistent with `shape_dist_traveled` from `shapes.txt`
-   (relative error under 1% per shape).
 
 Per-object anomalies:
 
-Seven counters are tolerated under the threshold and block the day above it:
+Eight counters are tolerated under the threshold and block the day above it:
 
 1. Stop-to-shape offset above 80 m, `stop_offset` (the global median must stay under 15 m).
 2. Stop distances not increasing along the shape, `stop_order`.
-3. Trip departing before 04:00, `dropped_before_start`; trip arriving after 28:00, truncated by
+3. Trip on a shape whose recomputed cumulative distance is more than 1% off the last
+   `shape_dist_traveled` of `shapes.txt`, `shape_length`. The unit is the trip, not the shape: a
+   single shape with a gap in its geometry, followed by one trip, is one anomaly. The report
+   names the shapes (`shape_length_shapes`). This was a global blocking check until 2026-10-10,
+   when one metro trip a day refused two whole days (docs/02-operations.md, section 3).
+4. Trip departing before 04:00, `dropped_before_start`; trip arriving after 28:00, truncated by
    interpolation, `truncated_after_28h`; trip whose whole span falls outside the day,
    `dropped_after_span`.
-4. Trip without usable stop times, `without_stop_times`.
-5. Time overlap inside a `block_id`, `block_overlap`.
+5. Trip without usable stop times, `without_stop_times`.
+6. Time overlap inside a `block_id`, `block_overlap`.
 
 Two more are counted and reported but never block the day: `time_repaired`, times nudged apart
 along a trajectory so Float32 keeps them distinct, and the deadhead moves the pipeline cuts.
@@ -295,7 +298,7 @@ Budget: 300 KB at most. It carries neither geometry nor stops.
     { "hour": 4, "mode": "metro", "path": "slices/04-metro.bin", "bytes": 81240, "vertices": 6770, "paths": 41 }
   ],
   "stops_files": [ { "hour": 4, "path": "stops/04.json", "bytes": 210400 } ],
-  "anomalies": { "stop_offset": 3, "stop_order": 0, "truncated_after_28h": 0,
+  "anomalies": { "stop_offset": 3, "stop_order": 0, "shape_length": 0, "truncated_after_28h": 0,
                  "dropped_before_start": 0, "dropped_after_span": 0,
                  "without_stop_times": 0, "block_overlap": 0, "time_repaired": 0 }
 }
@@ -777,6 +780,7 @@ None of this is built in v1; all of it is prepared so nothing breaks.
 | Stops outside the manifest, in per-hour files | Stops inside the manifest | The manifest would grow from 300 KB to several MB for data read on click |
 | Layover not drawn as a segment | Zero-length segment | Degenerate case for path rendering; the point layer is enough |
 | Per-object anomalies tolerated under 0.1% | All-or-nothing | One aberrant trip must not deprive the site of a whole day |
+| Shape length mismatch counted in trips | A global blocking check on shapes | One trip a day on a metro variant with a 378 m gap refused two whole days (2026-10-10) |
 | Float32 lon/lat | Relative integer coordinates | Simplicity in v1; quantisation documented for v2 |
 | 04:00 → 04:00 span keyed on first departure | Midnight to midnight with the previous day loaded | No seam, Noctis included naturally, testable rule |
 | Vehicles by `block_id` | Independent trips | Visible layovers, exact counters, and the follow mode comes for free |

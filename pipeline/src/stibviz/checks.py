@@ -48,6 +48,7 @@ MAX_SHAPE_LENGTH_ERROR = 0.01
 TOLERATED_ANOMALIES = (
     "stop_offset",
     "stop_order",
+    "shape_length",
     "truncated_after_28h",
     "dropped_before_start",
     "dropped_after_span",
@@ -91,6 +92,30 @@ def slice_bytes(a_slice: Slice) -> int:
     """Size of a slice once encoded, from the STV1 layout."""
     paths = len(a_slice.paths)
     return 4 * HEADER_WORDS + 12 * a_slice.vertices + 4 * (paths + 1) + 8 * paths
+
+
+def _shapes_with_wrong_length(used: set[str], shapes: Mapping[str, Shape]) -> frozenset[str]:
+    """The used shapes whose recomputed length is off the feed's own distance by over 1 %.
+
+    A shape the feed gives no distance for cannot be compared and is not counted. The count of
+    trips on these shapes is a per-object anomaly: one shape with a gap in its geometry must not
+    deprive the site of a whole day, as it did on 2026-10-10 (docs/02-operations.md).
+    """
+    wrong = set()
+    for shape_id in used:
+        shape = shapes[shape_id]
+        if shape.feed_length_m and shape.feed_length_m > 0:
+            error = abs(shape.length_m - shape.feed_length_m) / shape.feed_length_m
+            if error > MAX_SHAPE_LENGTH_ERROR:
+                wrong.add(shape_id)
+    return frozenset(wrong)
+
+
+def _named(shape_ids: frozenset[str], limit: int = 5) -> str:
+    """The shape ids in a stable order, cut after ``limit`` so a report line stays one line."""
+    ordered = sorted(shape_ids)
+    names = ", ".join(ordered[:limit])
+    return f"{names}, and {len(ordered) - limit} more" if len(ordered) > limit else names
 
 
 def _direct_peak(day: DayTrips) -> tuple[int, int]:
@@ -146,17 +171,8 @@ def check_build(
             blocking.append(f"route {route.route_id!r}: missing name or colour")
 
     pattern_keys = [key for _, key in patterns.items()]
-    used_shapes = {key[0] for key in pattern_keys}
-    bad_lengths = 0
-    for shape_id in used_shapes:
-        shape = shapes[shape_id]
-        if shape.feed_length_m and shape.feed_length_m > 0:
-            error = abs(shape.length_m - shape.feed_length_m) / shape.feed_length_m
-            bad_lengths += int(error > MAX_SHAPE_LENGTH_ERROR)
-    if bad_lengths:
-        blocking.append(
-            f"shapes: {bad_lengths} recomputed lengths differ from shape_dist_traveled by over 1 %"
-        )
+    wrong_length = _shapes_with_wrong_length({key[0] for key in pattern_keys}, shapes)
+    wrong_length_names = _named(wrong_length)
 
     # Per-object anomalies, counted in trips.
     stop_offset = stop_order = 0
@@ -175,6 +191,7 @@ def check_build(
     anomalies = {
         "stop_offset": stop_offset,
         "stop_order": stop_order,
+        "shape_length": sum(int(key[0] in wrong_length) for key in pattern_keys),
         "time_repaired": sum(int(t.time_repaired) for t in trajectories),
         "truncated_after_28h": sum(int(t.truncated) for t in trajectories),
         "dropped_before_start": int(day.dropped_before_start),
@@ -186,7 +203,8 @@ def check_build(
     for key in TOLERATED_ANOMALIES:
         if anomalies[key] > allowed:
             share = f"{anomaly_tolerance:.1%} of {n_trips} trips"
-            blocking.append(f"{key}: {anomalies[key]} anomalies exceed {share}")
+            which = f" (shapes {wrong_length_names})" if key == "shape_length" else ""
+            blocking.append(f"{key}: {anomalies[key]} anomalies exceed {share}{which}")
 
     info = {
         "deadheads": bundle.assembly.deadheads,
@@ -194,6 +212,8 @@ def check_build(
         "slices": len(bundle.slices),
         "slice_bytes": total_bytes,
     }
+    if wrong_length:
+        info["shape_length_shapes"] = wrong_length_names
     if bundle.coverage is not None and bundle.reference is not None:
         blocking += _coverage_problems(bundle.coverage, bundle.reference)
         info["coverage_cells"] = int(bundle.coverage.classes.shape[1])

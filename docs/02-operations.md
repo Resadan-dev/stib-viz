@@ -70,10 +70,10 @@ the reason. A day fails in one of three ways, and the message says which:
   pattern references a shape or a stop the feed does not define (`ShapeError`);
 - `blocked:` followed by the checks of `pipeline/src/stibviz/checks.py` that failed: trip,
   vehicle or peak counts that disagree with the manifest, a slice or a day above its byte budget,
-  a route without name or colour, shape lengths that differ from `shape_dist_traveled` by over
-  1%, a median stop offset above the threshold, or a per-object anomaly counter above 0.1% of the
-  trips (stop offset, stop order, truncation after 28:00, trips dropped before or after the span,
-  trips without stop times, overlapping blocks);
+  a route without name or colour, a median stop offset above the threshold, or a per-object
+  anomaly counter above 0.1% of the trips (stop offset, stop order, shape length, truncation
+  after 28:00, trips dropped before or after the span, trips without stop times, overlapping
+  blocks);
 - `written files failed their checks:` the files on disk do not match their manifest; the day
   directory is removed. This one points at a bug in `encode.py`, not at the feed.
 
@@ -91,6 +91,21 @@ Two ways out of a `blocked:` day:
 Never raise the default tolerance in `checks.py` to make a run green: the check exists so that an
 aberrant trip cannot deprive the site of a whole day silently, and the 0.1% share was chosen so
 that the real feed passes it with margin.
+
+**Worked example, 2026-10-10.** Two days of the window, Saturday the 10th and Monday the 12th,
+were refused night after night with `blocked: shapes: 1 recomputed lengths differ from
+shape_dist_traveled by over 1 %`, while the same feed built every other day. The message did not
+name the shape, so the feed was fetched and every shape compared with its own
+`shape_dist_traveled`. One shape out of 732 failed: `001m0146`, metro line 1, 18,954 m
+recomputed against 19,371 m declared (-2.15 %). The whole gap sat in one segment that measures
+211 m on the map and that the feed counts as 589 m; the 25 sibling shapes of the line agree to
+0.2 %. One trip a day followed that shape, one in 13,581 on the 10th and one in 18,587 on the
+12th. The pipeline places vehicles and projects stops on the geometry and never on
+`shape_dist_traveled`, so the defect costs one straight chord of 211 m on one trip. The check
+counted shapes and blocked on the first; it now counts trips and tolerates them under 0.1%, like
+the other per-object anomalies, and names the shapes in the report (`info shape_length_shapes`).
+Both days then build, each with `shape_length: 1`. A pure feed defect of this kind needs no
+action on the site; if the same shape ever exceeds 0.1% of a day, the line is in the report.
 
 **Every day failed.** Nothing was deployed and the live site is untouched; the report says why.
 Almost always a change in the feed that the readers do not expect (a new column, a missing file,
