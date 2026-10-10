@@ -19,6 +19,7 @@
     "block_overlap": 0,
     "dropped_after_span": 0,
     "dropped_before_start": 0,
+    "shape_length": 0,
     "stop_offset": 0,
     "stop_order": 0,
     "time_repaired": 0,

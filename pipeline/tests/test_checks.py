@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -57,6 +58,64 @@ def test_anomalies_above_tolerance_block_the_day(wednesday_state: PipelineState)
 def test_friday_counts_the_truncated_night_trip(friday_state: PipelineState) -> None:
     report = _build_report(friday_state, anomaly_tolerance=1.0)
     assert report.anomalies["truncated_after_28h"] == 1
+
+
+def _report_with_wrong_lengths(
+    state: PipelineState, *shape_ids: str, **kwargs: object
+) -> CheckReport:
+    """The sample day, with the feed's ``shape_dist_traveled`` 5 % off on the given shapes."""
+    shapes = {
+        shape_id: replace(shape, feed_length_m=shape.length_m * 1.05)
+        if shape_id in shape_ids
+        else shape
+        for shape_id, shape in state.shapes.items()
+    }
+    patterns = trip_patterns(state.day)
+    projections = project_patterns(set(patterns.values), state.shapes, state.feed.stops)
+    return check_build(_bundle(state), state.day, patterns, projections, shapes, **kwargs)
+
+
+def test_a_wrong_shape_length_on_one_trip_does_not_block_the_day(
+    wednesday_state: PipelineState,
+) -> None:
+    # shpC carries T4 alone. The real feed of 2026-10-02 had a metro variant like this one: a
+    # single trip a day on a shape missing 378 m of geometry, which refused the whole day.
+    report = _report_with_wrong_lengths(wednesday_state, "shpC", anomaly_tolerance=0.2)
+    assert report.ok, report.blocking
+    assert report.anomalies["shape_length"] == 1
+    assert report.info["shape_length_shapes"] == "shpC"
+
+
+def test_a_wrong_shape_length_is_counted_in_trips_not_in_shapes(
+    wednesday_state: PipelineState,
+) -> None:
+    # shpB carries T2 and T10: one shape, two trips, above 0.2 of nine trips.
+    report = _report_with_wrong_lengths(wednesday_state, "shpB", anomaly_tolerance=0.2)
+    assert report.anomalies["shape_length"] == 2
+    assert not report.ok
+    assert any("shape_length" in message and "shpB" in message for message in report.blocking)
+
+
+def test_a_shape_without_a_distance_in_the_feed_is_not_counted(
+    wednesday_state: PipelineState,
+) -> None:
+    shapes = {
+        shape_id: replace(shape, feed_length_m=None)
+        for shape_id, shape in wednesday_state.shapes.items()
+    }
+    patterns = trip_patterns(wednesday_state.day)
+    projections = project_patterns(
+        set(patterns.values), wednesday_state.shapes, wednesday_state.feed.stops
+    )
+    report = check_build(
+        _bundle(wednesday_state),
+        wednesday_state.day,
+        patterns,
+        projections,
+        shapes,
+        anomaly_tolerance=1.0,
+    )
+    assert report.anomalies["shape_length"] == 0
 
 
 def test_counts_must_match_the_direct_count(wednesday_state: PipelineState) -> None:
