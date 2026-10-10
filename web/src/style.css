@@ -831,6 +831,12 @@ main.map {
   scrollbar-width: thin;
 }
 
+/* Inside the sheet, so the ring is not clipped by the rounded corners of the dialog. */
+.guide__sheet:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -4px;
+}
+
 /* Two classes, to win over the round button it borrows, which is written further down. */
 .guide .guide__close {
   position: absolute;

@@ -86,6 +86,11 @@ export function createCoverageGuide(parent: HTMLElement): CoverageGuide {
   dialog.setAttribute("aria-labelledby", TITLE_ID);
   const sheet = document.createElement("div");
   sheet.className = "guide__sheet";
+  // The sheet scrolls and holds no control of its own: a tab stop lets a keyboard read past the
+  // first screen, and the region gives that stop a name.
+  sheet.tabIndex = 0;
+  sheet.setAttribute("role", "region");
+  sheet.setAttribute("aria-labelledby", TITLE_ID);
   const close = document.createElement("button");
   close.type = "button";
   close.className = "vehicle__close guide__close";

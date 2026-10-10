@@ -36,6 +36,16 @@ afterEach(() => {
 });
 
 describe("createCoverageGuide", () => {
+  it("makes the scrolling sheet a named region a keyboard can reach", () => {
+    // The sheet scrolls and holds no control of its own: without a tab stop a keyboard cannot
+    // read past the first screen (axe: scrollable-region-focusable).
+    const { dialog } = mount();
+    const sheet = dialog.querySelector(".guide__sheet");
+    expect(sheet?.getAttribute("tabindex")).toBe("0");
+    expect(sheet?.getAttribute("role")).toBe("region");
+    expect(sheet?.getAttribute("aria-labelledby")).toBe(dialog.getAttribute("aria-labelledby"));
+  });
+
   it("stays closed until asked, and closes from its own button", () => {
     const { guide, dialog } = mount();
     expect(dialog.open).toBe(false);
