@@ -60,13 +60,18 @@ export function createAbout(parent: HTMLElement, info: AboutInfo): About {
     ...shortcut(fr.keyEscape, fr.keyEscapeMeaning),
   );
 
-  const licence = document.createElement("a");
-  licence.href = "https://creativecommons.org/licenses/by/4.0/deed.fr";
-  licence.target = "_blank";
-  licence.rel = "noopener";
-  licence.textContent = fr.aboutLicence;
+  const licenceLink = (): HTMLAnchorElement => {
+    const link = document.createElement("a");
+    link.href = "https://creativecommons.org/licenses/by/4.0/deed.fr";
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = fr.aboutLicence;
+    return link;
+  };
   const data = paragraph(`${info.attribution}. `);
-  data.append(licence);
+  data.append(licenceLink());
+  const residents = paragraph(`${fr.aboutResidents} `);
+  residents.append(licenceLink());
 
   const source = document.createElement("a");
   source.href = info.repositoryUrl;
@@ -83,6 +88,7 @@ export function createAbout(parent: HTMLElement, info: AboutInfo): About {
     heading(fr.aboutData),
     data,
     paragraph(`${fr.aboutFeed} ${info.feedVersion}`),
+    residents,
     paragraph(fr.aboutBasemap),
     heading(fr.aboutColours),
     paragraph(fr.sharedColoursNote),
@@ -90,6 +96,10 @@ export function createAbout(parent: HTMLElement, info: AboutInfo): About {
     paragraph(fr.speedsNote),
     paragraph(fr.speedsNoteWhy),
     paragraph(fr.speedsNoteGrey),
+    // The question the view answers, then the way to its notice: the method lives there once.
+    heading(fr.aboutCoverage),
+    paragraph(fr.guideLead),
+    paragraph(fr.aboutCoverageGuide),
     heading(fr.shortcutsTitle),
     shortcuts,
     sourceLine,

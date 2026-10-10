@@ -47,6 +47,7 @@ describe("readUrlState", () => {
     expect(readUrlState("?network=speed")).toEqual({ network: "speed" });
     expect(readUrlState("?network=relative")).toEqual({ network: "relative" });
     expect(readUrlState("?network=runs")).toEqual({ network: "runs" });
+    expect(readUrlState("?network=coverage")).toEqual({ network: "coverage" });
     expect(readUrlState("?network=delays")).toEqual({});
   });
 

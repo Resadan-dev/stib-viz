@@ -7,7 +7,7 @@
  */
 
 import { MapboxOverlay } from "@deck.gl/mapbox";
-import type { Layer } from "@deck.gl/core";
+import type { Layer, PickingInfo } from "@deck.gl/core";
 import { Map as MapLibreMap, setWorkerUrl, type StyleSpecification } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
@@ -15,11 +15,16 @@ import { BRUSSELS_VIEW } from "../theme/colors";
 import { easeDurationMs } from "../theme/motion";
 import { devicePixels } from "./quality";
 
+/** What deck.gl shows beside the pointer: plain text only, never HTML built from data. */
+export type MapTooltip = { text: string; style?: Partial<CSSStyleDeclaration> } | null;
+
 export interface MapView {
   map: MapLibreMap;
   setLayers(layers: Layer[]): void;
   /** Called for a click that lands on no deck.gl object: the way to clear a selection. */
   onEmptyClick(handler: () => void): void;
+  /** What to show beside the pointer, for whatever deck.gl object lies under it. */
+  setTooltip(describe: (info: PickingInfo) => MapTooltip): void;
   /** Called when the person starts dragging the map, which ends any camera follow. */
   onUserDrag(handler: () => void): void;
   /** Eases the camera onto a point, zooming in when the view is too wide to see one vehicle. */
@@ -91,6 +96,9 @@ export function createMapView(
           }
         },
       });
+    },
+    setTooltip(describe) {
+      overlay.setProps({ getTooltip: describe });
     },
     onUserDrag(handler) {
       map.on("dragstart", handler);

@@ -18,4 +18,10 @@ describe("French UI copy", () => {
       expect(value, `key ${key}`).not.toMatch(/'/);
     }
   });
+
+  it("has no em dash: a comma, a colon or two sentences say it better", () => {
+    for (const [key, value] of Object.entries(fr)) {
+      expect(value, `key ${key}`).not.toContain("—");
+    }
+  });
 });

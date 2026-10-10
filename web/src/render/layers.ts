@@ -24,7 +24,7 @@ export const SELECTION_RADIUS_PX = 9;
 
 // Everything is drawn on top of the basemap in insertion order; depth testing would let the
 // network hide trails that share its geometry.
-const FLAT = { depthCompare: "always" } as const;
+export const FLAT = { depthCompare: "always" } as const;
 
 export interface BinaryAttribute<T> {
   value: T;

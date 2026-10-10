@@ -50,7 +50,7 @@ stib-viz/
 ├── pipeline/                     Python 3.12, uv, ruff, pytest
 │   ├── pyproject.toml
 │   ├── src/stibviz/
-│   │   ├── cli.py                stibviz fetch | plan | build | week | check | index
+│   │   ├── cli.py                stibviz fetch | plan | build | week | check | index | residents
 │   │   ├── fetch.py              GTFS download with ETag and digest
 │   │   ├── gtfs.py               table reading and validation
 │   │   ├── service_day.py        date → active services → trips of the 04:00-04:00 day
@@ -64,7 +64,12 @@ stib-viz/
 │   │   ├── stats.py              per-minute series, kilometres, routes
 │   │   ├── encode.py             binary slices, stop files, vehicles and manifest writing
 │   │   ├── checks.py             quality checks, thresholds, per-object anomalies
-│   │   └── build.py              one day from feed to checked bundle, steps 3 to 13 in order
+│   │   ├── build.py              one day from feed to checked bundle, steps 3 to 14 in order
+│   │   ├── coverage.py           how well each hour serves the residents of every municipality
+│   │   ├── lambert2008.py        Belgian Lambert 2008 to and from longitude and latitude
+│   │   ├── residents.py          Statbel sectors and population to the reference of residents
+│   │   └── reference/brussels.json   the reference: 50 m grid, residents, municipalities and
+│   │                                 their borders, rebuilt once a year (docs/03, D27)
 │   ├── tools/make_extract.py     cuts the test extract out of the full feed
 │   └── tests/
 │       ├── fixtures/gtfs-extract/   real three-route extract (metro 1, tram 7, Noctis N06 on
@@ -127,8 +132,9 @@ pipeline code.
 | 9. Slices | `slicing` | trajectories → at most 24 slices per mode | Slice `h` holds the portions active in `[h − 300 s, h + 1 h + 120 s)`, cut by interpolation at the bounds. Upstream overlap is sized by trail length, downstream overlap by switching latency. Only non-empty slices are written; the manifest list is authoritative |
 | 10. Network and v2 table | `network` | simplified original shapes + trips → stop-to-stop segments with run counts; stop dictionary; lookup table | Five intensity classes; metro carries an "underground" flag. The lookup table (section 5.7) is not read by the v1 site |
 | 11. Statistics | `stats` | trips, vehicles → counters | Per mode and per minute (1,440 values): active vehicles, trips departed since 04:00 cumulatively, kilometres covered since 04:00 cumulatively; route list with colours |
-| 12. Encoding | `encode` | everything → files under `dist/data/<date>/` | See section 5 |
-| 13. Checks | `checks` | produced files → report | See section 4.3 |
+| 12. Coverage | `coverage` | trips, stops, reference of residents → per cell and hour, departures per direction within reach and a class; per municipality and for the Region, residents per class, median departures, resident-hours | Departures per direction: each route counts for its busier direction at a place, routes add up. Reach 400 m (bus, tram, Noctis) and 800 m (metro) as the crow flies; the best place per group, then the two groups added. Classes at 4, 10 and 20 departures. Whole residents and departures only; the site divides. docs/03-commune-coverage.md, D10 to D31 |
+| 13. Encoding | `encode` | everything → files under `dist/data/<date>/` | See section 5 |
+| 14. Checks | `checks` | produced files → report | See section 4.3; the coverage must count every resident of the reference once, and its files must agree with one another |
 
 ### 4.3 Quality checks
 
@@ -187,7 +193,16 @@ stibviz build  --gtfs cache/gtfs.zip --date 2026-09-09 --out dist/data/
 stibviz week   --gtfs cache/gtfs.zip --out dist/data/ --published published.json --report r.txt
 stibviz check  --day dist/data/2026-09-09/
 stibviz index  --data dist/data/                 writes dist/data/index.json
+stibviz residents --sectors <Statbel sectors zip> --population <Statbel population zip>
+                                                 writes src/stibviz/reference/brussels.json
 ```
+
+`residents` runs once a year, by hand, when Statbel publishes a new population by statistical
+sector (in the autumn, for 1 January of that year). It needs the statistical sectors as a GeoJSON
+zip in Belgian Lambert 2008 (EPSG:3812) and the population by sector, "NEW" division, both CC BY
+4.0 from statbel.fgov.be. The result is committed; no other command downloads anything from
+Statbel. `--population-date` gives the reference date when the file name carries no year.
+docs/03-commune-coverage.md records how the reference is built and why (D27 to D31).
 
 `week` is what the nightly run calls: plan, one build and check per day, removal of the days
 that left the window, index. `--today` moves the window, `--days-before` and `--days-after`
@@ -216,6 +231,11 @@ dist/data/
 ├── index.json                       available days, feed version, generation date
 ├── network/<feed-version>.json      network layer and stop dictionary, shared
 ├── lookup/<feed-version>.json       v2 lookup table, not read by the v1 site
+├── coverage/                        how well the STIB serves the residents (section 5.9)
+│   ├── municipalities-<digest>.json names, residents, borders, grid bounds; from the reference
+│   ├── cells-<digest>.bin           municipality of every grid cell and the drawn mask
+│   ├── <feed-version>-<digest>.json one day's figures per municipality and for the Region
+│   └── <feed-version>-<digest>-hours.bin   one day's class and departures per cell and hour
 └── 2026-09-09/
     ├── manifest.json                statistics, routes, slice index
     ├── vehicles.json                vehicles and their trips, read when the panel opens
@@ -377,6 +397,55 @@ middle of the day.
 Written by v1, read only by the v2 real-time converter: for each shape, the ordered list of its
 stops with their distance along the shape; for each route and direction, the candidate shapes.
 It is the only artefact the recorder will need beyond the pipeline modules.
+
+### 5.9 Coverage of the residents `coverage/`
+
+How well the STIB serves the residents of the 19 municipalities, hour by hour; the method and
+every choice behind it are in [docs/03-commune-coverage.md](docs/03-commune-coverage.md). The
+manifest names the day's figures under `coverage`, a day built without a reference of residents
+names none, and the site then offers no coverage view. Four files, every name a digest of its
+content:
+
+- `coverage/<feed-version>-<digest>.json`, the day's figures, whole numbers only (the site
+  divides and rounds once):
+
+  ```json
+  { "feed_version": "2_20_20260831_010702", "first_hour": 4, "hours": 24,
+    "thresholds": [4, 10, 20], "reach_m": [400, 800], "place_m": 250,
+    "drawn_min_residents": 0.5,
+    "municipalities_file": "coverage/municipalities-ef625294b25f.json",
+    "cells_file": "coverage/cells-bf5ff304172a.bin",
+    "hours_file": "coverage/2_20_20260831_010702-34c386fd9a5c-hours.bin",
+    "region": { "residents": 1252352, "classes": [[1252352, 0, 0, 0, 0], "…"],
+                "median": [0, "…"], "resident_hours": "…" },
+    "municipalities": [ { "residents": 128358, "classes": "…", "median": "…",
+                          "resident_hours": "…" }, "…" ] }
+  ```
+
+  `classes` holds, for each of the 24 hours from `first_hour`, the residents in the classes none,
+  low (under 4 departures per direction), medium (4 to 10), high (11 to 20) and very high (over
+  20). `median` is the departures per direction within reach of the median resident, and
+  `resident_hours` the residents times the hours spent above 10, summed over the day. The
+  municipalities come in the order of the municipalities file.
+- `coverage/municipalities-<digest>.json`: the grid's `bounds` (west, south, east, north, in
+  degrees) with `nx` and `ny`, then each municipality's `code`, `name`, `name_nl`, `residents`
+  and `label` point, the `borders` as polylines each with the one or two municipalities along
+  it, and the `sources` with their licence (Statbel, CC BY 4.0). It changes only with the
+  reference, so a year of immutable caching is safe.
+- `coverage/cells-<digest>.bin`, format `SCC1`, gzip-compressed inside the file because Cloudflare
+  does not compress binary responses: a header of 4 × Uint32 (magic `0x53434331`, version, `nx`,
+  `ny`), then one byte per cell for its municipality (0 outside the Region, 1 to 19 in the order
+  of the municipalities file) and one byte per cell for the drawn mask (1 where the cell holds at
+  least half a resident). Cells run in image order: rows from the north, each row from west to
+  east. Measured: 5.5 KB.
+- `coverage/<feed-version>-<digest>-hours.bin`, format `SCH1`, gzip-compressed the same way: a
+  header of 6 × Uint32 (magic `0x53434831`, version, drawn cells `N`, hours, first hour, 0), then
+  the class of every drawn cell hour after hour (Uint8 × hours × N) and its departures per
+  direction within reach, capped at 255, in the same order. Drawn cells follow the image order of
+  the cells file. Measured on the Wednesday of 9 September 2026: 233 KB.
+
+The site fetches all four the first time the coverage view is opened, never before, as it does
+for the hourly speeds.
 
 ## 6. The site
 
@@ -541,10 +610,57 @@ and heights are measured in `dvh` so the phone address bar cannot cut the sheet 
 
 The palette is held to WCAG 2.2 AA by a unit test that reads the tokens out of `style.css` and
 measures each against the panel background; the smoke suite runs an axe audit of the page, of the
-vehicle panel, of the about dialog and of the line picker, and walks every control to check it
-takes focus with a visible ring. Route badges keep the text colour of the feed only when it
-reaches 4.5:1 on the route colour, and take black or white otherwise. Mode filters are pills rather than bare checkboxes so their pointer targets keep the
-24 pixels of clearance success criterion 2.5.8 asks for.
+vehicle panel, of the about dialog, of the coverage notice and of the line picker, and walks
+every control to check it takes focus with a visible ring. Route badges keep the text colour of
+the feed only when it reaches 4.5:1 on the route colour, and take black or white otherwise. Mode
+filters are pills rather than bare checkboxes so their pointer targets keep the 24 pixels of
+clearance success criterion 2.5.8 asks for.
+
+### 6.7 The coverage view
+
+The fourth reading of the network, "Desserte", in the URL as `network=coverage`. It is offered
+only when the day's manifest names a coverage (section 5.9); a URL asking for it on a day without
+one falls back to the runs. docs/03-commune-coverage.md records every choice behind it.
+
+**Loading.** `data/coverage.ts` fetches the four files the first time the view is opened, never
+before, and inflates the two grids with `DecompressionStream`. A failure is said in the status
+line and tried again the next time the view is opened, never on every frame. Only
+`isSpeedView` views fetch the hourly speeds, so this one does not.
+
+**On the map** (`render/coverage.ts`):
+
+- The network layer is not drawn.
+- The grid of the displayed hour is one `BitmapLayer` over the grid's bounds, sampled nearest.
+  Drawn cells take the colour of their class, and every other cell stays transparent.
+- Borders are a `PathLayer`; names are a `TextLayer`, the six longest of them shortened.
+- The vehicles keep drawing on top.
+- The grid is redrawn when the hour changes, and the outline when the municipality pointed at
+  changes, never per frame.
+
+**Colours.** One teal ramp of five steps (`COVERAGE_RAMP` in `theme/colors.ts`), checked with an
+ordinal validator on the night ground.
+
+**Pointer.** The tooltip, set through the overlay's `getTooltip` in plain text, names the
+municipality, the departures per direction within reach and the class. The same call outlines the
+municipality under the pointer.
+
+**Panel.** The legend shows five swatches, then the dark ground where almost nobody lives and the
+borders, and a button that opens the view's notice. `ui/communes.ts` lists the 19 municipalities
+under it: a stacked bar of the class shares at the hour, the share well served and the hours per
+day at that level, sorted by those hours, with the Region last. Pointing at a row, or focusing
+it, outlines the municipality. On a phone the table, the two extra keys and the button live in
+the unfolded sheet only.
+
+**Notice.** `ui/coverage-guide.ts` is a modal `<dialog>` in a slot of its own outside the panel,
+since a folded phone sheet hides what the panel holds: what is on the map, the rhythm each class
+means, what the figures measure and what they leave out. It is translucent (`--glass`, a light
+blur), so only the full ink and the accent are written on it; a unit test measures both over the
+brightest class of the grid, and visitors who ask for reduced transparency get a solid ground.
+It closes from its button, with Escape, or with a click beside it. While one of the page's own
+dialogs is open (those under the app's root), `ui/keyboard.ts` leaves every key to it, so Escape
+closes the dialog and does nothing else; a dialog another script adds to the document silences
+nothing. The about dialog keeps the view's question and points to the notice, which holds the
+method once.
 
 ## 7. Integration
 

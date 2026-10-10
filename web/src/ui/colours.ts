@@ -33,13 +33,15 @@ export interface NetworkToggle {
 }
 
 /**
- * The three readings of the network layer, as one group of pressed-state buttons: how often it
- * is run, how fast the timetable is over it at this hour, and how far that hour is from the
- * habit of the segment itself.
+ * The readings of the network layer, as one group of pressed-state buttons: how often it is run,
+ * how fast the timetable is over it at this hour, how far that hour is from the habit of the
+ * segment itself, and how well it serves the residents. A day without coverage offers no button
+ * for it, which is why the views are given.
  */
 export function createNetworkViews(
   parent: HTMLElement,
   onChange: (view: NetworkView) => void,
+  views: readonly NetworkView[] = NETWORK_VIEWS,
 ): NetworkToggle {
   const wrapper = document.createElement("div");
   wrapper.className = "views";
@@ -54,9 +56,10 @@ export function createNetworkViews(
     runs: fr.networkRuns,
     speed: fr.networkSpeed,
     relative: fr.networkDeviation,
+    coverage: fr.networkCoverage,
   };
   const buttons = new Map<NetworkView, HTMLButtonElement>();
-  for (const view of NETWORK_VIEWS) {
+  for (const view of views) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "views__button";

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_START_TIME_S, allModes, initialState } from "../../src/state/app-state";
+import {
+  DEFAULT_START_TIME_S,
+  NETWORK_VIEWS,
+  allModes,
+  initialState,
+  isSpeedView,
+} from "../../src/state/app-state";
 import { formatClock } from "../../src/time/clock";
 
 describe("initialState", () => {
@@ -31,5 +37,11 @@ describe("initialState", () => {
 describe("allModes", () => {
   it("builds a visibility record for the four modes", () => {
     expect(allModes(false)).toEqual({ metro: false, tram: false, bus: false, noctis: false });
+  });
+});
+
+describe("isSpeedView", () => {
+  it("is true for the two views drawn from the hourly speeds, and only for them", () => {
+    expect(NETWORK_VIEWS.filter(isSpeedView)).toEqual(["speed", "relative"]);
   });
 });

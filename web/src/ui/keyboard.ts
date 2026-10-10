@@ -17,10 +17,19 @@ const MINUTE_S = 60;
  * Space plays and pauses; arrows step one minute, ten with Shift; one digit per speed;
  * Escape clears the selection (ARCHITECTURE.md, section 6.6). Fields keep every key; a focused
  * button keeps Space so it is not toggled twice, but arrows and digits still drive playback.
+ *
+ * An open dialog keeps them all: Escape closes it on its own, and should do nothing else. Only
+ * the dialogs inside `scope` count, the page's own in practice, so a dialog that another script
+ * adds to the document cannot silence the page. The whole scope is searched rather than around
+ * the target, because a click on the text of a dialog can leave the focus on the page itself.
  */
-export function bindKeyboard(target: EventTarget, handlers: KeyboardHandlers): () => void {
+export function bindKeyboard(
+  target: EventTarget,
+  handlers: KeyboardHandlers,
+  scope: ParentNode = document,
+): () => void {
   const onKeyDown = (event: Event): void => {
-    if (!(event instanceof KeyboardEvent)) {
+    if (!(event instanceof KeyboardEvent) || scope.querySelector("dialog[open]") !== null) {
       return;
     }
     const tag = event.target instanceof Element ? event.target.tagName : "";

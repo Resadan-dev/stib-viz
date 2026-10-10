@@ -196,6 +196,34 @@ export function networkColor(properties: NetworkPaint, view: NetworkView = "runs
   return [r, g, b, properties.underground ? Math.round(alpha * UNDERGROUND_ALPHA_FACTOR) : alpha];
 }
 
+/**
+ * The five classes of the coverage view, none to very high (docs/03-commune-coverage.md, D34).
+ *
+ * One teal, the only hue the vehicles leave free: a blue ramp would swallow the buses and an
+ * orange one the trams. Lightness climbs by even steps of OKLCH lightness, 0.40 to 0.66, so the
+ * best-served cells are the brightest and the order reads without the hue. Checked with the
+ * ordinal validator of the data-visualisation guide on the night ground `#04060c`: monotone,
+ * steps at least 0.06 apart, the darkest at 2.27:1 against the ground. The ramp stops well below
+ * the brightness of the vehicles, which still draw on top: at its top, a tram keeps 1.8:1 and
+ * the metro 2.5:1, a bus only 1.2:1, the price of any ramp bright enough to read.
+ */
+export const COVERAGE_RAMP: readonly Rgb[] = [
+  [42, 81, 67],
+  [47, 101, 84],
+  [52, 123, 101],
+  [62, 144, 118],
+  [72, 166, 137],
+];
+/** Nearly opaque: the grid is the picture of this view, the basemap only its setting. */
+export const COVERAGE_OPACITY = 0.85;
+/** Municipal borders over the grid: the ink of the panel, half strength. */
+export const COVERAGE_BORDER: Rgba = [232, 228, 220, 130];
+/** The municipality under the pointer, or under a row of the table: the warm accent. */
+export const COVERAGE_HIGHLIGHT: Rgba = [255, 232, 196, 255];
+export const COVERAGE_LABEL: Rgba = [232, 228, 220, 255];
+/** The night ground behind every name, so it reads on any class. */
+export const COVERAGE_LABEL_OUTLINE: Rgba = [4, 6, 12, 230];
+
 /** The contrast a badge's number must keep on its route colour: WCAG AA for normal text. */
 export const MIN_BADGE_CONTRAST = 4.5;
 

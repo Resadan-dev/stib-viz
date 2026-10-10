@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from tests.conftest import PipelineState
-from tests.test_encode import _bundle
+from tests.test_encode import _bundle, _bundle_with_coverage
 
 from stibviz.checks import (
     ANOMALY_TOLERANCE,
@@ -18,7 +18,7 @@ from stibviz.checks import (
     check_build,
     check_day_dir,
 )
-from stibviz.encode import write_day
+from stibviz.encode import DayBundle, encode_coverage_hours, write_day
 from stibviz.shapes import project_patterns, trip_patterns
 
 
@@ -178,6 +178,64 @@ def test_malformed_manifest_is_blocking(wednesday_state: PipelineState, tmp_path
     report = check_day_dir(day_dir)
     assert not report.ok
     assert any("per_minute" in message for message in report.blocking)
+
+
+def _coverage_report(bundle: DayBundle, state: PipelineState) -> CheckReport:
+    patterns = trip_patterns(state.day)
+    projections = project_patterns(set(patterns.values), state.shapes, state.feed.stops)
+    return check_build(
+        bundle, state.day, patterns, projections, state.shapes, anomaly_tolerance=1.0
+    )
+
+
+def test_a_day_with_coverage_passes_the_build_and_file_checks(
+    wednesday_state: PipelineState, tmp_path: Path
+) -> None:
+    bundle = _bundle_with_coverage(wednesday_state)
+    report = _coverage_report(bundle, wednesday_state)
+    assert report.ok, report.blocking
+    assert bundle.coverage is not None
+    assert report.info["coverage_cells"] == bundle.coverage.classes.shape[1]
+    write_day(bundle, tmp_path)
+    verdict = check_day_dir(tmp_path / "2026-09-09")
+    assert verdict.ok, verdict.blocking
+
+
+def test_coverage_that_loses_residents_is_blocking(wednesday_state: PipelineState) -> None:
+    bundle = _bundle_with_coverage(wednesday_state)
+    assert bundle.coverage is not None
+    region = replace(bundle.coverage.region, residents=2000)
+    broken = replace(bundle, coverage=replace(bundle.coverage, region=region))
+    report = _coverage_report(broken, wednesday_state)
+    assert any("coverage" in message and "3000" in message for message in report.blocking)
+
+
+def test_a_missing_coverage_file_is_blocking(
+    wednesday_state: PipelineState, tmp_path: Path
+) -> None:
+    manifest = write_day(_bundle_with_coverage(wednesday_state), tmp_path)
+    stats = json.loads((tmp_path / manifest["coverage"]).read_text(encoding="utf-8"))
+    (tmp_path / stats["hours_file"]).unlink()
+    report = check_day_dir(tmp_path / "2026-09-09")
+    assert not report.ok
+    assert any("hours_file" in message for message in report.blocking)
+
+
+def test_coverage_hours_that_disagree_with_the_cells_are_blocking(
+    wednesday_state: PipelineState, tmp_path: Path
+) -> None:
+    bundle = _bundle_with_coverage(wednesday_state)
+    manifest = write_day(bundle, tmp_path)
+    stats = json.loads((tmp_path / manifest["coverage"]).read_text(encoding="utf-8"))
+    assert bundle.coverage is not None
+    short = replace(
+        bundle.coverage,
+        classes=bundle.coverage.classes[:, 1:],
+        departures=bundle.coverage.departures[:, 1:],
+    )
+    (tmp_path / stats["hours_file"]).write_bytes(encode_coverage_hours(short))
+    report = check_day_dir(tmp_path / "2026-09-09")
+    assert any("drawn cells" in message for message in report.blocking)
 
 
 def test_missing_manifest_is_blocking(tmp_path: Path) -> None:
